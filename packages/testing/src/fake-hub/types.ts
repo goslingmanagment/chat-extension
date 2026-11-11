@@ -304,10 +304,21 @@ export type FakeHubCommand =
   | { readonly op: 'messageAuthor'; readonly pageLabel: string; readonly fanRef: string; readonly messageId: string; readonly login: string; readonly at: string; readonly how?: string; readonly edited?: boolean }
   /** 2026-11-03: a message of the fan the page's socket saw deleted, as `clientDeletedMessages` answers it (`text` null — none kept). */
   | { readonly op: 'deletedMessage'; readonly pageLabel: string; readonly fanRef: string; readonly messageId: string; readonly text: string | null; readonly deletedAt: string; readonly sentAt?: string; readonly attachments?: number; readonly groupId?: string }
-  /** 2026-11-08: a chat's length as the hub's sync chain knows it (`messages`/`firstMessageAt` null — not proven from its first message). */
-  | { readonly op: 'chatLength'; readonly pageLabel: string; readonly fanRef: string; readonly groupId: string; readonly messages: number | null; readonly firstMessageAt: string | null }
+  /** 2026-11-08: a chat's length as the hub's sync chain knows it (`messages`/`firstMessageAt` null — not proven from its first message).
+   * 2026-11-11: `authors` — who wrote it, as `chat.authors` answers it (absent: none, like a hub before it). */
+  | { readonly op: 'chatLength'; readonly pageLabel: string; readonly fanRef: string; readonly groupId: string; readonly messages: number | null; readonly firstMessageAt: string | null; readonly authors?: FakeChatAuthorsSeed }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
+
+/**
+ * 2026-11-11: who wrote a seeded chat (`chatLength.authors`): each chatter by login and count (`isMe` — the signed-in
+ * person), the fan's count and the page's messages with no known author; the last two null while the chat's count is.
+ */
+export interface FakeChatAuthorsSeed {
+  readonly chatters: readonly { readonly name: string; readonly messages: number; readonly isMe?: boolean }[];
+  readonly fan: number | null;
+  readonly unattributed: number | null;
+}
 
 /** «Очереди» (fan-queues.ts): one report of a fan's outcome, as the hub journals it (ids, a word of a closed list, a time; never a text). */
 export interface FakeFanQueueDone {

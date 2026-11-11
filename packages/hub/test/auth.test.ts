@@ -100,11 +100,13 @@ describe('[AU-001] [AU-005] [AU-006] [AU-008] [HB-004] sign-in with login and pa
 });
 
 describe('[AU-002] a pending answer is never stored', () => {
-  it('[AU-002] refuses with CG-LOGIN-PENDING and keeps nothing', async () => {
+  // The hub retired pending reservations (hub #1192, 2026-11-11): its SDK no longer reads such an answer, so the
+  // sign-in fails as a hub answer that does not read, before the facade's own guard. What matters stays: nothing kept.
+  it('[AU-002] refuses a pending answer and keeps nothing', async () => {
     h.hub.on('authIssueDeviceTokenWithPassword', () =>
       json(200, { mode: 'pending', token: 'cgx_pending_0001', reservationId: 3, label: 'x', keyPrefix: 'cgx_pend', reservationExpiresAt: at(600) }),
     );
-    expect(await codeOf(h.facade.signIn(WORLD.user.username, PASSWORD))).toBe('CG-LOGIN-PENDING');
+    expect(await codeOf(h.facade.signIn(WORLD.user.username, PASSWORD))).toBe('CG-HUB-REQUEST');
     expect(h.local.writes).toEqual([]);
     expect(h.facade.session()).toBeNull();
     expect(h.hub.of('me')).toEqual([]);

@@ -1542,6 +1542,33 @@ export declare const CLIENT_DELETED_MESSAGES_MAX = 50;
 export declare const clientDeletedMessagesQuerySchema: z.ZodObject<{
     conversationRef: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>;
+/** The most chatters `chat.authors` names, the most messages first. */
+export declare const CLIENT_CHAT_LENGTH_CHATTERS_MAX = 50;
+/**
+ * Who wrote the chat's messages (owner, 2026-11-11: «кто из чатеров сколько
+ * сообщений оставил», in the same card).
+ *
+ * `chatters`: the page's messages of this chat by the person who sent them
+ * (send-attribution-v1: recorded from 2026-10-24, only for a send made through
+ * the chat extension), the most messages first. Exact whatever the history's
+ * state.
+ *
+ * `fan` and `unattributed` split the rest and need the whole chat: both null
+ * while `messages` is null. `unattributed` is the page's messages with no
+ * known author: a mass message, a send from outside the extension, anything
+ * before authors were recorded. When they are not null, `fan`, `unattributed`
+ * and the chatters' counts add up to `messages`.
+ */
+export declare const clientChatAuthorsSchema: z.ZodObject<{
+    chatters: z.ZodArray<z.ZodObject<{
+        userId: z.ZodNumber;
+        name: z.ZodString;
+        isMe: z.ZodBoolean;
+        messages: z.ZodNumber;
+    }, z.core.$strip>>;
+    fan: z.ZodNullable<z.ZodNumber>;
+    unattributed: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strip>;
 /**
  * The length of the fan's chat with the page, for the chat header: how many
  * messages it ever had and since when. Exact or nothing: both stay null until
@@ -1553,6 +1580,16 @@ export declare const clientChatLengthSchema: z.ZodObject<{
     conversationRef: z.ZodString;
     messages: z.ZodNullable<z.ZodNumber>;
     firstMessageAt: z.ZodNullable<z.ZodString>;
+    authors: z.ZodOptional<z.ZodObject<{
+        chatters: z.ZodArray<z.ZodObject<{
+            userId: z.ZodNumber;
+            name: z.ZodString;
+            isMe: z.ZodBoolean;
+            messages: z.ZodNumber;
+        }, z.core.$strip>>;
+        fan: z.ZodNullable<z.ZodNumber>;
+        unattributed: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const clientDeletedMessagesResponseSchema: z.ZodObject<{
     pageLabel: z.ZodString;
@@ -1570,6 +1607,16 @@ export declare const clientDeletedMessagesResponseSchema: z.ZodObject<{
         conversationRef: z.ZodString;
         messages: z.ZodNullable<z.ZodNumber>;
         firstMessageAt: z.ZodNullable<z.ZodString>;
+        authors: z.ZodOptional<z.ZodObject<{
+            chatters: z.ZodArray<z.ZodObject<{
+                userId: z.ZodNumber;
+                name: z.ZodString;
+                isMe: z.ZodBoolean;
+                messages: z.ZodNumber;
+            }, z.core.$strip>>;
+            fan: z.ZodNullable<z.ZodNumber>;
+            unattributed: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>>;
     }, z.core.$strip>>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -2092,6 +2139,10 @@ export declare const CLIENT_ACTIVITY_MAX_IDLE_MS: number;
 export declare const CLIENT_ACTIVITY_LOST_MINUTES = 3;
 /** Idle minutes that still count as work; from this one on it is a pause. */
 export declare const CHATTER_SHIFT_IDLE_PAUSE_MINUTES = 10;
+/** The extension silent this long after an action was closed (or the computer asleep): the idle after its last beat is no work. */
+export declare const CHATTER_SHIFT_CLOSED_SILENT_MINUTES = 10;
+/** The work before such a silence ends this long after the extension's last open minute (a beat comes once a minute). */
+export declare const CHATTER_SHIFT_CLOSED_GRACE_MINUTES = 2;
 /** Minutes without activity that end a stretch of work, the extension open or not. */
 export declare const CHATTER_SHIFT_END_IDLE_MINUTES = 60;
 /** Less work than this is a visit, not a shift. */
@@ -2100,6 +2151,12 @@ export declare const CHATTER_SHIFT_MIN_WORKED_MINUTES = 120;
 export declare const CHATTER_SHIFT_MIN_MESSAGES = 50;
 /** A piece of work (between two pauses) with fewer messages is a look-in: at a shift's start or end it is not the shift. */
 export declare const CHATTER_SHIFT_PIECE_MIN_MESSAGES = 5;
+/** The piece of work next to a shift's start or end, closer than this to it, is the shift with one of the person's messages at least. */
+export declare const CHATTER_SHIFT_EDGE_NEAR_MINUTES = 30;
+/** Pieces at a shift's edge at most this far apart are one block: the block is the shift with CHATTER_SHIFT_PIECE_MIN_MESSAGES. */
+export declare const CHATTER_SHIFT_EDGE_BLOCK_GAP_MINUTES = 20;
+/** A look-in with CHATTER_SHIFT_PIECE_MIN_MESSAGES that ended at most this long before a shift began is its start. */
+export declare const CHATTER_SHIFT_LOOK_IN_JOIN_MINUTES = 90;
 /** Messages on a page in a shift that make it a page the shift worked: its sales count. */
 export declare const CHATTER_SHIFT_PAGE_MIN_MESSAGES = 10;
 /** The longest window `teamShifts` reads. */
@@ -3095,229 +3152,12 @@ export declare const teamCustomsResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
-/** Chat Memory week 4: a chatter's mark on a sale of the draft shift report. */
-export declare const SHIFT_REPORT_MARKS: readonly ["mine", "share", "not_mine"];
-/** How far back the cabinet's shift report reaches. */
-export declare const SHIFT_REPORT_MAX_DAYS = 14;
-/** The longest owner's window (disputes, export). */
-export declare const SHIFT_REPORT_EXPORT_MAX_DAYS = 31;
-export declare const shiftReportSaleSchema: z.ZodObject<{
-    saleRef: z.ZodString;
-    pageLabel: z.ZodString;
-    platform: z.ZodString;
-    kind: z.ZodString;
-    fanRef: z.ZodNullable<z.ZodString>;
-    fanName: z.ZodNullable<z.ZodString>;
-    netMills: z.ZodNumber;
-    occurredAt: z.ZodString;
-    ppvSender: z.ZodNullable<z.ZodString>;
-    ppvWithoutAuthor: z.ZodBoolean;
-    writers: z.ZodArray<z.ZodObject<{
-        username: z.ZodString;
-        messages: z.ZodNumber;
-    }, z.core.$strip>>;
-    withoutAuthor: z.ZodNumber;
-    confirmed: z.ZodBoolean;
-    myMark: z.ZodNullable<z.ZodObject<{
-        mark: z.ZodString;
-        shareWithUserId: z.ZodNullable<z.ZodNumber>;
-        shareWith: z.ZodNullable<z.ZodString>;
-        amountMills: z.ZodNullable<z.ZodNumber>;
-        note: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-    otherMarks: z.ZodArray<z.ZodObject<{
-        username: z.ZodString;
-        mark: z.ZodString;
-        shareWith: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-export declare const accountShiftReportQuerySchema: z.ZodObject<{
-    days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-}, z.core.$strip>;
-export declare const accountShiftReportResponseSchema: z.ZodObject<{
-    shifts: z.ZodArray<z.ZodObject<{
-        visit: z.ZodBoolean;
-        startedAt: z.ZodString;
-        endedAt: z.ZodString;
-        ongoing: z.ZodBoolean;
-        pages: z.ZodArray<z.ZodString>;
-        sales: z.ZodArray<z.ZodObject<{
-            saleRef: z.ZodString;
-            pageLabel: z.ZodString;
-            platform: z.ZodString;
-            kind: z.ZodString;
-            fanRef: z.ZodNullable<z.ZodString>;
-            fanName: z.ZodNullable<z.ZodString>;
-            netMills: z.ZodNumber;
-            occurredAt: z.ZodString;
-            ppvSender: z.ZodNullable<z.ZodString>;
-            ppvWithoutAuthor: z.ZodBoolean;
-            writers: z.ZodArray<z.ZodObject<{
-                username: z.ZodString;
-                messages: z.ZodNumber;
-            }, z.core.$strip>>;
-            withoutAuthor: z.ZodNumber;
-            confirmed: z.ZodBoolean;
-            myMark: z.ZodNullable<z.ZodObject<{
-                mark: z.ZodString;
-                shareWithUserId: z.ZodNullable<z.ZodNumber>;
-                shareWith: z.ZodNullable<z.ZodString>;
-                amountMills: z.ZodNullable<z.ZodNumber>;
-                note: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>>;
-            otherMarks: z.ZodArray<z.ZodObject<{
-                username: z.ZodString;
-                mark: z.ZodString;
-                shareWith: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>>;
-        }, z.core.$strip>>;
-        creditedMills: z.ZodNumber;
-        unmarked: z.ZodNumber;
-        pending: z.ZodNumber;
-        confirmedAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-    sharedWithMe: z.ZodArray<z.ZodObject<{
-        saleRef: z.ZodString;
-        pageLabel: z.ZodString;
-        platform: z.ZodString;
-        kind: z.ZodString;
-        fanRef: z.ZodNullable<z.ZodString>;
-        fanName: z.ZodNullable<z.ZodString>;
-        netMills: z.ZodNumber;
-        occurredAt: z.ZodString;
-        ppvSender: z.ZodNullable<z.ZodString>;
-        ppvWithoutAuthor: z.ZodBoolean;
-        writers: z.ZodArray<z.ZodObject<{
-            username: z.ZodString;
-            messages: z.ZodNumber;
-        }, z.core.$strip>>;
-        withoutAuthor: z.ZodNumber;
-        confirmed: z.ZodBoolean;
-        myMark: z.ZodNullable<z.ZodObject<{
-            mark: z.ZodString;
-            shareWithUserId: z.ZodNullable<z.ZodNumber>;
-            shareWith: z.ZodNullable<z.ZodString>;
-            amountMills: z.ZodNullable<z.ZodNumber>;
-            note: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>>;
-        otherMarks: z.ZodArray<z.ZodObject<{
-            username: z.ZodString;
-            mark: z.ZodString;
-            shareWith: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>>;
-    }, z.core.$strip>>;
-    teammates: z.ZodArray<z.ZodObject<{
-        userId: z.ZodNumber;
-        username: z.ZodString;
-    }, z.core.$strip>>;
-    serverNow: z.ZodString;
-}, z.core.$strip>;
-export declare const accountShiftReportMarkBodySchema: z.ZodObject<{
-    saleRef: z.ZodString;
-    mark: z.ZodEnum<{
-        mine: "mine";
-        share: "share";
-        not_mine: "not_mine";
-    }>;
-    shareWithUserId: z.ZodOptional<z.ZodNumber>;
-    amountMills: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-    note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-}, z.core.$strict>;
-export declare const accountShiftReportConfirmBodySchema: z.ZodObject<{
-    startedAt: z.ZodString;
-}, z.core.$strict>;
-export declare const accountShiftReportChangeResponseSchema: z.ZodObject<{
-    changed: z.ZodBoolean;
-    serverNow: z.ZodString;
-}, z.core.$strip>;
-export declare const teamShiftDisputesQuerySchema: z.ZodObject<{
-    days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-}, z.core.$strip>;
-export declare const teamShiftDisputesResponseSchema: z.ZodObject<{
-    disputes: z.ZodArray<z.ZodObject<{
-        saleRef: z.ZodString;
-        pageLabel: z.ZodString;
-        platform: z.ZodString;
-        fanRef: z.ZodNullable<z.ZodString>;
-        occurredAt: z.ZodString;
-        netMills: z.ZodNumber;
-        reason: z.ZodString;
-        marks: z.ZodArray<z.ZodObject<{
-            userId: z.ZodNumber;
-            username: z.ZodString;
-            mark: z.ZodString;
-            shareWithUserId: z.ZodNullable<z.ZodNumber>;
-            shareWith: z.ZodNullable<z.ZodString>;
-            amountMills: z.ZodNullable<z.ZodNumber>;
-        }, z.core.$strip>>;
-        people: z.ZodArray<z.ZodObject<{
-            userId: z.ZodNumber;
-            username: z.ZodString;
-        }, z.core.$strip>>;
-        resolution: z.ZodNullable<z.ZodArray<z.ZodObject<{
-            userId: z.ZodNumber;
-            username: z.ZodString;
-            percent: z.ZodNumber;
-        }, z.core.$strip>>>;
-    }, z.core.$strip>>;
-    serverNow: z.ZodString;
-}, z.core.$strip>;
-export declare const teamShiftResolveParamsSchema: z.ZodObject<{
-    saleRef: z.ZodString;
-}, z.core.$strip>;
-export declare const teamShiftResolveBodySchema: z.ZodObject<{
-    shares: z.ZodArray<z.ZodObject<{
-        userId: z.ZodNumber;
-        percent: z.ZodNumber;
-    }, z.core.$strip>>;
-}, z.core.$strict>;
-export declare const teamShiftExportQuerySchema: z.ZodObject<{
-    from: z.ZodString;
-    to: z.ZodString;
-}, z.core.$strip>;
-export declare const teamShiftExportResponseSchema: z.ZodObject<{
-    from: z.ZodString;
-    to: z.ZodString;
-    rows: z.ZodArray<z.ZodObject<{
-        username: z.ZodString;
-        pageLabel: z.ZodString;
-        platform: z.ZodString;
-        shiftDate: z.ZodString;
-        creditedMills: z.ZodNumber;
-    }, z.core.$strip>>;
-    disputedOpen: z.ZodNumber;
-    ownAmounts: z.ZodArray<z.ZodObject<{
-        username: z.ZodString;
-        pageLabel: z.ZodString;
-        saleRef: z.ZodString;
-        occurredAt: z.ZodString;
-        netMills: z.ZodNumber;
-        amountMills: z.ZodNumber;
-    }, z.core.$strip>>;
-    unconfirmed: z.ZodArray<z.ZodObject<{
-        username: z.ZodString;
-        startedAt: z.ZodString;
-        endedAt: z.ZodString;
-        ongoing: z.ZodBoolean;
-    }, z.core.$strip>>;
-    lateChanges: z.ZodArray<z.ZodObject<{
-        username: z.ZodString;
-        pageLabel: z.ZodString;
-        saleRef: z.ZodString;
-        occurredAt: z.ZodString;
-        payDay: z.ZodString;
-        creditedMills: z.ZodNumber;
-        change: z.ZodEnum<{
-            added: "added";
-            removed: "removed";
-        }>;
-        at: z.ZodString;
-    }, z.core.$strip>>;
-    serverNow: z.ZodString;
-}, z.core.$strip>;
 /** Chat Memory week 5: the longest window of the chatter numbers. */
 export declare const CHATTER_NUMBERS_MAX_DAYS = 31;
-/** The eight numbers of a shift or a week (week-5.md §1); only messages with the chatter as their author count. */
+/**
+ * The eight numbers of a shift or a week (week-5.md §1); only messages with the chatter as their author count. The
+ * messages, replies, their median and the fans left without an answer are «Разбор смены»'s (shift-review-rules.ts).
+ */
 export declare const chatterNumbersSchema: z.ZodObject<{
     workedMinutes: z.ZodNumber;
     revenueMills: z.ZodNullable<z.ZodNumber>;
@@ -3339,6 +3179,8 @@ export declare const chatterNumbersSchema: z.ZodObject<{
         fix: z.ZodNumber;
         other: z.ZodNumber;
     }, z.core.$strip>;
+    textMessages: z.ZodNumber;
+    aiUnedited: z.ZodNumber;
 }, z.core.$strip>;
 export declare const teamChatterNumbersQuerySchema: z.ZodObject<{
     from: z.ZodOptional<z.ZodString>;
@@ -3372,6 +3214,8 @@ export declare const teamChatterNumbersResponseSchema: z.ZodObject<{
                 fix: z.ZodNumber;
                 other: z.ZodNumber;
             }, z.core.$strip>;
+            textMessages: z.ZodNumber;
+            aiUnedited: z.ZodNumber;
             shifts: z.ZodNumber;
             unconfirmedShifts: z.ZodNumber;
         }, z.core.$strip>;
@@ -3402,6 +3246,8 @@ export declare const teamChatterNumbersResponseSchema: z.ZodObject<{
                     fix: z.ZodNumber;
                     other: z.ZodNumber;
                 }, z.core.$strip>;
+                textMessages: z.ZodNumber;
+                aiUnedited: z.ZodNumber;
             }, z.core.$strip>;
         }, z.core.$strip>>;
     }, z.core.$strip>>;
@@ -4616,6 +4462,16 @@ export declare const clientRouteSchemas: {
                     conversationRef: z.ZodString;
                     messages: z.ZodNullable<z.ZodNumber>;
                     firstMessageAt: z.ZodNullable<z.ZodString>;
+                    authors: z.ZodOptional<z.ZodObject<{
+                        chatters: z.ZodArray<z.ZodObject<{
+                            userId: z.ZodNumber;
+                            name: z.ZodString;
+                            isMe: z.ZodBoolean;
+                            messages: z.ZodNumber;
+                        }, z.core.$strip>>;
+                        fan: z.ZodNullable<z.ZodNumber>;
+                        unattributed: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
@@ -7120,426 +6976,6 @@ export declare const clientRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly accountShiftReport: {
-        readonly auth: {
-            readonly kind: "any-session";
-        };
-        readonly tags: readonly ["client"];
-        readonly summary: "The caller's draft shift reports: their shifts, the sales on their pages and the facts of each";
-        readonly description: string;
-        readonly querystring: z.ZodObject<{
-            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                shifts: z.ZodArray<z.ZodObject<{
-                    visit: z.ZodBoolean;
-                    startedAt: z.ZodString;
-                    endedAt: z.ZodString;
-                    ongoing: z.ZodBoolean;
-                    pages: z.ZodArray<z.ZodString>;
-                    sales: z.ZodArray<z.ZodObject<{
-                        saleRef: z.ZodString;
-                        pageLabel: z.ZodString;
-                        platform: z.ZodString;
-                        kind: z.ZodString;
-                        fanRef: z.ZodNullable<z.ZodString>;
-                        fanName: z.ZodNullable<z.ZodString>;
-                        netMills: z.ZodNumber;
-                        occurredAt: z.ZodString;
-                        ppvSender: z.ZodNullable<z.ZodString>;
-                        ppvWithoutAuthor: z.ZodBoolean;
-                        writers: z.ZodArray<z.ZodObject<{
-                            username: z.ZodString;
-                            messages: z.ZodNumber;
-                        }, z.core.$strip>>;
-                        withoutAuthor: z.ZodNumber;
-                        confirmed: z.ZodBoolean;
-                        myMark: z.ZodNullable<z.ZodObject<{
-                            mark: z.ZodString;
-                            shareWithUserId: z.ZodNullable<z.ZodNumber>;
-                            shareWith: z.ZodNullable<z.ZodString>;
-                            amountMills: z.ZodNullable<z.ZodNumber>;
-                            note: z.ZodNullable<z.ZodString>;
-                        }, z.core.$strip>>;
-                        otherMarks: z.ZodArray<z.ZodObject<{
-                            username: z.ZodString;
-                            mark: z.ZodString;
-                            shareWith: z.ZodNullable<z.ZodString>;
-                        }, z.core.$strip>>;
-                    }, z.core.$strip>>;
-                    creditedMills: z.ZodNumber;
-                    unmarked: z.ZodNumber;
-                    pending: z.ZodNumber;
-                    confirmedAt: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-                sharedWithMe: z.ZodArray<z.ZodObject<{
-                    saleRef: z.ZodString;
-                    pageLabel: z.ZodString;
-                    platform: z.ZodString;
-                    kind: z.ZodString;
-                    fanRef: z.ZodNullable<z.ZodString>;
-                    fanName: z.ZodNullable<z.ZodString>;
-                    netMills: z.ZodNumber;
-                    occurredAt: z.ZodString;
-                    ppvSender: z.ZodNullable<z.ZodString>;
-                    ppvWithoutAuthor: z.ZodBoolean;
-                    writers: z.ZodArray<z.ZodObject<{
-                        username: z.ZodString;
-                        messages: z.ZodNumber;
-                    }, z.core.$strip>>;
-                    withoutAuthor: z.ZodNumber;
-                    confirmed: z.ZodBoolean;
-                    myMark: z.ZodNullable<z.ZodObject<{
-                        mark: z.ZodString;
-                        shareWithUserId: z.ZodNullable<z.ZodNumber>;
-                        shareWith: z.ZodNullable<z.ZodString>;
-                        amountMills: z.ZodNullable<z.ZodNumber>;
-                        note: z.ZodNullable<z.ZodString>;
-                    }, z.core.$strip>>;
-                    otherMarks: z.ZodArray<z.ZodObject<{
-                        username: z.ZodString;
-                        mark: z.ZodString;
-                        shareWith: z.ZodNullable<z.ZodString>;
-                    }, z.core.$strip>>;
-                }, z.core.$strip>>;
-                teammates: z.ZodArray<z.ZodObject<{
-                    userId: z.ZodNumber;
-                    username: z.ZodString;
-                }, z.core.$strip>>;
-                serverNow: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly accountShiftReportMark: {
-        readonly auth: {
-            readonly kind: "any-session";
-        };
-        readonly tags: readonly ["client"];
-        readonly summary: "The caller marks a sale of their shift «моё», «делим с …» or «не моё», maybe with their own amount";
-        readonly description: string;
-        readonly body: z.ZodObject<{
-            saleRef: z.ZodString;
-            mark: z.ZodEnum<{
-                mine: "mine";
-                share: "share";
-                not_mine: "not_mine";
-            }>;
-            shareWithUserId: z.ZodOptional<z.ZodNumber>;
-            amountMills: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-            note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        }, z.core.$strict>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                changed: z.ZodBoolean;
-                serverNow: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly accountShiftReportConfirm: {
-        readonly auth: {
-            readonly kind: "any-session";
-        };
-        readonly tags: readonly ["client"];
-        readonly summary: "The caller confirms the report of an ended shift: its lines go to the payout export as they stand";
-        readonly description: string;
-        readonly body: z.ZodObject<{
-            startedAt: z.ZodString;
-        }, z.core.$strict>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                changed: z.ZodBoolean;
-                serverNow: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly teamShiftDisputes: {
-        readonly auth: {
-            readonly kind: "session";
-        };
-        readonly tags: readonly ["client"];
-        readonly summary: "Sales of the last days whose marks do not agree, with the owner's decision when made";
-        readonly description: "The owner and team leads, for the pages they reach. Two «моё», or «делим с X» that X did not answer with «делим» back.";
-        readonly querystring: z.ZodObject<{
-            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                disputes: z.ZodArray<z.ZodObject<{
-                    saleRef: z.ZodString;
-                    pageLabel: z.ZodString;
-                    platform: z.ZodString;
-                    fanRef: z.ZodNullable<z.ZodString>;
-                    occurredAt: z.ZodString;
-                    netMills: z.ZodNumber;
-                    reason: z.ZodString;
-                    marks: z.ZodArray<z.ZodObject<{
-                        userId: z.ZodNumber;
-                        username: z.ZodString;
-                        mark: z.ZodString;
-                        shareWithUserId: z.ZodNullable<z.ZodNumber>;
-                        shareWith: z.ZodNullable<z.ZodString>;
-                        amountMills: z.ZodNullable<z.ZodNumber>;
-                    }, z.core.$strip>>;
-                    people: z.ZodArray<z.ZodObject<{
-                        userId: z.ZodNumber;
-                        username: z.ZodString;
-                    }, z.core.$strip>>;
-                    resolution: z.ZodNullable<z.ZodArray<z.ZodObject<{
-                        userId: z.ZodNumber;
-                        username: z.ZodString;
-                        percent: z.ZodNumber;
-                    }, z.core.$strip>>>;
-                }, z.core.$strip>>;
-                serverNow: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly teamShiftResolve: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["client"];
-        readonly summary: "The owner splits a disputed sale between chatters";
-        readonly description: string;
-        readonly params: z.ZodObject<{
-            saleRef: z.ZodString;
-        }, z.core.$strip>;
-        readonly body: z.ZodObject<{
-            shares: z.ZodArray<z.ZodObject<{
-                userId: z.ZodNumber;
-                percent: z.ZodNumber;
-            }, z.core.$strip>>;
-        }, z.core.$strict>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                changed: z.ZodBoolean;
-                serverNow: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly teamShiftExport: {
-        readonly auth: {
-            readonly kind: "session";
-        };
-        readonly tags: readonly ["client"];
-        readonly summary: "The payout export: confirmed shift reports as chatter × page × day → net";
-        readonly description: string;
-        readonly querystring: z.ZodObject<{
-            from: z.ZodString;
-            to: z.ZodString;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                from: z.ZodString;
-                to: z.ZodString;
-                rows: z.ZodArray<z.ZodObject<{
-                    username: z.ZodString;
-                    pageLabel: z.ZodString;
-                    platform: z.ZodString;
-                    shiftDate: z.ZodString;
-                    creditedMills: z.ZodNumber;
-                }, z.core.$strip>>;
-                disputedOpen: z.ZodNumber;
-                ownAmounts: z.ZodArray<z.ZodObject<{
-                    username: z.ZodString;
-                    pageLabel: z.ZodString;
-                    saleRef: z.ZodString;
-                    occurredAt: z.ZodString;
-                    netMills: z.ZodNumber;
-                    amountMills: z.ZodNumber;
-                }, z.core.$strip>>;
-                unconfirmed: z.ZodArray<z.ZodObject<{
-                    username: z.ZodString;
-                    startedAt: z.ZodString;
-                    endedAt: z.ZodString;
-                    ongoing: z.ZodBoolean;
-                }, z.core.$strip>>;
-                lateChanges: z.ZodArray<z.ZodObject<{
-                    username: z.ZodString;
-                    pageLabel: z.ZodString;
-                    saleRef: z.ZodString;
-                    occurredAt: z.ZodString;
-                    payDay: z.ZodString;
-                    creditedMills: z.ZodNumber;
-                    change: z.ZodEnum<{
-                        added: "added";
-                        removed: "removed";
-                    }>;
-                    at: z.ZodString;
-                }, z.core.$strip>>;
-                serverNow: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly teamChatterNumbers: {
         readonly auth: {
             readonly kind: "session";
@@ -7580,6 +7016,8 @@ export declare const clientRouteSchemas: {
                             fix: z.ZodNumber;
                             other: z.ZodNumber;
                         }, z.core.$strip>;
+                        textMessages: z.ZodNumber;
+                        aiUnedited: z.ZodNumber;
                         shifts: z.ZodNumber;
                         unconfirmedShifts: z.ZodNumber;
                     }, z.core.$strip>;
@@ -7610,6 +7048,8 @@ export declare const clientRouteSchemas: {
                                 fix: z.ZodNumber;
                                 other: z.ZodNumber;
                             }, z.core.$strip>;
+                            textMessages: z.ZodNumber;
+                            aiUnedited: z.ZodNumber;
                         }, z.core.$strip>;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
@@ -8213,13 +7653,6 @@ export type TeamChatterNumbersResponse = z.infer<typeof teamChatterNumbersRespon
 export type TeamSalesQuery = z.infer<typeof teamSalesQuerySchema>;
 export type TeamSalesPpvResponse = z.infer<typeof teamSalesPpvResponseSchema>;
 export type TeamSalesRepliesResponse = z.infer<typeof teamSalesRepliesResponseSchema>;
-export type ShiftReportSale = z.infer<typeof shiftReportSaleSchema>;
-export type AccountShiftReportResponse = z.infer<typeof accountShiftReportResponseSchema>;
-export type AccountShiftReportMarkBody = z.infer<typeof accountShiftReportMarkBodySchema>;
-export type AccountShiftReportChangeResponse = z.infer<typeof accountShiftReportChangeResponseSchema>;
-export type TeamShiftDisputesResponse = z.infer<typeof teamShiftDisputesResponseSchema>;
-export type TeamShiftResolveBody = z.infer<typeof teamShiftResolveBodySchema>;
-export type TeamShiftExportResponse = z.infer<typeof teamShiftExportResponseSchema>;
 export type ClientFanCustom = z.infer<typeof clientFanCustomSchema>;
 export type ClientFanCustomCreateBody = z.infer<typeof clientFanCustomCreateBodySchema>;
 export type ClientFanCustomChangeBody = z.infer<typeof clientFanCustomChangeBodySchema>;
@@ -8260,6 +7693,7 @@ export type ClientMessageAuthorsResponse = z.infer<typeof clientMessageAuthorsRe
 export type ClientDeletedMessagesResponse = z.infer<typeof clientDeletedMessagesResponseSchema>;
 export type ClientDeletedMessagesQuery = z.infer<typeof clientDeletedMessagesQuerySchema>;
 export type ClientChatLength = z.infer<typeof clientChatLengthSchema>;
+export type ClientChatAuthors = z.infer<typeof clientChatAuthorsSchema>;
 export type ClientFanslyProxiesResponse = z.infer<typeof clientFanslyProxiesResponseSchema>;
 export type ClientNoteAttributionWho = z.infer<typeof clientNoteAttributionWhoSchema>;
 export type ClientAudienceNewQuery = z.infer<typeof clientAudienceNewQuerySchema>;

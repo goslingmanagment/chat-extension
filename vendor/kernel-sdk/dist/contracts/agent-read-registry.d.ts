@@ -528,8 +528,6 @@ export declare function agentClassPlanes(claimClass: AgentClaimClass): {
     readonly evidentiary: readonly string[];
     readonly fields: readonly string[];
 };
-/** plane -> role within a given class. Used to build `capture.planes[]`. */
-export declare function agentPlaneRole(claimClass: AgentClaimClass, plane: string): AgentPlaneRole | "not_applicable";
 /**
  * Boundary lookup: accepts an UNVALIDATED field name (it arrives from a request)
  * and resolves its class, or `undefined` when the field is unknown. The map

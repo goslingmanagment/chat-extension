@@ -4,13 +4,22 @@
 // its first message (428 messages, the first three months ago), and the fan deleted three, so the row looks like the
 // owner's screenshot. Chat b: the hub has not proven its start, so only the age, from the chat's own id. Then a long one
 // (38 888 messages over a year and three months). Fansly's dark theme, then the light one (the note's picture).
+//
+// 2026-11-11 (the owner: «чтобы писалось, кто из чатеров сколько сообщений оставил»): the card's breakdown. Chat a adds
+// up: the fan, three chatters (the person's own «(вы)») and a few with no author. Chat b: the hub knows only who of the
+// chatters wrote, so two rows and no fan. The long one: most of the model's messages are from before authors were
+// recorded, so «Без автора» is large and its line shows what that is. Logins as on prod; in the showcase world (the
+// note's picture) its chatter kate and her colleagues anna and max.
 
 import { $, browser } from '@wdio/globals';
 
+import { SHOWCASE } from '../../../src/showcase';
 import { callFansly } from '../../support/fansly-stand';
 import { around, scenario, type Box, type See } from '../kit';
 
 const SLOT = '[data-host="header-slot"][data-header-order="25"]';
+/** The person signed in, then two colleagues. */
+const [ME, TWO, THREE] = SHOWCASE ? (['kate', 'anna', 'max'] as const) : (['Nikita', 'Grisha', 'Ivan-Ari'] as const);
 const HEADER = '.message-content-header-contact';
 
 const box = (node: Element): Box => {
@@ -65,8 +74,26 @@ scenario(
     const now = Date.now();
     const DAY = 24 * 60 * 60_000;
     const at = (msAgo: number): string => new Date(now - msAgo).toISOString();
-    await s.hub.command({ op: 'chatLength', pageLabel, fanRef: a.fan, groupId: a.group, messages: 428, firstMessageAt: at(97 * DAY) });
-    await s.hub.command({ op: 'chatLength', pageLabel, fanRef: b.fan, groupId: b.group, messages: null, firstMessageAt: null });
+    // 214 + 120 + 64 + 22 + 8 = 428.
+    const authorsA = {
+      chatters: [
+        { name: ME, messages: 120, isMe: true },
+        { name: TWO, messages: 64 },
+        { name: THREE, messages: 22 },
+      ],
+      fan: 214,
+      unattributed: 8,
+    };
+    await s.hub.command({ op: 'chatLength', pageLabel, fanRef: a.fan, groupId: a.group, messages: 428, firstMessageAt: at(97 * DAY), authors: authorsA });
+    await s.hub.command({
+      op: 'chatLength',
+      pageLabel,
+      fanRef: b.fan,
+      groupId: b.group,
+      messages: null,
+      firstMessageAt: null,
+      authors: { chatters: [{ name: TWO, messages: 37 }, { name: ME, messages: 12, isMe: true }], fan: null, unattributed: null },
+    });
     for (const [id, text, ago] of [
       ['910000000000000001', 'nvm im broke till friday lol', 2 * DAY],
       ['910000000000000002', 'wait how much is a custom vid?', DAY],
@@ -105,7 +132,17 @@ scenario(
     await away();
 
     // A long chat: thousands, over a year.
-    await s.hub.command({ op: 'chatLength', pageLabel, fanRef: a.fan, groupId: a.group, messages: 38_888, firstMessageAt: at(460 * DAY) });
+    // 19 870 + 412 + 268 + 95 + 18 243 = 38 888: the chatters only since authors were recorded.
+    const authorsLong = {
+      chatters: [
+        { name: ME, messages: 412, isMe: true },
+        { name: TWO, messages: 268 },
+        { name: THREE, messages: 95 },
+      ],
+      fan: 19_870,
+      unattributed: 18_243,
+    };
+    await s.hub.command({ op: 'chatLength', pageLabel, fanRef: a.fan, groupId: a.group, messages: 38_888, firstMessageAt: at(460 * DAY), authors: authorsLong });
     await callFansly('open', a.group);
     await waitBadge('38888');
     await s.wait(400);

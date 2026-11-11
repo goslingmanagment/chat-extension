@@ -3,8 +3,8 @@ import { z } from "zod";
  *  them — the owner opens the screen. */
 export declare const pageBrowserLoginScreenSchema: z.ZodEnum<{
     unknown: "unknown";
-    success: "success";
     error: "error";
+    success: "success";
     code: "code";
     landing: "landing";
     login: "login";
@@ -19,8 +19,8 @@ export declare const pageBrowserLoginFieldSchema: z.ZodEnum<{
 export declare const pageBrowserScreenSchema: z.ZodObject<{
     screen: z.ZodEnum<{
         unknown: "unknown";
-        success: "success";
         error: "error";
+        success: "success";
         code: "code";
         landing: "landing";
         login: "login";
@@ -72,8 +72,8 @@ export declare const pageBrowserLoginResponseSchema: z.ZodObject<{
     screen: z.ZodNullable<z.ZodObject<{
         screen: z.ZodEnum<{
             unknown: "unknown";
-            success: "success";
             error: "error";
+            success: "success";
             code: "code";
             landing: "landing";
             login: "login";
@@ -101,8 +101,8 @@ export declare const pageBrowserLoginStepResponseSchema: z.ZodObject<{
     screen: z.ZodNullable<z.ZodObject<{
         screen: z.ZodEnum<{
             unknown: "unknown";
-            success: "success";
             error: "error";
+            success: "success";
             code: "code";
             landing: "landing";
             login: "login";
@@ -374,8 +374,8 @@ export declare const pageBrowserProfileResponseSchema: z.ZodObject<{
     screen: z.ZodNullable<z.ZodObject<{
         screen: z.ZodEnum<{
             unknown: "unknown";
-            success: "success";
             error: "error";
+            success: "success";
             code: "code";
             landing: "landing";
             login: "login";
@@ -467,8 +467,8 @@ export type PageBrowserProxyCheckBody = z.infer<typeof pageBrowserProxyCheckBody
  *  `private_address`). A pasted HTTP proxy is checked all the same: its
  *  port may speak SOCKS5 too (`spoken`). */
 export declare const pageBrowserProxyProblemSchema: z.ZodEnum<{
-    refused: "refused";
     ipv6: "ipv6";
+    refused: "refused";
     unreachable: "unreachable";
     dns: "dns";
     no_answer: "no_answer";
@@ -498,8 +498,8 @@ export declare const pageBrowserProxyCheckResponseSchema: z.ZodObject<{
     ok: z.ZodBoolean;
     problem: z.ZodNullable<z.ZodObject<{
         code: z.ZodEnum<{
-            refused: "refused";
             ipv6: "ipv6";
+            refused: "refused";
             unreachable: "unreachable";
             dns: "dns";
             no_answer: "no_answer";
@@ -754,8 +754,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -938,8 +938,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -1016,8 +1016,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -1093,8 +1093,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -1369,8 +1369,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -1546,8 +1546,8 @@ export declare const pageBrowserRouteSchemas: {
                 ok: z.ZodBoolean;
                 problem: z.ZodNullable<z.ZodObject<{
                     code: z.ZodEnum<{
-                        refused: "refused";
                         ipv6: "ipv6";
+                        refused: "refused";
                         unreachable: "unreachable";
                         dns: "dns";
                         no_answer: "no_answer";
@@ -2068,8 +2068,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -2146,8 +2146,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -2223,8 +2223,8 @@ export declare const pageBrowserRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";

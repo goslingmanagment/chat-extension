@@ -223,7 +223,7 @@ describe('gate: SDK custody (§4, D-13)', () => {
     expect(texts('error-class')).toEqual(['KernelApiError']);
     expect(texts('kernel-header')).toEqual(['x-kernel-ai-capabilities']);
     expect(texts('hub-route')).toEqual(
-      expect.arrayContaining(['/api/v1/ai/features/', '/api/v1/events/v2/stream', '/api/v1/ofapi/read/', '/api/v1/auth/login']),
+      expect.arrayContaining(['/api/v1/ai/features/', '/api/v1/client/bootstrap', '/api/v1/auth/device-tokens/password', '/api/v1/auth/login']),
     );
     expect(texts('hub-route').length).toBeGreaterThan(100);
   });

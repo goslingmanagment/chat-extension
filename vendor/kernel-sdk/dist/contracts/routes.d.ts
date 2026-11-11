@@ -48,19 +48,6 @@ export declare const issuedDeviceTokenResponseSchema: z.ZodObject<{
     keyPrefix: z.ZodString;
     expiresAt: z.ZodString;
 }, z.core.$strip>;
-export declare const reservedDeviceTokenResponseSchema: z.ZodObject<{
-    token: z.ZodString;
-    reservationId: z.ZodNumber;
-    label: z.ZodString;
-    keyPrefix: z.ZodString;
-    reservationExpiresAt: z.ZodString;
-}, z.core.$strip>;
-export declare const activatedDeviceTokenResponseSchema: z.ZodObject<{
-    id: z.ZodNumber;
-    label: z.ZodString;
-    expiresAt: z.ZodString;
-    keyPrefix: z.ZodString;
-}, z.core.$strip>;
 export declare const deviceTokenItemSchema: z.ZodObject<{
     id: z.ZodNumber;
     label: z.ZodString;
@@ -73,29 +60,6 @@ export declare const deviceTokenItemSchema: z.ZodObject<{
     createdAt: z.ZodString;
     revokedAt: z.ZodNullable<z.ZodString>;
     revokedReason: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
-export declare const deviceTokenHarvestCapabilityBodySchema: z.ZodObject<{
-    machineId: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
-export declare const deviceTokenAdoptionRowSchema: z.ZodObject<{
-    username: z.ZodString;
-    hasFreshDeviceToken: z.ZodBoolean;
-    deviceTokenLastUsedAt: z.ZodNullable<z.ZodString>;
-    deviceTokenExpiresAt: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
-export declare const deviceTokenAdoptionReportSchema: z.ZodObject<{
-    generatedAt: z.ZodString;
-    freshWindowDays: z.ZodNumber;
-    chatters: z.ZodArray<z.ZodObject<{
-        username: z.ZodString;
-        hasFreshDeviceToken: z.ZodBoolean;
-        deviceTokenLastUsedAt: z.ZodNullable<z.ZodString>;
-        deviceTokenExpiresAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-    summary: z.ZodObject<{
-        activeChatters: z.ZodNumber;
-        onFreshTokens: z.ZodNumber;
-    }, z.core.$strip>;
 }, z.core.$strip>;
 export declare const registrationStateEnum: z.ZodEnum<{
     active: "active";
@@ -136,8 +100,8 @@ export declare const accountLinkKindEnum: z.ZodEnum<{
 export declare const accountLinkStateEnum: z.ZodEnum<{
     active: "active";
     expired: "expired";
-    revoked: "revoked";
     used: "used";
+    revoked: "revoked";
 }>;
 export declare const accountLinkItemSchema: z.ZodObject<{
     id: z.ZodNumber;
@@ -149,8 +113,8 @@ export declare const accountLinkItemSchema: z.ZodObject<{
     state: z.ZodEnum<{
         active: "active";
         expired: "expired";
-        revoked: "revoked";
         used: "used";
+        revoked: "revoked";
     }>;
     expiresAt: z.ZodString;
     usedAt: z.ZodNullable<z.ZodString>;
@@ -248,8 +212,8 @@ export declare const authInspectAccountLinkResponseSchema: z.ZodDiscriminatedUni
 }, z.core.$strip>, z.ZodObject<{
     state: z.ZodEnum<{
         expired: "expired";
-        revoked: "revoked";
         used: "used";
+        revoked: "revoked";
     }>;
 }, z.core.$strip>], "state">;
 export declare const authRedeemAccountLinkBodySchema: z.ZodObject<{
@@ -260,7 +224,6 @@ export declare const authRedeemAccountLinkResponseSchema: z.ZodObject<{
     username: z.ZodString;
 }, z.core.$strip>;
 export declare const deviceTokenIssueModeEnum: z.ZodEnum<{
-    pending: "pending";
     active: "active";
 }>;
 export declare const authIssueDeviceTokenWithPasswordBodySchema: z.ZodObject<{
@@ -268,14 +231,13 @@ export declare const authIssueDeviceTokenWithPasswordBodySchema: z.ZodObject<{
     password: z.ZodString;
     label: z.ZodString;
     mode: z.ZodEnum<{
-        pending: "pending";
         active: "active";
     }>;
     client: z.ZodOptional<z.ZodEnum<{
         "chat-extension": "chat-extension";
     }>>;
 }, z.core.$strip>;
-export declare const authIssueDeviceTokenWithPasswordResponseSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+export declare const authIssueDeviceTokenWithPasswordResponseSchema: z.ZodObject<{
     token: z.ZodString;
     id: z.ZodNumber;
     label: z.ZodString;
@@ -283,14 +245,7 @@ export declare const authIssueDeviceTokenWithPasswordResponseSchema: z.ZodDiscri
     expiresAt: z.ZodString;
     mode: z.ZodLiteral<"active">;
     client: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-}, z.core.$strip>, z.ZodObject<{
-    token: z.ZodString;
-    reservationId: z.ZodNumber;
-    label: z.ZodString;
-    keyPrefix: z.ZodString;
-    reservationExpiresAt: z.ZodString;
-    mode: z.ZodLiteral<"pending">;
-}, z.core.$strip>], "mode">;
+}, z.core.$strip>;
 export declare const ownDeviceItemSchema: z.ZodObject<{
     id: z.ZodNumber;
     label: z.ZodString;
@@ -3190,44 +3145,6 @@ export declare const revenueDailyResponseSchema: z.ZodObject<{
         }>>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
-export declare const revenueByModelQuerySchema: z.ZodObject<{
-    period: z.ZodDefault<z.ZodEnum<{
-        today: "today";
-        "7d": "7d";
-        "30d": "30d";
-        all: "all";
-        custom: "custom";
-    }>>;
-    windowAt: z.ZodOptional<z.ZodISODateTime>;
-    from: z.ZodOptional<z.ZodString>;
-    to: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
-export declare const revenueByModelItemSchema: z.ZodObject<{
-    modelSlug: z.ZodString;
-    modelName: z.ZodString;
-    pageCount: z.ZodNumber;
-    totalNetAmountMills: z.ZodNumber;
-    transactionCount: z.ZodNumber;
-    series: z.ZodArray<z.ZodObject<{
-        businessDate: z.ZodString;
-        netAmountMills: z.ZodNumber;
-        transactionCount: z.ZodNumber;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-export declare const revenueByModelResponseSchema: z.ZodObject<{
-    models: z.ZodArray<z.ZodObject<{
-        modelSlug: z.ZodString;
-        modelName: z.ZodString;
-        pageCount: z.ZodNumber;
-        totalNetAmountMills: z.ZodNumber;
-        transactionCount: z.ZodNumber;
-        series: z.ZodArray<z.ZodObject<{
-            businessDate: z.ZodString;
-            netAmountMills: z.ZodNumber;
-            transactionCount: z.ZodNumber;
-        }, z.core.$strip>>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
 export declare const crossPageTransactionItemSchema: z.ZodObject<{
     transactionId: z.ZodString;
     rawType: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
@@ -4925,734 +4842,6 @@ export declare const syncRunDetailResponseSchema: z.ZodObject<{
         errorMessage: z.ZodNullable<z.ZodString>;
         startedAt: z.ZodString;
         finishedAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-export declare const syncMonitorProgressSchema: z.ZodObject<{
-    label: z.ZodString;
-    current: z.ZodNumber;
-    total: z.ZodNullable<z.ZodNumber>;
-    unit: z.ZodString;
-    percent: z.ZodNullable<z.ZodNumber>;
-}, z.core.$strip>;
-export declare const syncMonitorRateHealthSchema: z.ZodObject<{
-    state: z.ZodEnum<{
-        healthy: "healthy";
-        warning: "warning";
-        limited: "limited";
-    }>;
-    last429At: z.ZodNullable<z.ZodString>;
-    nextAvailableAt: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
-export declare const syncMonitorRecentRunsSchema: z.ZodObject<{
-    running: z.ZodNumber;
-    success: z.ZodNumber;
-    partial: z.ZodNumber;
-    failed: z.ZodNumber;
-    skipped: z.ZodNumber;
-}, z.core.$strip>;
-export declare const syncMonitorRecentErrorsSchema: z.ZodObject<{
-    total429s: z.ZodNumber;
-    total5xxs: z.ZodNumber;
-    failedRuns: z.ZodNumber;
-    failedAttempts: z.ZodNumber;
-    retryAttempts: z.ZodNumber;
-    last429At: z.ZodNullable<z.ZodString>;
-    last5xxAt: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
-export declare const syncMonitorLastCompletionSchema: z.ZodObject<{
-    runId: z.ZodNumber;
-    trigger: z.ZodString;
-    status: z.ZodEnum<{
-        failed: "failed";
-        success: "success";
-        partial: "partial";
-        skipped: "skipped";
-    }>;
-    startedAt: z.ZodString;
-    finishedAt: z.ZodString;
-    durationMs: z.ZodNullable<z.ZodNumber>;
-    errorSummary: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
-export declare const syncMonitorActiveRunSchema: z.ZodObject<{
-    runId: z.ZodNumber;
-    trigger: z.ZodString;
-    startedAt: z.ZodString;
-    lastActivityAt: z.ZodString;
-}, z.core.$strip>;
-export declare const syncMonitorStreamItemSchema: z.ZodObject<{
-    stream: z.ZodEnum<{
-        subscribers: "subscribers";
-        notifications: "notifications";
-        posts: "posts";
-        followers: "followers";
-        catalog: "catalog";
-        transactions: "transactions";
-        media_stats: "media_stats";
-        payouts: "payouts";
-        fan_earnings: "fan_earnings";
-        light: "light";
-        fan_identities: "fan_identities";
-        top_spenders: "top_spenders";
-        dm_conversations: "dm_conversations";
-        dm_messages: "dm_messages";
-        followers_reconcile: "followers_reconcile";
-        purchase_history: "purchase_history";
-        stats_snapshot: "stats_snapshot";
-        post_replies: "post_replies";
-    }>;
-    status: z.ZodEnum<{
-        pending: "pending";
-        blocked: "blocked";
-        running: "running";
-        paused: "paused";
-        retrying: "retrying";
-        idle: "idle";
-    }>;
-    stalled: z.ZodBoolean;
-    pending: z.ZodBoolean;
-    retryAt: z.ZodNullable<z.ZodString>;
-    progress: z.ZodNullable<z.ZodObject<{
-        label: z.ZodString;
-        current: z.ZodNumber;
-        total: z.ZodNullable<z.ZodNumber>;
-        unit: z.ZodString;
-        percent: z.ZodNullable<z.ZodNumber>;
-    }, z.core.$strip>>;
-    recentRuns: z.ZodObject<{
-        running: z.ZodNumber;
-        success: z.ZodNumber;
-        partial: z.ZodNumber;
-        failed: z.ZodNumber;
-        skipped: z.ZodNumber;
-    }, z.core.$strip>;
-    recentErrors: z.ZodObject<{
-        total429s: z.ZodNumber;
-        total5xxs: z.ZodNumber;
-        failedRuns: z.ZodNumber;
-        failedAttempts: z.ZodNumber;
-        retryAttempts: z.ZodNumber;
-        last429At: z.ZodNullable<z.ZodString>;
-        last5xxAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>;
-    rateHealth: z.ZodObject<{
-        state: z.ZodEnum<{
-            healthy: "healthy";
-            warning: "warning";
-            limited: "limited";
-        }>;
-        last429At: z.ZodNullable<z.ZodString>;
-        nextAvailableAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>;
-    activeRun: z.ZodNullable<z.ZodObject<{
-        runId: z.ZodNumber;
-        trigger: z.ZodString;
-        startedAt: z.ZodString;
-        lastActivityAt: z.ZodString;
-    }, z.core.$strip>>;
-    lastCompletion: z.ZodNullable<z.ZodObject<{
-        runId: z.ZodNumber;
-        trigger: z.ZodString;
-        status: z.ZodEnum<{
-            failed: "failed";
-            success: "success";
-            partial: "partial";
-            skipped: "skipped";
-        }>;
-        startedAt: z.ZodString;
-        finishedAt: z.ZodString;
-        durationMs: z.ZodNullable<z.ZodNumber>;
-        errorSummary: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-    succeededAt: z.ZodNullable<z.ZodString>;
-    failedAt: z.ZodNullable<z.ZodString>;
-    lastErrorSummary: z.ZodNullable<z.ZodString>;
-    consecutiveFailures: z.ZodNumber;
-    syncUx: z.ZodObject<{
-        state: z.ZodEnum<{
-            healthy: "healthy";
-            off: "off";
-            syncing: "syncing";
-            catching_up: "catching_up";
-            retrying: "retrying";
-            attention: "attention";
-            setup: "setup";
-        }>;
-        label: z.ZodString;
-        headline: z.ZodString;
-        detail: z.ZodNullable<z.ZodString>;
-        progressLabel: z.ZodNullable<z.ZodString>;
-        nextRetryAt: z.ZodNullable<z.ZodString>;
-        updatedAt: z.ZodNullable<z.ZodString>;
-        requiresAction: z.ZodBoolean;
-    }, z.core.$strip>;
-}, z.core.$strip>;
-export declare const syncMonitorPageCountsSchema: z.ZodObject<{
-    fans: z.ZodNumber;
-    followers: z.ZodNumber;
-    subscribers: z.ZodNumber;
-    transactions: z.ZodNumber;
-    conversations: z.ZodNumber;
-    messages: z.ZodNumber;
-}, z.core.$strip>;
-export declare const syncMonitorPageSummarySchema: z.ZodObject<{
-    runningStreams: z.ZodNumber;
-    blockedStreams: z.ZodNumber;
-    stalledStreams: z.ZodNumber;
-    pendingStreams: z.ZodNumber;
-    retryingStreams: z.ZodNumber;
-}, z.core.$strip>;
-export declare const syncMonitorPageItemSchema: z.ZodObject<{
-    pageId: z.ZodNumber;
-    pageLabel: z.ZodString;
-    platform: z.ZodEnum<{
-        fansly: "fansly";
-        onlyfans: "onlyfans";
-        telegram: "telegram";
-    }>;
-    modelSlug: z.ZodString;
-    modelName: z.ZodString;
-    username: z.ZodNullable<z.ZodString>;
-    displayName: z.ZodNullable<z.ZodString>;
-    counts: z.ZodObject<{
-        fans: z.ZodNumber;
-        followers: z.ZodNumber;
-        subscribers: z.ZodNumber;
-        transactions: z.ZodNumber;
-        conversations: z.ZodNumber;
-        messages: z.ZodNumber;
-    }, z.core.$strip>;
-    summary: z.ZodObject<{
-        runningStreams: z.ZodNumber;
-        blockedStreams: z.ZodNumber;
-        stalledStreams: z.ZodNumber;
-        pendingStreams: z.ZodNumber;
-        retryingStreams: z.ZodNumber;
-    }, z.core.$strip>;
-    streams: z.ZodArray<z.ZodObject<{
-        stream: z.ZodEnum<{
-            subscribers: "subscribers";
-            notifications: "notifications";
-            posts: "posts";
-            followers: "followers";
-            catalog: "catalog";
-            transactions: "transactions";
-            media_stats: "media_stats";
-            payouts: "payouts";
-            fan_earnings: "fan_earnings";
-            light: "light";
-            fan_identities: "fan_identities";
-            top_spenders: "top_spenders";
-            dm_conversations: "dm_conversations";
-            dm_messages: "dm_messages";
-            followers_reconcile: "followers_reconcile";
-            purchase_history: "purchase_history";
-            stats_snapshot: "stats_snapshot";
-            post_replies: "post_replies";
-        }>;
-        status: z.ZodEnum<{
-            pending: "pending";
-            blocked: "blocked";
-            running: "running";
-            paused: "paused";
-            retrying: "retrying";
-            idle: "idle";
-        }>;
-        stalled: z.ZodBoolean;
-        pending: z.ZodBoolean;
-        retryAt: z.ZodNullable<z.ZodString>;
-        progress: z.ZodNullable<z.ZodObject<{
-            label: z.ZodString;
-            current: z.ZodNumber;
-            total: z.ZodNullable<z.ZodNumber>;
-            unit: z.ZodString;
-            percent: z.ZodNullable<z.ZodNumber>;
-        }, z.core.$strip>>;
-        recentRuns: z.ZodObject<{
-            running: z.ZodNumber;
-            success: z.ZodNumber;
-            partial: z.ZodNumber;
-            failed: z.ZodNumber;
-            skipped: z.ZodNumber;
-        }, z.core.$strip>;
-        recentErrors: z.ZodObject<{
-            total429s: z.ZodNumber;
-            total5xxs: z.ZodNumber;
-            failedRuns: z.ZodNumber;
-            failedAttempts: z.ZodNumber;
-            retryAttempts: z.ZodNumber;
-            last429At: z.ZodNullable<z.ZodString>;
-            last5xxAt: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>;
-        rateHealth: z.ZodObject<{
-            state: z.ZodEnum<{
-                healthy: "healthy";
-                warning: "warning";
-                limited: "limited";
-            }>;
-            last429At: z.ZodNullable<z.ZodString>;
-            nextAvailableAt: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>;
-        activeRun: z.ZodNullable<z.ZodObject<{
-            runId: z.ZodNumber;
-            trigger: z.ZodString;
-            startedAt: z.ZodString;
-            lastActivityAt: z.ZodString;
-        }, z.core.$strip>>;
-        lastCompletion: z.ZodNullable<z.ZodObject<{
-            runId: z.ZodNumber;
-            trigger: z.ZodString;
-            status: z.ZodEnum<{
-                failed: "failed";
-                success: "success";
-                partial: "partial";
-                skipped: "skipped";
-            }>;
-            startedAt: z.ZodString;
-            finishedAt: z.ZodString;
-            durationMs: z.ZodNullable<z.ZodNumber>;
-            errorSummary: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>>;
-        succeededAt: z.ZodNullable<z.ZodString>;
-        failedAt: z.ZodNullable<z.ZodString>;
-        lastErrorSummary: z.ZodNullable<z.ZodString>;
-        consecutiveFailures: z.ZodNumber;
-        syncUx: z.ZodObject<{
-            state: z.ZodEnum<{
-                healthy: "healthy";
-                off: "off";
-                syncing: "syncing";
-                catching_up: "catching_up";
-                retrying: "retrying";
-                attention: "attention";
-                setup: "setup";
-            }>;
-            label: z.ZodString;
-            headline: z.ZodString;
-            detail: z.ZodNullable<z.ZodString>;
-            progressLabel: z.ZodNullable<z.ZodString>;
-            nextRetryAt: z.ZodNullable<z.ZodString>;
-            updatedAt: z.ZodNullable<z.ZodString>;
-            requiresAction: z.ZodBoolean;
-        }, z.core.$strip>;
-    }, z.core.$strip>>;
-    syncUx: z.ZodObject<{
-        state: z.ZodEnum<{
-            healthy: "healthy";
-            off: "off";
-            syncing: "syncing";
-            catching_up: "catching_up";
-            retrying: "retrying";
-            attention: "attention";
-            setup: "setup";
-        }>;
-        label: z.ZodString;
-        headline: z.ZodString;
-        detail: z.ZodNullable<z.ZodString>;
-        progressLabel: z.ZodNullable<z.ZodString>;
-        nextRetryAt: z.ZodNullable<z.ZodString>;
-        updatedAt: z.ZodNullable<z.ZodString>;
-        requiresAction: z.ZodBoolean;
-    }, z.core.$strip>;
-}, z.core.$strip>;
-export declare const syncMonitorProviderSummarySchema: z.ZodObject<{
-    platform: z.ZodEnum<{
-        fansly: "fansly";
-        onlyfans: "onlyfans";
-        telegram: "telegram";
-    }>;
-    rateHealth: z.ZodObject<{
-        state: z.ZodEnum<{
-            healthy: "healthy";
-            warning: "warning";
-            limited: "limited";
-        }>;
-        last429At: z.ZodNullable<z.ZodString>;
-        nextAvailableAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>;
-    recent429s: z.ZodNumber;
-    recent5xxs: z.ZodNumber;
-}, z.core.$strip>;
-export declare const syncMonitorOverallSchema: z.ZodObject<{
-    pages: z.ZodNumber;
-    streams: z.ZodNumber;
-    runningStreams: z.ZodNumber;
-    blockedStreams: z.ZodNumber;
-    stalledStreams: z.ZodNumber;
-    pendingStreams: z.ZodNumber;
-    retryingStreams: z.ZodNumber;
-    counts: z.ZodObject<{
-        fans: z.ZodNumber;
-        followers: z.ZodNumber;
-        subscribers: z.ZodNumber;
-        transactions: z.ZodNumber;
-        conversations: z.ZodNumber;
-        messages: z.ZodNumber;
-    }, z.core.$strip>;
-    recentRuns: z.ZodObject<{
-        running: z.ZodNumber;
-        success: z.ZodNumber;
-        partial: z.ZodNumber;
-        failed: z.ZodNumber;
-        skipped: z.ZodNumber;
-    }, z.core.$strip>;
-    recentErrors: z.ZodObject<{
-        total429s: z.ZodNumber;
-        total5xxs: z.ZodNumber;
-        failedRuns: z.ZodNumber;
-        failedAttempts: z.ZodNumber;
-        retryAttempts: z.ZodNumber;
-        last429At: z.ZodNullable<z.ZodString>;
-        last5xxAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>;
-    providers: z.ZodArray<z.ZodObject<{
-        platform: z.ZodEnum<{
-            fansly: "fansly";
-            onlyfans: "onlyfans";
-            telegram: "telegram";
-        }>;
-        rateHealth: z.ZodObject<{
-            state: z.ZodEnum<{
-                healthy: "healthy";
-                warning: "warning";
-                limited: "limited";
-            }>;
-            last429At: z.ZodNullable<z.ZodString>;
-            nextAvailableAt: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>;
-        recent429s: z.ZodNumber;
-        recent5xxs: z.ZodNumber;
-    }, z.core.$strip>>;
-    syncUx: z.ZodObject<{
-        state: z.ZodEnum<{
-            healthy: "healthy";
-            off: "off";
-            syncing: "syncing";
-            catching_up: "catching_up";
-            retrying: "retrying";
-            attention: "attention";
-            setup: "setup";
-        }>;
-        label: z.ZodString;
-        headline: z.ZodString;
-        detail: z.ZodNullable<z.ZodString>;
-        progressLabel: z.ZodNullable<z.ZodString>;
-        nextRetryAt: z.ZodNullable<z.ZodString>;
-        updatedAt: z.ZodNullable<z.ZodString>;
-        requiresAction: z.ZodBoolean;
-    }, z.core.$strip>;
-}, z.core.$strip>;
-export declare const syncMonitorRecentEventSchema: z.ZodObject<{
-    id: z.ZodNumber;
-    runId: z.ZodNumber;
-    pageId: z.ZodNumber;
-    pageLabel: z.ZodString;
-    platform: z.ZodEnum<{
-        fansly: "fansly";
-        onlyfans: "onlyfans";
-        telegram: "telegram";
-    }>;
-    stream: z.ZodEnum<{
-        subscribers: "subscribers";
-        notifications: "notifications";
-        posts: "posts";
-        followers: "followers";
-        catalog: "catalog";
-        transactions: "transactions";
-        media_stats: "media_stats";
-        payouts: "payouts";
-        fan_earnings: "fan_earnings";
-        light: "light";
-        fan_identities: "fan_identities";
-        top_spenders: "top_spenders";
-        dm_conversations: "dm_conversations";
-        dm_messages: "dm_messages";
-        followers_reconcile: "followers_reconcile";
-        purchase_history: "purchase_history";
-        stats_snapshot: "stats_snapshot";
-        post_replies: "post_replies";
-    }>;
-    eventType: z.ZodString;
-    severity: z.ZodEnum<{
-        info: "info";
-        warn: "warn";
-        error: "error";
-    }>;
-    message: z.ZodString;
-    details: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-    emittedAt: z.ZodString;
-}, z.core.$strip>;
-export declare const syncStatusQuerySchema: z.ZodObject<{
-    pageLabel: z.ZodOptional<z.ZodString>;
-    windowHours: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-    eventLimit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-}, z.core.$strip>;
-export declare const syncStatusResponseSchema: z.ZodObject<{
-    generatedAt: z.ZodString;
-    window: z.ZodObject<{
-        hours: z.ZodNumber;
-        startedAt: z.ZodString;
-    }, z.core.$strip>;
-    overall: z.ZodObject<{
-        pages: z.ZodNumber;
-        streams: z.ZodNumber;
-        runningStreams: z.ZodNumber;
-        blockedStreams: z.ZodNumber;
-        stalledStreams: z.ZodNumber;
-        pendingStreams: z.ZodNumber;
-        retryingStreams: z.ZodNumber;
-        counts: z.ZodObject<{
-            fans: z.ZodNumber;
-            followers: z.ZodNumber;
-            subscribers: z.ZodNumber;
-            transactions: z.ZodNumber;
-            conversations: z.ZodNumber;
-            messages: z.ZodNumber;
-        }, z.core.$strip>;
-        recentRuns: z.ZodObject<{
-            running: z.ZodNumber;
-            success: z.ZodNumber;
-            partial: z.ZodNumber;
-            failed: z.ZodNumber;
-            skipped: z.ZodNumber;
-        }, z.core.$strip>;
-        recentErrors: z.ZodObject<{
-            total429s: z.ZodNumber;
-            total5xxs: z.ZodNumber;
-            failedRuns: z.ZodNumber;
-            failedAttempts: z.ZodNumber;
-            retryAttempts: z.ZodNumber;
-            last429At: z.ZodNullable<z.ZodString>;
-            last5xxAt: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>;
-        providers: z.ZodArray<z.ZodObject<{
-            platform: z.ZodEnum<{
-                fansly: "fansly";
-                onlyfans: "onlyfans";
-                telegram: "telegram";
-            }>;
-            rateHealth: z.ZodObject<{
-                state: z.ZodEnum<{
-                    healthy: "healthy";
-                    warning: "warning";
-                    limited: "limited";
-                }>;
-                last429At: z.ZodNullable<z.ZodString>;
-                nextAvailableAt: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>;
-            recent429s: z.ZodNumber;
-            recent5xxs: z.ZodNumber;
-        }, z.core.$strip>>;
-        syncUx: z.ZodObject<{
-            state: z.ZodEnum<{
-                healthy: "healthy";
-                off: "off";
-                syncing: "syncing";
-                catching_up: "catching_up";
-                retrying: "retrying";
-                attention: "attention";
-                setup: "setup";
-            }>;
-            label: z.ZodString;
-            headline: z.ZodString;
-            detail: z.ZodNullable<z.ZodString>;
-            progressLabel: z.ZodNullable<z.ZodString>;
-            nextRetryAt: z.ZodNullable<z.ZodString>;
-            updatedAt: z.ZodNullable<z.ZodString>;
-            requiresAction: z.ZodBoolean;
-        }, z.core.$strip>;
-    }, z.core.$strip>;
-    pages: z.ZodArray<z.ZodObject<{
-        pageId: z.ZodNumber;
-        pageLabel: z.ZodString;
-        platform: z.ZodEnum<{
-            fansly: "fansly";
-            onlyfans: "onlyfans";
-            telegram: "telegram";
-        }>;
-        modelSlug: z.ZodString;
-        modelName: z.ZodString;
-        username: z.ZodNullable<z.ZodString>;
-        displayName: z.ZodNullable<z.ZodString>;
-        counts: z.ZodObject<{
-            fans: z.ZodNumber;
-            followers: z.ZodNumber;
-            subscribers: z.ZodNumber;
-            transactions: z.ZodNumber;
-            conversations: z.ZodNumber;
-            messages: z.ZodNumber;
-        }, z.core.$strip>;
-        summary: z.ZodObject<{
-            runningStreams: z.ZodNumber;
-            blockedStreams: z.ZodNumber;
-            stalledStreams: z.ZodNumber;
-            pendingStreams: z.ZodNumber;
-            retryingStreams: z.ZodNumber;
-        }, z.core.$strip>;
-        streams: z.ZodArray<z.ZodObject<{
-            stream: z.ZodEnum<{
-                subscribers: "subscribers";
-                notifications: "notifications";
-                posts: "posts";
-                followers: "followers";
-                catalog: "catalog";
-                transactions: "transactions";
-                media_stats: "media_stats";
-                payouts: "payouts";
-                fan_earnings: "fan_earnings";
-                light: "light";
-                fan_identities: "fan_identities";
-                top_spenders: "top_spenders";
-                dm_conversations: "dm_conversations";
-                dm_messages: "dm_messages";
-                followers_reconcile: "followers_reconcile";
-                purchase_history: "purchase_history";
-                stats_snapshot: "stats_snapshot";
-                post_replies: "post_replies";
-            }>;
-            status: z.ZodEnum<{
-                pending: "pending";
-                blocked: "blocked";
-                running: "running";
-                paused: "paused";
-                retrying: "retrying";
-                idle: "idle";
-            }>;
-            stalled: z.ZodBoolean;
-            pending: z.ZodBoolean;
-            retryAt: z.ZodNullable<z.ZodString>;
-            progress: z.ZodNullable<z.ZodObject<{
-                label: z.ZodString;
-                current: z.ZodNumber;
-                total: z.ZodNullable<z.ZodNumber>;
-                unit: z.ZodString;
-                percent: z.ZodNullable<z.ZodNumber>;
-            }, z.core.$strip>>;
-            recentRuns: z.ZodObject<{
-                running: z.ZodNumber;
-                success: z.ZodNumber;
-                partial: z.ZodNumber;
-                failed: z.ZodNumber;
-                skipped: z.ZodNumber;
-            }, z.core.$strip>;
-            recentErrors: z.ZodObject<{
-                total429s: z.ZodNumber;
-                total5xxs: z.ZodNumber;
-                failedRuns: z.ZodNumber;
-                failedAttempts: z.ZodNumber;
-                retryAttempts: z.ZodNumber;
-                last429At: z.ZodNullable<z.ZodString>;
-                last5xxAt: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>;
-            rateHealth: z.ZodObject<{
-                state: z.ZodEnum<{
-                    healthy: "healthy";
-                    warning: "warning";
-                    limited: "limited";
-                }>;
-                last429At: z.ZodNullable<z.ZodString>;
-                nextAvailableAt: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>;
-            activeRun: z.ZodNullable<z.ZodObject<{
-                runId: z.ZodNumber;
-                trigger: z.ZodString;
-                startedAt: z.ZodString;
-                lastActivityAt: z.ZodString;
-            }, z.core.$strip>>;
-            lastCompletion: z.ZodNullable<z.ZodObject<{
-                runId: z.ZodNumber;
-                trigger: z.ZodString;
-                status: z.ZodEnum<{
-                    failed: "failed";
-                    success: "success";
-                    partial: "partial";
-                    skipped: "skipped";
-                }>;
-                startedAt: z.ZodString;
-                finishedAt: z.ZodString;
-                durationMs: z.ZodNullable<z.ZodNumber>;
-                errorSummary: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>>;
-            succeededAt: z.ZodNullable<z.ZodString>;
-            failedAt: z.ZodNullable<z.ZodString>;
-            lastErrorSummary: z.ZodNullable<z.ZodString>;
-            consecutiveFailures: z.ZodNumber;
-            syncUx: z.ZodObject<{
-                state: z.ZodEnum<{
-                    healthy: "healthy";
-                    off: "off";
-                    syncing: "syncing";
-                    catching_up: "catching_up";
-                    retrying: "retrying";
-                    attention: "attention";
-                    setup: "setup";
-                }>;
-                label: z.ZodString;
-                headline: z.ZodString;
-                detail: z.ZodNullable<z.ZodString>;
-                progressLabel: z.ZodNullable<z.ZodString>;
-                nextRetryAt: z.ZodNullable<z.ZodString>;
-                updatedAt: z.ZodNullable<z.ZodString>;
-                requiresAction: z.ZodBoolean;
-            }, z.core.$strip>;
-        }, z.core.$strip>>;
-        syncUx: z.ZodObject<{
-            state: z.ZodEnum<{
-                healthy: "healthy";
-                off: "off";
-                syncing: "syncing";
-                catching_up: "catching_up";
-                retrying: "retrying";
-                attention: "attention";
-                setup: "setup";
-            }>;
-            label: z.ZodString;
-            headline: z.ZodString;
-            detail: z.ZodNullable<z.ZodString>;
-            progressLabel: z.ZodNullable<z.ZodString>;
-            nextRetryAt: z.ZodNullable<z.ZodString>;
-            updatedAt: z.ZodNullable<z.ZodString>;
-            requiresAction: z.ZodBoolean;
-        }, z.core.$strip>;
-    }, z.core.$strip>>;
-    recentEvents: z.ZodArray<z.ZodObject<{
-        id: z.ZodNumber;
-        runId: z.ZodNumber;
-        pageId: z.ZodNumber;
-        pageLabel: z.ZodString;
-        platform: z.ZodEnum<{
-            fansly: "fansly";
-            onlyfans: "onlyfans";
-            telegram: "telegram";
-        }>;
-        stream: z.ZodEnum<{
-            subscribers: "subscribers";
-            notifications: "notifications";
-            posts: "posts";
-            followers: "followers";
-            catalog: "catalog";
-            transactions: "transactions";
-            media_stats: "media_stats";
-            payouts: "payouts";
-            fan_earnings: "fan_earnings";
-            light: "light";
-            fan_identities: "fan_identities";
-            top_spenders: "top_spenders";
-            dm_conversations: "dm_conversations";
-            dm_messages: "dm_messages";
-            followers_reconcile: "followers_reconcile";
-            purchase_history: "purchase_history";
-            stats_snapshot: "stats_snapshot";
-            post_replies: "post_replies";
-        }>;
-        eventType: z.ZodString;
-        severity: z.ZodEnum<{
-            info: "info";
-            warn: "warn";
-            error: "error";
-        }>;
-        message: z.ZodString;
-        details: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-        emittedAt: z.ZodString;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const syncRequestsQuerySchema: z.ZodObject<{
@@ -10062,16 +9251,6 @@ export declare const createPageBodySchema: z.ZodUnion<readonly [z.ZodObject<{
     modelSlug: z.ZodString;
     label: z.ZodString;
 }, z.core.$strip>]>;
-export declare const testProxyBodySchema: z.ZodObject<{
-    proxy: z.ZodObject<{
-        url: z.ZodString;
-        username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    }, z.core.$strip>;
-}, z.core.$strip>;
-export declare const testProxyResponseSchema: z.ZodObject<{
-    ip: z.ZodString;
-}, z.core.$strip>;
 export declare const createModelBodySchema: z.ZodObject<{
     slug: z.ZodString;
     name: z.ZodString;
@@ -10465,328 +9644,6 @@ export declare const syncEventSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     accountId: z.ZodString;
     authenticated: z.ZodBoolean;
 }, z.core.$strip>], "type">;
-export declare const syncSnapshotRequiredResponseSchema: z.ZodObject<{
-    error: z.ZodLiteral<"sync_snapshot_required">;
-    message: z.ZodString;
-    statusCode: z.ZodLiteral<409>;
-    version: z.ZodLiteral<1>;
-    requestedSeq: z.ZodNumber;
-    oldestAvailableSeq: z.ZodNullable<z.ZodNumber>;
-    currentSeq: z.ZodNumber;
-    snapshotPath: z.ZodLiteral<"/api/v1/events/snapshot">;
-}, z.core.$strip>;
-/** A sticky snapshotCursor/stateCursor became older than cleanup's durable
- * replay floor while a paged recovery was in progress. Clients must discard
- * only that matching progress record and restart the snapshot without either
- * cursor; retrying the same continuation can never succeed. */
-export declare const syncSnapshotRestartRequiredResponseSchema: z.ZodObject<{
-    error: z.ZodLiteral<"sync_snapshot_restart_required">;
-    message: z.ZodString;
-    statusCode: z.ZodLiteral<409>;
-    replayFloor: z.ZodNumber;
-    snapshotPath: z.ZodLiteral<"/api/v1/events/snapshot">;
-}, z.core.$strip>;
-/** H3: what Core knows about how a durable frame's fact reached the ledger.
- * `redelivery` — its source OFAPI webhook receipt carries the provider's
- * redelivery header (`x-ofapi-redelivery-of`); `repair` — a superseding
- * correction (`data.supersedesEventId`); `live` — neither is KNOWN. `live` is
- * NOT "fresh": old facts are labelled `live` on every replay before
- * `replay_completed`, after re-canonicalization of old observations by a new
- * parser version (e.g. formerly quarantined PPVs), on Fansly history pulls
- * (no webhook lane, never looked up), on OFAPI's own automatic retries (no
- * redelivery header) and on receipts past retention. A missing
- * `provenance` means unknown (the lookup failed): treat it as not live.
- * Business identity (refs, dedup) is the same in all three.
- * Clients deciding on attention (toasts, sounds) must combine `live` with
- * the stream's `replay_completed` boundary AND an age check on `occurredAt`
- * — and even that is not proof: when the upstream payload has no timestamp
- * of its own, `occurredAt` falls back to the receipt time. Never toast from
- * `GET /api/v1/events/v2/facts` (catch-up of history, not news). */
-export declare const domainEventProvenanceEnum: z.ZodEnum<{
-    live: "live";
-    repair: "repair";
-    redelivery: "redelivery";
-}>;
-/** H3: the money facts `GET /api/v1/events/v2/facts` serves. */
-export declare const domainEventFactTypes: readonly ["message.ppv_unlocked", "tip.received", "transaction.posted"];
-export declare const domainEventFrameSchema: z.ZodObject<{
-    accountId: z.ZodNumber;
-    accountSeq: z.ZodNumber;
-    type: z.ZodString;
-    occurredAt: z.ZodString;
-    data: z.ZodUnknown;
-    fanRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    conversationRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    messageRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    accountRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    payload: z.ZodOptional<z.ZodUnknown>;
-    transactionRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    provenance: z.ZodOptional<z.ZodEnum<{
-        live: "live";
-        repair: "repair";
-        redelivery: "redelivery";
-    }>>;
-    thread: z.ZodOptional<z.ZodObject<{
-        fanName: z.ZodNullable<z.ZodString>;
-        username: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-export declare const domainEventsSnapshotRequiredAccountSchema: z.ZodObject<{
-    accountId: z.ZodNumber;
-    requestedSeq: z.ZodNumber;
-    oldestAvailableSeq: z.ZodNullable<z.ZodNumber>;
-    currentSeq: z.ZodNumber;
-}, z.core.$strip>;
-export declare const domainEventsSnapshotRequiredResponseSchema: z.ZodObject<{
-    error: z.ZodLiteral<"sync_snapshot_required">;
-    message: z.ZodString;
-    statusCode: z.ZodLiteral<409>;
-    version: z.ZodLiteral<2>;
-    accounts: z.ZodArray<z.ZodObject<{
-        accountId: z.ZodNumber;
-        requestedSeq: z.ZodNumber;
-        oldestAvailableSeq: z.ZodNullable<z.ZodNumber>;
-        currentSeq: z.ZodNumber;
-    }, z.core.$strip>>;
-    snapshotPath: z.ZodLiteral<"/api/v1/events/v2/snapshot">;
-}, z.core.$strip>;
-export declare const domainEventsSnapshotResponseSchema: z.ZodObject<{
-    cursor: z.ZodString;
-    accounts: z.ZodArray<z.ZodObject<{
-        accountId: z.ZodNumber;
-        accountRef: z.ZodNullable<z.ZodString>;
-        currentSeq: z.ZodNumber;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-/** H3: one page of an account's money facts, in account_seq order. */
-export declare const domainEventFactsResponseSchema: z.ZodObject<{
-    accountId: z.ZodNumber;
-    throughSeq: z.ZodNumber;
-    facts: z.ZodArray<z.ZodObject<{
-        accountId: z.ZodNumber;
-        accountSeq: z.ZodNumber;
-        type: z.ZodString;
-        occurredAt: z.ZodString;
-        data: z.ZodUnknown;
-        fanRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        conversationRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        messageRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        accountRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        payload: z.ZodOptional<z.ZodUnknown>;
-        transactionRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        provenance: z.ZodOptional<z.ZodEnum<{
-            live: "live";
-            repair: "repair";
-            redelivery: "redelivery";
-        }>>;
-        thread: z.ZodOptional<z.ZodObject<{
-            fanName: z.ZodNullable<z.ZodString>;
-            username: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>>;
-    }, z.core.$strip>>;
-    nextAfterSeq: z.ZodNumber;
-    hasMore: z.ZodBoolean;
-}, z.core.$strip>;
-export declare const syncSnapshotQuerySchema: z.ZodObject<{
-    accountId: z.ZodString;
-    afterSeq: z.ZodCoercedNumber<unknown>;
-    snapshotCursor: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-    pageCursor: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-    limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-    pageMode: z.ZodOptional<z.ZodLiteral<"bounded_v1">>;
-    stateCursor: z.ZodOptional<z.ZodString>;
-    messageLimit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-}, z.core.$strip>;
-export declare const syncSnapshotMessageSchema: z.ZodObject<{
-    chatId: z.ZodString;
-    messageId: z.ZodString;
-    message: z.ZodNullable<z.ZodObject<{
-        id: z.ZodString;
-        text: z.ZodString;
-        createdAt: z.ZodString;
-        isSentByMe: z.ZodBoolean;
-        price: z.ZodNumber;
-        isOpened: z.ZodOptional<z.ZodNullable<z.ZodBoolean>>;
-        isNew: z.ZodOptional<z.ZodBoolean>;
-        isTip: z.ZodOptional<z.ZodBoolean>;
-        tipAmountUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-        tipText: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        mediaCount: z.ZodOptional<z.ZodNumber>;
-        media: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            id: z.ZodString;
-            type: z.ZodEnum<{
-                other: "other";
-                video: "video";
-                audio: "audio";
-                photo: "photo";
-                gif: "gif";
-            }>;
-            isReady: z.ZodBoolean;
-            locked: z.ZodBoolean;
-            durationSeconds: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-        }, z.core.$strip>>>;
-        replyTo: z.ZodOptional<z.ZodNullable<z.ZodObject<{
-            messageId: z.ZodOptional<z.ZodString>;
-            sender: z.ZodOptional<z.ZodEnum<{
-                fan: "fan";
-                model: "model";
-            }>>;
-            textPreview: z.ZodString;
-        }, z.core.$strip>>>;
-    }, z.core.$strip>>;
-    deletedAt: z.ZodNullable<z.ZodString>;
-    sourceUpdatedAt: z.ZodString;
-    sourceFanoutSeq: z.ZodNullable<z.ZodNumber>;
-}, z.core.$strip>;
-export declare const syncSnapshotThreadSchema: z.ZodObject<{
-    chatId: z.ZodString;
-    fanName: z.ZodString;
-    unreadCount: z.ZodNumber;
-    hasUnreadTips: z.ZodBoolean;
-    lastMessageId: z.ZodNullable<z.ZodString>;
-    lastMessageAt: z.ZodNullable<z.ZodString>;
-    lastMessageIsSentByMe: z.ZodBoolean;
-    lastMessagePreview: z.ZodString;
-    visible: z.ZodBoolean;
-    sourceUpdatedAt: z.ZodString;
-    messages: z.ZodArray<z.ZodObject<{
-        chatId: z.ZodString;
-        messageId: z.ZodString;
-        message: z.ZodNullable<z.ZodObject<{
-            id: z.ZodString;
-            text: z.ZodString;
-            createdAt: z.ZodString;
-            isSentByMe: z.ZodBoolean;
-            price: z.ZodNumber;
-            isOpened: z.ZodOptional<z.ZodNullable<z.ZodBoolean>>;
-            isNew: z.ZodOptional<z.ZodBoolean>;
-            isTip: z.ZodOptional<z.ZodBoolean>;
-            tipAmountUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-            tipText: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            mediaCount: z.ZodOptional<z.ZodNumber>;
-            media: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                id: z.ZodString;
-                type: z.ZodEnum<{
-                    other: "other";
-                    video: "video";
-                    audio: "audio";
-                    photo: "photo";
-                    gif: "gif";
-                }>;
-                isReady: z.ZodBoolean;
-                locked: z.ZodBoolean;
-                durationSeconds: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-            }, z.core.$strip>>>;
-            replyTo: z.ZodOptional<z.ZodNullable<z.ZodObject<{
-                messageId: z.ZodOptional<z.ZodString>;
-                sender: z.ZodOptional<z.ZodEnum<{
-                    fan: "fan";
-                    model: "model";
-                }>>;
-                textPreview: z.ZodString;
-            }, z.core.$strip>>>;
-        }, z.core.$strip>>;
-        deletedAt: z.ZodNullable<z.ZodString>;
-        sourceUpdatedAt: z.ZodString;
-        sourceFanoutSeq: z.ZodNullable<z.ZodNumber>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-export declare const syncSnapshotUnresolvedTombstoneSchema: z.ZodObject<{
-    messageId: z.ZodString;
-    deletedAt: z.ZodString;
-    sourceUpdatedAt: z.ZodString;
-    sourceFanoutSeq: z.ZodNumber;
-}, z.core.$strip>;
-export declare const syncSnapshotResponseSchema: z.ZodObject<{
-    version: z.ZodLiteral<1>;
-    requestedAfterSeq: z.ZodNumber;
-    snapshotCursor: z.ZodNumber;
-    stateAt: z.ZodString;
-    resumeAllowed: z.ZodBoolean;
-    page: z.ZodObject<{
-        pageId: z.ZodNumber;
-        label: z.ZodString;
-        accountId: z.ZodString;
-        username: z.ZodNullable<z.ZodString>;
-        authStatus: z.ZodNullable<z.ZodString>;
-        authenticated: z.ZodNullable<z.ZodBoolean>;
-        authChangedAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>;
-    coverage: z.ZodObject<{
-        durableDomains: z.ZodArray<z.ZodEnum<{
-            chat_heads: "chat_heads";
-            hot_messages: "hot_messages";
-            message_tombstones: "message_tombstones";
-            account_auth: "account_auth";
-        }>>;
-        omittedDomains: z.ZodArray<z.ZodObject<{
-            domain: z.ZodString;
-            reason: z.ZodString;
-        }, z.core.$strip>>;
-        messageWindow: z.ZodLiteral<"hot_projection_plus_archive_delta">;
-    }, z.core.$strip>;
-    threads: z.ZodArray<z.ZodObject<{
-        chatId: z.ZodString;
-        fanName: z.ZodString;
-        unreadCount: z.ZodNumber;
-        hasUnreadTips: z.ZodBoolean;
-        lastMessageId: z.ZodNullable<z.ZodString>;
-        lastMessageAt: z.ZodNullable<z.ZodString>;
-        lastMessageIsSentByMe: z.ZodBoolean;
-        lastMessagePreview: z.ZodString;
-        visible: z.ZodBoolean;
-        sourceUpdatedAt: z.ZodString;
-        messages: z.ZodArray<z.ZodObject<{
-            chatId: z.ZodString;
-            messageId: z.ZodString;
-            message: z.ZodNullable<z.ZodObject<{
-                id: z.ZodString;
-                text: z.ZodString;
-                createdAt: z.ZodString;
-                isSentByMe: z.ZodBoolean;
-                price: z.ZodNumber;
-                isOpened: z.ZodOptional<z.ZodNullable<z.ZodBoolean>>;
-                isNew: z.ZodOptional<z.ZodBoolean>;
-                isTip: z.ZodOptional<z.ZodBoolean>;
-                tipAmountUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-                tipText: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                mediaCount: z.ZodOptional<z.ZodNumber>;
-                media: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                    id: z.ZodString;
-                    type: z.ZodEnum<{
-                        other: "other";
-                        video: "video";
-                        audio: "audio";
-                        photo: "photo";
-                        gif: "gif";
-                    }>;
-                    isReady: z.ZodBoolean;
-                    locked: z.ZodBoolean;
-                    durationSeconds: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-                }, z.core.$strip>>>;
-                replyTo: z.ZodOptional<z.ZodNullable<z.ZodObject<{
-                    messageId: z.ZodOptional<z.ZodString>;
-                    sender: z.ZodOptional<z.ZodEnum<{
-                        fan: "fan";
-                        model: "model";
-                    }>>;
-                    textPreview: z.ZodString;
-                }, z.core.$strip>>>;
-            }, z.core.$strip>>;
-            deletedAt: z.ZodNullable<z.ZodString>;
-            sourceUpdatedAt: z.ZodString;
-            sourceFanoutSeq: z.ZodNullable<z.ZodNumber>;
-        }, z.core.$strip>>;
-    }, z.core.$strip>>;
-    unresolvedTombstones: z.ZodArray<z.ZodObject<{
-        messageId: z.ZodString;
-        deletedAt: z.ZodString;
-        sourceUpdatedAt: z.ZodString;
-        sourceFanoutSeq: z.ZodNumber;
-    }, z.core.$strip>>;
-    nextPageCursor: z.ZodNullable<z.ZodNumber>;
-    nextStateCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-}, z.core.$strip>;
 export declare const ofapiWebhookAckResponseSchema: z.ZodObject<{
     received: z.ZodLiteral<true>;
     duplicate: z.ZodBoolean;
@@ -11419,8 +10276,8 @@ export declare const ofapiCaptureJobReplayBodySchema: z.ZodObject<{
 export declare const ofapiCaptureJobReplayResponseSchema: z.ZodObject<{
     dryRun: z.ZodBoolean;
     status: z.ZodEnum<{
-        replayed: "replayed";
         would_replay: "would_replay";
+        replayed: "replayed";
     }>;
     jobId: z.ZodString;
     attemptId: z.ZodString;
@@ -11678,209 +10535,6 @@ export declare const ofapiCreditsSummaryResponseSchema: z.ZodObject<{
         microUsdPerCredit: z.ZodNumber;
     }, z.core.$strip>>;
 }, z.core.$strip>;
-export declare const ofapiCreditsChatterSummaryResponseSchema: z.ZodObject<{
-    enabled: z.ZodBoolean;
-    scope: z.ZodObject<{
-        pageIds: z.ZodArray<z.ZodNumber>;
-        pageCount: z.ZodNumber;
-    }, z.core.$strip>;
-    today: z.ZodObject<{
-        day: z.ZodString;
-        from: z.ZodString;
-        to: z.ZodString;
-        restCredits: z.ZodNumber;
-        webhook: z.ZodObject<{
-            eventCount: z.ZodNumber;
-            estimatedCredits: z.ZodNumber;
-        }, z.core.$strip>;
-        totalEstimatedCredits: z.ZodNumber;
-        netRestCredits: z.ZodOptional<z.ZodNumber>;
-        netTotalEstimatedCredits: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>;
-    last7d: z.ZodObject<{
-        from: z.ZodString;
-        to: z.ZodString;
-        restCredits: z.ZodNumber;
-        webhook: z.ZodObject<{
-            eventCount: z.ZodNumber;
-            estimatedCredits: z.ZodNumber;
-        }, z.core.$strip>;
-        totalEstimatedCredits: z.ZodNumber;
-        netRestCredits: z.ZodOptional<z.ZodNumber>;
-        netTotalEstimatedCredits: z.ZodOptional<z.ZodNumber>;
-    }, z.core.$strip>;
-    limitations: z.ZodArray<z.ZodString>;
-}, z.core.$strip>;
-export declare const ofapiCommandStateSchema: z.ZodEnum<{
-    cancelled: "cancelled";
-    queued: "queued";
-    confirmed: "confirmed";
-    indeterminate: "indeterminate";
-    in_flight: "in_flight";
-    failed_retryable: "failed_retryable";
-    failed_terminal: "failed_terminal";
-}>;
-export declare const ofapiCommandKindSchema: z.ZodEnum<{
-    send_message_v2: "send_message_v2";
-    set_fan_custom_name_v1: "set_fan_custom_name_v1";
-    like_message_v1: "like_message_v1";
-    unlike_message_v1: "unlike_message_v1";
-    pin_message_v1: "pin_message_v1";
-    unpin_message_v1: "unpin_message_v1";
-    mark_chat_unread_v1: "mark_chat_unread_v1";
-    mute_chat_v1: "mute_chat_v1";
-    unmute_chat_v1: "unmute_chat_v1";
-    hide_chat_v1: "hide_chat_v1";
-    send_text_message_v1: "send_text_message_v1";
-    send_media_message_v1: "send_media_message_v1";
-    typing_active_v1: "typing_active_v1";
-    unsend_message_v1: "unsend_message_v1";
-    mark_chat_read_v1: "mark_chat_read_v1";
-}>;
-export declare const createOfapiCommandBodySchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
-    kind: z.ZodLiteral<"send_message_v2">;
-    payload: z.ZodObject<{
-        text: z.ZodString;
-        priceCents: z.ZodNumber;
-        mediaFiles: z.ZodArray<z.ZodString>;
-        previews: z.ZodArray<z.ZodString>;
-        lockedText: z.ZodBoolean;
-        replyToMessageId: z.ZodNullable<z.ZodString>;
-        giphyId: z.ZodNullable<z.ZodString>;
-        rfTag: z.ZodArray<z.ZodString>;
-        rfPartner: z.ZodArray<z.ZodString>;
-        rfGuest: z.ZodArray<z.ZodString>;
-        blockBannedWords: z.ZodNullable<z.ZodEnum<{
-            risky: "risky";
-            strict_ban: "strict_ban";
-            replace_soften: "replace_soften";
-        }>>;
-        reuseProviderOperation: z.ZodDefault<z.ZodBoolean>;
-    }, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    outreachPurpose: z.ZodOptional<z.ZodLiteral<"new-follower">>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>, z.ZodObject<{
-    kind: z.ZodLiteral<"set_fan_custom_name_v1">;
-    payload: z.ZodObject<{
-        customName: z.ZodString;
-    }, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNull>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>, ...(z.ZodObject<{
-    kind: z.ZodLiteral<"like_message_v1" | "unlike_message_v1" | "pin_message_v1" | "unpin_message_v1">;
-    payload: z.ZodObject<{
-        messageId: z.ZodString;
-    }, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNull>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict> | z.ZodObject<{
-    kind: z.ZodLiteral<"mark_chat_unread_v1" | "mute_chat_v1" | "unmute_chat_v1" | "hide_chat_v1">;
-    payload: z.ZodObject<{}, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNull>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>)[], z.ZodObject<{
-    kind: z.ZodLiteral<"send_text_message_v1">;
-    outreachPurpose: z.ZodOptional<z.ZodLiteral<"new-follower">>;
-    payload: z.ZodObject<{
-        text: z.ZodString;
-    }, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>, z.ZodObject<{
-    kind: z.ZodLiteral<"send_media_message_v1">;
-    payload: z.ZodObject<{
-        text: z.ZodString;
-        price: z.ZodNumber;
-        mediaFiles: z.ZodArray<z.ZodString>;
-        previews: z.ZodArray<z.ZodString>;
-    }, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>, z.ZodObject<{
-    kind: z.ZodLiteral<"typing_active_v1">;
-    payload: z.ZodObject<{}, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNull>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>, z.ZodObject<{
-    kind: z.ZodLiteral<"unsend_message_v1">;
-    payload: z.ZodObject<{
-        messageId: z.ZodString;
-    }, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNull>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>, z.ZodObject<{
-    kind: z.ZodLiteral<"mark_chat_read_v1">;
-    payload: z.ZodObject<{}, z.core.$strict>;
-    retryOfCommandId: z.ZodOptional<z.ZodNull>;
-    clientCommandId: z.ZodString;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-}, z.core.$strict>], "kind">;
-export declare const ofapiCommandParamsSchema: z.ZodObject<{
-    commandId: z.ZodString;
-}, z.core.$strip>;
-export declare const ofapiCommandResponseSchema: z.ZodObject<{
-    commandId: z.ZodString;
-    clientCommandId: z.ZodString;
-    kind: z.ZodEnum<{
-        send_message_v2: "send_message_v2";
-        set_fan_custom_name_v1: "set_fan_custom_name_v1";
-        like_message_v1: "like_message_v1";
-        unlike_message_v1: "unlike_message_v1";
-        pin_message_v1: "pin_message_v1";
-        unpin_message_v1: "unpin_message_v1";
-        mark_chat_unread_v1: "mark_chat_unread_v1";
-        mute_chat_v1: "mute_chat_v1";
-        unmute_chat_v1: "unmute_chat_v1";
-        hide_chat_v1: "hide_chat_v1";
-        send_text_message_v1: "send_text_message_v1";
-        send_media_message_v1: "send_media_message_v1";
-        typing_active_v1: "typing_active_v1";
-        unsend_message_v1: "unsend_message_v1";
-        mark_chat_read_v1: "mark_chat_read_v1";
-    }>;
-    outreachPurpose: z.ZodOptional<z.ZodNullable<z.ZodLiteral<"new-follower">>>;
-    accountId: z.ZodString;
-    conversationId: z.ZodString;
-    state: z.ZodEnum<{
-        cancelled: "cancelled";
-        queued: "queued";
-        confirmed: "confirmed";
-        indeterminate: "indeterminate";
-        in_flight: "in_flight";
-        failed_retryable: "failed_retryable";
-        failed_terminal: "failed_terminal";
-    }>;
-    payloadHash: z.ZodString;
-    retryOfCommandId: z.ZodNullable<z.ZodString>;
-    attemptCount: z.ZodNumber;
-    lastErrorCode: z.ZodNullable<z.ZodString>;
-    lastErrorClass: z.ZodNullable<z.ZodString>;
-    verifierResult: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-    platformMessageId: z.ZodNullable<z.ZodString>;
-    attemptStartedAt: z.ZodNullable<z.ZodString>;
-    attemptFinishedAt: z.ZodNullable<z.ZodString>;
-    createdAt: z.ZodString;
-    updatedAt: z.ZodString;
-    deduplicated: z.ZodBoolean;
-}, z.core.$strip>;
 export declare const adminOfapiCreditsDailyQuerySchema: z.ZodObject<{
     days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strip>;
@@ -12087,14 +10741,13 @@ export declare const routeAuthPolicySchema: z.ZodObject<{
         any: "any";
         "owner-session": "owner-session";
         session: "session";
-        apiKey: "apiKey";
         public: "public";
         agentKey: "agentKey";
+        apiKey: "apiKey";
         "any-session": "any-session";
         monitoring: "monitoring";
         hmac: "hmac";
         "device-token": "device-token";
-        "pending-device-token": "pending-device-token";
     }>;
     roles: z.ZodOptional<z.ZodArray<z.ZodEnum<{
         owner: "owner";
@@ -12326,12 +10979,6 @@ export declare const opsMetricsResponseSchema: z.ZodObject<{
         sampledAt: z.ZodString;
     }, z.core.$strip>>;
     thresholdsMs: z.ZodRecord<z.ZodString, z.ZodNumber>;
-    smoke: z.ZodNullable<z.ZodObject<{
-        framesSeen: z.ZodNumber;
-        gapCount: z.ZodNumber;
-        duplicateCount: z.ZodNumber;
-        updatedAt: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
 }, z.core.$strip>;
 /** Fansly's 2026-10 statistics (`/creator/stats/*`, 0292): one page's
  *  account plane over the last `days` UTC days ending on `to` (default:
@@ -12942,79 +11589,6 @@ export declare const creatorStatsAudienceResponseSchema: z.ZodObject<{
         mediaShown: z.ZodNullable<z.ZodNumber>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
-export declare const statsTrafficQuerySchema: z.ZodObject<{
-    from: z.ZodString;
-    to: z.ZodString;
-    periodMs: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-    subjectKind: z.ZodDefault<z.ZodEnum<{
-        post: "post";
-        account_profile: "account_profile";
-        account_media: "account_media";
-        media_offer: "media_offer";
-    }>>;
-    subjectRef: z.ZodOptional<z.ZodString>;
-    limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-    cursor: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
-export declare const statsTrafficResponseSchema: z.ZodObject<{
-    page: z.ZodObject<{
-        label: z.ZodString;
-        platform: z.ZodEnum<{
-            fansly: "fansly";
-            onlyfans: "onlyfans";
-            telegram: "telegram";
-        }>;
-    }, z.core.$strip>;
-    window: z.ZodObject<{
-        from: z.ZodString;
-        to: z.ZodString;
-        periodMs: z.ZodNumber;
-        subjectKind: z.ZodString;
-        subjectRef: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>;
-    rows: z.ZodArray<z.ZodObject<{
-        subjectKind: z.ZodString;
-        subjectRef: z.ZodString;
-        periodMs: z.ZodNumber;
-        bucketStart: z.ZodString;
-        sourceCode: z.ZodString;
-        sourceLabel: z.ZodString;
-        mappingVersion: z.ZodNumber;
-        family: z.ZodNullable<z.ZodString>;
-        familyLabel: z.ZodNullable<z.ZodString>;
-        measure: z.ZodNullable<z.ZodEnum<{
-            visits: "visits";
-            dwell: "dwell";
-        }>>;
-        views: z.ZodNullable<z.ZodNumber>;
-        previewViews: z.ZodNullable<z.ZodNumber>;
-        uniqueViewers: z.ZodNullable<z.ZodNumber>;
-        previewUniqueViewers: z.ZodNullable<z.ZodNumber>;
-        videoViews: z.ZodNullable<z.ZodNumber>;
-        previewVideoViews: z.ZodNullable<z.ZodNumber>;
-        interactionTimeMs: z.ZodNullable<z.ZodNumber>;
-        previewInteractionTimeMs: z.ZodNullable<z.ZodNumber>;
-        videoPercentWatchedSum: z.ZodNullable<z.ZodString>;
-        previewVideoPercentWatchedSum: z.ZodNullable<z.ZodString>;
-        revisionCount: z.ZodNumber;
-        lastObservedAt: z.ZodString;
-    }, z.core.$strip>>;
-    coverage: z.ZodArray<z.ZodObject<{
-        plane: z.ZodString;
-        scopeRef: z.ZodString;
-        status: z.ZodString;
-        acquisitionMode: z.ZodString;
-        proof: z.ZodString;
-        oldestCapturedAt: z.ZodNullable<z.ZodString>;
-        newestCapturedAt: z.ZodNullable<z.ZodString>;
-        expectedCount: z.ZodNullable<z.ZodNumber>;
-        observedUniqueCount: z.ZodNullable<z.ZodNumber>;
-        reasonCode: z.ZodNullable<z.ZodString>;
-        nextProbeAt: z.ZodNullable<z.ZodString>;
-        updatedAt: z.ZodString;
-    }, z.core.$strip>>;
-    nextCursor: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
 export declare const statsMediaQuerySchema: z.ZodObject<{
     from: z.ZodString;
     to: z.ZodString;
@@ -13289,122 +11863,6 @@ export declare const statsHoldingsResponseSchema: z.ZodObject<{
         oldestAt: z.ZodNullable<z.ZodString>;
         newestAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
-}, z.core.$strip>;
-export declare const contentMediaQuerySchema: z.ZodObject<{
-    limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-    cursor: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
-export declare const contentMediaResponseSchema: z.ZodObject<{
-    page: z.ZodObject<{
-        label: z.ZodString;
-        platform: z.ZodEnum<{
-            fansly: "fansly";
-            onlyfans: "onlyfans";
-            telegram: "telegram";
-        }>;
-    }, z.core.$strip>;
-    generatedAt: z.ZodString;
-    media: z.ZodArray<z.ZodObject<{
-        mimeType: z.ZodNullable<z.ZodString>;
-        mediaRef: z.ZodNullable<z.ZodString>;
-        width: z.ZodNullable<z.ZodNumber>;
-        height: z.ZodNullable<z.ZodNumber>;
-        mediaType: z.ZodNullable<z.ZodNumber>;
-        priceMills: z.ZodNullable<z.ZodNumber>;
-        firstObservedAt: z.ZodString;
-        lastObservedAt: z.ZodString;
-        durationMs: z.ZodNullable<z.ZodNumber>;
-        createdAtPlatform: z.ZodNullable<z.ZodString>;
-        mediaOfferRef: z.ZodString;
-        likeCount: z.ZodNullable<z.ZodNumber>;
-        sales: z.ZodObject<{
-            count: z.ZodNullable<z.ZodNumber>;
-            netMills: z.ZodNullable<z.ZodNumber>;
-            pendingMills: z.ZodNullable<z.ZodNumber>;
-            grossMills: z.ZodNullable<z.ZodObject<{
-                value: z.ZodNumber;
-                derived: z.ZodLiteral<true>;
-                basis: z.ZodString;
-            }, z.core.$strip>>;
-        }, z.core.$strip>;
-        bundleRefs: z.ZodArray<z.ZodString>;
-        deletedAtPlatform: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-    vaultAlbums: z.ZodArray<z.ZodObject<{
-        vaultKind: z.ZodString;
-        albumRef: z.ZodString;
-        title: z.ZodNullable<z.ZodString>;
-        albumType: z.ZodNullable<z.ZodNumber>;
-        status: z.ZodNullable<z.ZodNumber>;
-        pos: z.ZodNullable<z.ZodNumber>;
-        itemCount: z.ZodNullable<z.ZodNumber>;
-        missingSince: z.ZodNullable<z.ZodString>;
-        lastObservedAt: z.ZodString;
-    }, z.core.$strip>>;
-    tiers: z.ZodArray<z.ZodObject<{
-        tierRef: z.ZodString;
-        name: z.ZodNullable<z.ZodString>;
-        color: z.ZodNullable<z.ZodString>;
-        pos: z.ZodNullable<z.ZodNumber>;
-        basePriceMills: z.ZodNullable<z.ZodNumber>;
-        maxSubscribers: z.ZodNullable<z.ZodNumber>;
-        missingSince: z.ZodNullable<z.ZodString>;
-        plans: z.ZodArray<z.ZodObject<{
-            planRef: z.ZodString;
-            status: z.ZodNullable<z.ZodNumber>;
-            durationDays: z.ZodNullable<z.ZodNumber>;
-            priceMills: z.ZodNullable<z.ZodNumber>;
-            useAmounts: z.ZodNullable<z.ZodNumber>;
-            promoCount: z.ZodNumber;
-            missingSince: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>>;
-    }, z.core.$strip>>;
-    walls: z.ZodArray<z.ZodObject<{
-        wallRef: z.ZodString;
-        name: z.ZodNullable<z.ZodString>;
-        description: z.ZodNullable<z.ZodString>;
-        pos: z.ZodNullable<z.ZodNumber>;
-        mainWall: z.ZodNullable<z.ZodBoolean>;
-        defaultWall: z.ZodNullable<z.ZodBoolean>;
-        private: z.ZodNullable<z.ZodNumber>;
-        missingSince: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-    automations: z.ZodArray<z.ZodObject<{
-        automationRef: z.ZodString;
-        triggerType: z.ZodNullable<z.ZodNumber>;
-        delaySeconds: z.ZodNullable<z.ZodNumber>;
-        cooldownSeconds: z.ZodNullable<z.ZodNumber>;
-        templateType: z.ZodNullable<z.ZodNumber>;
-        senderRef: z.ZodNullable<z.ZodString>;
-        messageText: z.ZodNullable<z.ZodString>;
-        attachmentCount: z.ZodNumber;
-        parseOk: z.ZodBoolean;
-        missingSince: z.ZodNullable<z.ZodString>;
-    }, z.core.$strip>>;
-    inventory: z.ZodObject<{
-        uniqueMediaCount: z.ZodNumber;
-        vaultMemberUniqueCount: z.ZodNumber;
-        albumMembershipSum: z.ZodObject<{
-            value: z.ZodNumber;
-            derived: z.ZodLiteral<true>;
-            basis: z.ZodString;
-        }, z.core.$strip>;
-    }, z.core.$strip>;
-    coverage: z.ZodArray<z.ZodObject<{
-        plane: z.ZodString;
-        scopeRef: z.ZodString;
-        status: z.ZodString;
-        acquisitionMode: z.ZodString;
-        proof: z.ZodString;
-        oldestCapturedAt: z.ZodNullable<z.ZodString>;
-        newestCapturedAt: z.ZodNullable<z.ZodString>;
-        expectedCount: z.ZodNullable<z.ZodNumber>;
-        observedUniqueCount: z.ZodNullable<z.ZodNumber>;
-        reasonCode: z.ZodNullable<z.ZodString>;
-        nextProbeAt: z.ZodNullable<z.ZodString>;
-        updatedAt: z.ZodString;
-    }, z.core.$strip>>;
-    nextCursor: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
 export declare const contentCommentsQuerySchema: z.ZodObject<{
     from: z.ZodString;
@@ -14557,36 +13015,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly authActivateDeviceToken: {
-        readonly auth: {
-            readonly kind: "pending-device-token";
-        };
-        readonly tags: readonly ["auth"];
-        readonly summary: "Activate a durably staged pending device token";
-        readonly description: string;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                id: z.ZodNumber;
-                label: z.ZodString;
-                expiresAt: z.ZodString;
-                keyPrefix: z.ZodString;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly authRevokeCurrentDeviceToken: {
         readonly auth: {
             readonly kind: "device-token";
@@ -14660,64 +13088,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly adminSetDeviceTokenHarvestCapability: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Bind or remove a device token's Desktop harvest capability";
-        readonly description: string;
-        readonly params: z.ZodObject<{
-            userId: z.ZodCoercedNumber<unknown>;
-            tokenId: z.ZodCoercedNumber<unknown>;
-        }, z.core.$strip>;
-        readonly body: z.ZodObject<{
-            machineId: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                id: z.ZodNumber;
-                label: z.ZodString;
-                keyPrefix: z.ZodString;
-                harvestMachineId: z.ZodNullable<z.ZodString>;
-                isActive: z.ZodBoolean;
-                expiresAt: z.ZodString;
-                lastUsedAt: z.ZodNullable<z.ZodString>;
-                lastClientVersion: z.ZodNullable<z.ZodString>;
-                createdAt: z.ZodString;
-                revokedAt: z.ZodNullable<z.ZodString>;
-                revokedReason: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly adminRevokeDeviceTokens: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -14746,44 +13116,6 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly adminDeviceTokenAdoption: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Device-token adoption across active chatters (D116(c) gate report)";
-        readonly description: string;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                generatedAt: z.ZodString;
-                freshWindowDays: z.ZodNumber;
-                chatters: z.ZodArray<z.ZodObject<{
-                    username: z.ZodString;
-                    hasFreshDeviceToken: z.ZodBoolean;
-                    deviceTokenLastUsedAt: z.ZodNullable<z.ZodString>;
-                    deviceTokenExpiresAt: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-                summary: z.ZodObject<{
-                    activeChatters: z.ZodNumber;
-                    onFreshTokens: z.ZodNumber;
-                }, z.core.$strip>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -14957,8 +13289,8 @@ declare const baseRouteSchemas: {
                 state: z.ZodEnum<{
                     active: "active";
                     expired: "expired";
-                    revoked: "revoked";
                     used: "used";
+                    revoked: "revoked";
                 }>;
                 expiresAt: z.ZodString;
                 usedAt: z.ZodNullable<z.ZodString>;
@@ -15011,8 +13343,8 @@ declare const baseRouteSchemas: {
                 state: z.ZodEnum<{
                     active: "active";
                     expired: "expired";
-                    revoked: "revoked";
                     used: "used";
+                    revoked: "revoked";
                 }>;
                 expiresAt: z.ZodString;
                 usedAt: z.ZodNullable<z.ZodString>;
@@ -15154,8 +13486,8 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>, z.ZodObject<{
                 state: z.ZodEnum<{
                     expired: "expired";
-                    revoked: "revoked";
                     used: "used";
+                    revoked: "revoked";
                 }>;
             }, z.core.$strip>], "state">;
             readonly 400: z.ZodObject<{
@@ -15238,7 +13570,6 @@ declare const baseRouteSchemas: {
             password: z.ZodString;
             label: z.ZodString;
             mode: z.ZodEnum<{
-                pending: "pending";
                 active: "active";
             }>;
             client: z.ZodOptional<z.ZodEnum<{
@@ -15246,7 +13577,7 @@ declare const baseRouteSchemas: {
             }>>;
         }, z.core.$strip>;
         readonly response: {
-            readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
+            readonly 200: z.ZodObject<{
                 token: z.ZodString;
                 id: z.ZodNumber;
                 label: z.ZodString;
@@ -15254,14 +13585,7 @@ declare const baseRouteSchemas: {
                 expiresAt: z.ZodString;
                 mode: z.ZodLiteral<"active">;
                 client: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            }, z.core.$strip>, z.ZodObject<{
-                token: z.ZodString;
-                reservationId: z.ZodNumber;
-                label: z.ZodString;
-                keyPrefix: z.ZodString;
-                reservationExpiresAt: z.ZodString;
-                mode: z.ZodLiteral<"pending">;
-            }, z.core.$strip>], "mode">;
+            }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
@@ -17010,46 +15334,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly adminTestProxy: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Test a proxy connection and return the exit IP";
-        readonly body: z.ZodObject<{
-            proxy: z.ZodObject<{
-                url: z.ZodString;
-                username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            }, z.core.$strip>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                ip: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly adminVerifyPage: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -17915,120 +16199,6 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly statsTraffic: {
-        readonly auth: {
-            readonly kind: "owner-session";
-            readonly scope: "page";
-        };
-        readonly tags: readonly ["insights"];
-        readonly summary: "Profile/media traffic buckets by RAW source code for one page";
-        readonly params: z.ZodObject<{
-            pageLabel: z.ZodString;
-        }, z.core.$strip>;
-        readonly querystring: z.ZodObject<{
-            from: z.ZodString;
-            to: z.ZodString;
-            periodMs: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-            subjectKind: z.ZodDefault<z.ZodEnum<{
-                post: "post";
-                account_profile: "account_profile";
-                account_media: "account_media";
-                media_offer: "media_offer";
-            }>>;
-            subjectRef: z.ZodOptional<z.ZodString>;
-            limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-            cursor: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                page: z.ZodObject<{
-                    label: z.ZodString;
-                    platform: z.ZodEnum<{
-                        fansly: "fansly";
-                        onlyfans: "onlyfans";
-                        telegram: "telegram";
-                    }>;
-                }, z.core.$strip>;
-                window: z.ZodObject<{
-                    from: z.ZodString;
-                    to: z.ZodString;
-                    periodMs: z.ZodNumber;
-                    subjectKind: z.ZodString;
-                    subjectRef: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>;
-                rows: z.ZodArray<z.ZodObject<{
-                    subjectKind: z.ZodString;
-                    subjectRef: z.ZodString;
-                    periodMs: z.ZodNumber;
-                    bucketStart: z.ZodString;
-                    sourceCode: z.ZodString;
-                    sourceLabel: z.ZodString;
-                    mappingVersion: z.ZodNumber;
-                    family: z.ZodNullable<z.ZodString>;
-                    familyLabel: z.ZodNullable<z.ZodString>;
-                    measure: z.ZodNullable<z.ZodEnum<{
-                        visits: "visits";
-                        dwell: "dwell";
-                    }>>;
-                    views: z.ZodNullable<z.ZodNumber>;
-                    previewViews: z.ZodNullable<z.ZodNumber>;
-                    uniqueViewers: z.ZodNullable<z.ZodNumber>;
-                    previewUniqueViewers: z.ZodNullable<z.ZodNumber>;
-                    videoViews: z.ZodNullable<z.ZodNumber>;
-                    previewVideoViews: z.ZodNullable<z.ZodNumber>;
-                    interactionTimeMs: z.ZodNullable<z.ZodNumber>;
-                    previewInteractionTimeMs: z.ZodNullable<z.ZodNumber>;
-                    videoPercentWatchedSum: z.ZodNullable<z.ZodString>;
-                    previewVideoPercentWatchedSum: z.ZodNullable<z.ZodString>;
-                    revisionCount: z.ZodNumber;
-                    lastObservedAt: z.ZodString;
-                }, z.core.$strip>>;
-                coverage: z.ZodArray<z.ZodObject<{
-                    plane: z.ZodString;
-                    scopeRef: z.ZodString;
-                    status: z.ZodString;
-                    acquisitionMode: z.ZodString;
-                    proof: z.ZodString;
-                    oldestCapturedAt: z.ZodNullable<z.ZodString>;
-                    newestCapturedAt: z.ZodNullable<z.ZodString>;
-                    expectedCount: z.ZodNullable<z.ZodNumber>;
-                    observedUniqueCount: z.ZodNullable<z.ZodNumber>;
-                    reasonCode: z.ZodNullable<z.ZodString>;
-                    nextProbeAt: z.ZodNullable<z.ZodString>;
-                    updatedAt: z.ZodString;
-                }, z.core.$strip>>;
-                nextCursor: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -19376,163 +17546,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly contentMedia: {
-        readonly auth: {
-            readonly kind: "owner-session";
-            readonly scope: "page";
-        };
-        readonly tags: readonly ["insights"];
-        readonly summary: "Content catalog: media, vault albums, tiers/plans, walls, automations";
-        readonly params: z.ZodObject<{
-            pageLabel: z.ZodString;
-        }, z.core.$strip>;
-        readonly querystring: z.ZodObject<{
-            limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-            cursor: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                page: z.ZodObject<{
-                    label: z.ZodString;
-                    platform: z.ZodEnum<{
-                        fansly: "fansly";
-                        onlyfans: "onlyfans";
-                        telegram: "telegram";
-                    }>;
-                }, z.core.$strip>;
-                generatedAt: z.ZodString;
-                media: z.ZodArray<z.ZodObject<{
-                    mimeType: z.ZodNullable<z.ZodString>;
-                    mediaRef: z.ZodNullable<z.ZodString>;
-                    width: z.ZodNullable<z.ZodNumber>;
-                    height: z.ZodNullable<z.ZodNumber>;
-                    mediaType: z.ZodNullable<z.ZodNumber>;
-                    priceMills: z.ZodNullable<z.ZodNumber>;
-                    firstObservedAt: z.ZodString;
-                    lastObservedAt: z.ZodString;
-                    durationMs: z.ZodNullable<z.ZodNumber>;
-                    createdAtPlatform: z.ZodNullable<z.ZodString>;
-                    mediaOfferRef: z.ZodString;
-                    likeCount: z.ZodNullable<z.ZodNumber>;
-                    sales: z.ZodObject<{
-                        count: z.ZodNullable<z.ZodNumber>;
-                        netMills: z.ZodNullable<z.ZodNumber>;
-                        pendingMills: z.ZodNullable<z.ZodNumber>;
-                        grossMills: z.ZodNullable<z.ZodObject<{
-                            value: z.ZodNumber;
-                            derived: z.ZodLiteral<true>;
-                            basis: z.ZodString;
-                        }, z.core.$strip>>;
-                    }, z.core.$strip>;
-                    bundleRefs: z.ZodArray<z.ZodString>;
-                    deletedAtPlatform: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-                vaultAlbums: z.ZodArray<z.ZodObject<{
-                    vaultKind: z.ZodString;
-                    albumRef: z.ZodString;
-                    title: z.ZodNullable<z.ZodString>;
-                    albumType: z.ZodNullable<z.ZodNumber>;
-                    status: z.ZodNullable<z.ZodNumber>;
-                    pos: z.ZodNullable<z.ZodNumber>;
-                    itemCount: z.ZodNullable<z.ZodNumber>;
-                    missingSince: z.ZodNullable<z.ZodString>;
-                    lastObservedAt: z.ZodString;
-                }, z.core.$strip>>;
-                tiers: z.ZodArray<z.ZodObject<{
-                    tierRef: z.ZodString;
-                    name: z.ZodNullable<z.ZodString>;
-                    color: z.ZodNullable<z.ZodString>;
-                    pos: z.ZodNullable<z.ZodNumber>;
-                    basePriceMills: z.ZodNullable<z.ZodNumber>;
-                    maxSubscribers: z.ZodNullable<z.ZodNumber>;
-                    missingSince: z.ZodNullable<z.ZodString>;
-                    plans: z.ZodArray<z.ZodObject<{
-                        planRef: z.ZodString;
-                        status: z.ZodNullable<z.ZodNumber>;
-                        durationDays: z.ZodNullable<z.ZodNumber>;
-                        priceMills: z.ZodNullable<z.ZodNumber>;
-                        useAmounts: z.ZodNullable<z.ZodNumber>;
-                        promoCount: z.ZodNumber;
-                        missingSince: z.ZodNullable<z.ZodString>;
-                    }, z.core.$strip>>;
-                }, z.core.$strip>>;
-                walls: z.ZodArray<z.ZodObject<{
-                    wallRef: z.ZodString;
-                    name: z.ZodNullable<z.ZodString>;
-                    description: z.ZodNullable<z.ZodString>;
-                    pos: z.ZodNullable<z.ZodNumber>;
-                    mainWall: z.ZodNullable<z.ZodBoolean>;
-                    defaultWall: z.ZodNullable<z.ZodBoolean>;
-                    private: z.ZodNullable<z.ZodNumber>;
-                    missingSince: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-                automations: z.ZodArray<z.ZodObject<{
-                    automationRef: z.ZodString;
-                    triggerType: z.ZodNullable<z.ZodNumber>;
-                    delaySeconds: z.ZodNullable<z.ZodNumber>;
-                    cooldownSeconds: z.ZodNullable<z.ZodNumber>;
-                    templateType: z.ZodNullable<z.ZodNumber>;
-                    senderRef: z.ZodNullable<z.ZodString>;
-                    messageText: z.ZodNullable<z.ZodString>;
-                    attachmentCount: z.ZodNumber;
-                    parseOk: z.ZodBoolean;
-                    missingSince: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-                inventory: z.ZodObject<{
-                    uniqueMediaCount: z.ZodNumber;
-                    vaultMemberUniqueCount: z.ZodNumber;
-                    albumMembershipSum: z.ZodObject<{
-                        value: z.ZodNumber;
-                        derived: z.ZodLiteral<true>;
-                        basis: z.ZodString;
-                    }, z.core.$strip>;
-                }, z.core.$strip>;
-                coverage: z.ZodArray<z.ZodObject<{
-                    plane: z.ZodString;
-                    scopeRef: z.ZodString;
-                    status: z.ZodString;
-                    acquisitionMode: z.ZodString;
-                    proof: z.ZodString;
-                    oldestCapturedAt: z.ZodNullable<z.ZodString>;
-                    newestCapturedAt: z.ZodNullable<z.ZodString>;
-                    expectedCount: z.ZodNullable<z.ZodNumber>;
-                    observedUniqueCount: z.ZodNullable<z.ZodNumber>;
-                    reasonCode: z.ZodNullable<z.ZodString>;
-                    nextProbeAt: z.ZodNullable<z.ZodString>;
-                    updatedAt: z.ZodString;
-                }, z.core.$strip>>;
-                nextCursor: z.ZodNullable<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly contentComments: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -19847,6 +17860,466 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly accountReports: {
+        readonly auth: {
+            readonly kind: "any-session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The caller's own shift reports from the agency ledger: drafted and posted pages, amounts, sales counted and held out";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            from: z.ZodOptional<z.ZodString>;
+            to: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                reports: z.ZodArray<z.ZodObject<{
+                    reportDate: z.ZodString;
+                    lines: z.ZodArray<z.ZodObject<{
+                        n: z.ZodNullable<z.ZodNumber>;
+                        pageLabel: z.ZodString;
+                        fanRef: z.ZodString;
+                        fanName: z.ZodString;
+                        kind: z.ZodString;
+                        occurredAt: z.ZodNullable<z.ZodString>;
+                        netMills: z.ZodNumber;
+                        counted: z.ZodBoolean;
+                        added: z.ZodBoolean;
+                        what: z.ZodString;
+                        flags: z.ZodArray<z.ZodString>;
+                        notes: z.ZodArray<z.ZodString>;
+                        ppvAuthor: z.ZodString;
+                        ppvSentAt: z.ZodString;
+                    }, z.core.$strip>>;
+                    source: z.ZodEnum<{
+                        post: "post";
+                        draft: "draft";
+                        both: "both";
+                    }>;
+                    id: z.ZodNullable<z.ZodNumber>;
+                    windowFrom: z.ZodNullable<z.ZodString>;
+                    windowTo: z.ZodNullable<z.ZodString>;
+                    cutAt: z.ZodNullable<z.ZodString>;
+                    version: z.ZodNullable<z.ZodNumber>;
+                    versions: z.ZodNullable<z.ZodNumber>;
+                    status: z.ZodString;
+                    totalMills: z.ZodNumber;
+                    draftTotalMills: z.ZodNullable<z.ZodNumber>;
+                    savedAt: z.ZodNullable<z.ZodString>;
+                    postedAt: z.ZodNullable<z.ZodString>;
+                    pages: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        amountMills: z.ZodNumber;
+                        draftMills: z.ZodNullable<z.ZodNumber>;
+                        postedMills: z.ZodNullable<z.ZodNumber>;
+                        postState: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                postsRead: z.ZodBoolean;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamLedgerPayouts: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The chatters' pay as the agency ledger counts it: accrued, paid, owed now";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            from: z.ZodString;
+            to: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                accrualFrom: z.ZodString;
+                factsFrom: z.ZodNullable<z.ZodString>;
+                reportsFrom: z.ZodNullable<z.ZodString>;
+                generatedAt: z.ZodString;
+                people: z.ZodArray<z.ZodObject<{
+                    slug: z.ZodString;
+                    name: z.ZodString;
+                    aliases: z.ZodArray<z.ZodString>;
+                    status: z.ZodString;
+                    hubUser: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        username: z.ZodString;
+                    }, z.core.$strip>>;
+                    days: z.ZodArray<z.ZodObject<{
+                        date: z.ZodString;
+                        model: z.ZodString;
+                        amountMills: z.ZodNumber;
+                        worked: z.ZodBoolean;
+                        source: z.ZodString;
+                    }, z.core.$strip>>;
+                    accruedMills: z.ZodNumber;
+                    paidMills: z.ZodNumber;
+                    balanceMills: z.ZodNumber;
+                    toPayMills: z.ZodNullable<z.ZodNumber>;
+                    oldestUnpaidDate: z.ZodNullable<z.ZodString>;
+                    unpaidDays: z.ZodArray<z.ZodObject<{
+                        date: z.ZodString;
+                        kind: z.ZodString;
+                        model: z.ZodNullable<z.ZodString>;
+                        unpaidMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    unentered: z.ZodObject<{
+                        days: z.ZodNumber;
+                        shareMills: z.ZodNumber;
+                        unknown: z.ZodNumber;
+                    }, z.core.$strip>;
+                    pendingChanges: z.ZodArray<z.ZodObject<{
+                        id: z.ZodNumber;
+                        day: z.ZodString;
+                        model: z.ZodString;
+                        postedMills: z.ZodNumber;
+                        newMills: z.ZodNumber;
+                        reason: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                checks: z.ZodObject<{
+                    stale: z.ZodBoolean;
+                    lastSheetsCollectAt: z.ZodNullable<z.ZodString>;
+                    lastRebuildAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamLedgerPayoutPrepare: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "One person's payout brief from the agency ledger: the transfer, the lines, the blockers, the message";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            person: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                slug: z.ZodString;
+                name: z.ZodString;
+                generatedAt: z.ZodString;
+                amountMills: z.ZodNumber;
+                nothing: z.ZodNullable<z.ZodString>;
+                toPayMills: z.ZodNullable<z.ZodNumber>;
+                period: z.ZodNullable<z.ZodObject<{
+                    from: z.ZodString;
+                    to: z.ZodString;
+                }, z.core.$strip>>;
+                lines: z.ZodArray<z.ZodObject<{
+                    kind: z.ZodString;
+                    model: z.ZodNullable<z.ZodString>;
+                    text: z.ZodString;
+                    shownMills: z.ZodNumber;
+                }, z.core.$strip>>;
+                flags: z.ZodArray<z.ZodObject<{
+                    kind: z.ZodString;
+                    blocker: z.ZodBoolean;
+                    text: z.ZodString;
+                }, z.core.$strip>>;
+                blockers: z.ZodNumber;
+                suggestion: z.ZodNullable<z.ZodObject<{
+                    transferMills: z.ZodNumber;
+                    aboveTableMills: z.ZodNumber;
+                    note: z.ZodString;
+                }, z.core.$strip>>;
+                message: z.ZodNullable<z.ZodString>;
+                placeholder: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamLedgerReports: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Every chatter's shift reports from the agency ledger: posted and drafted by page, the drafts, the posts it could not use";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            from: z.ZodString;
+            to: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                reports: z.ZodArray<z.ZodObject<{
+                    key: z.ZodString;
+                    person: z.ZodObject<{
+                        slug: z.ZodNullable<z.ZodString>;
+                        hubUser: z.ZodNullable<z.ZodObject<{
+                            userId: z.ZodNumber;
+                            username: z.ZodString;
+                        }, z.core.$strip>>;
+                        name: z.ZodString;
+                    }, z.core.$strip>;
+                    reportDate: z.ZodString;
+                    pages: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        model: z.ZodString;
+                        postedMills: z.ZodNullable<z.ZodNumber>;
+                        draftMills: z.ZodNullable<z.ZodNumber>;
+                        diffMills: z.ZodNullable<z.ZodNumber>;
+                        state: z.ZodString;
+                        postedAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    postedMills: z.ZodNullable<z.ZodNumber>;
+                    draftMills: z.ZodNullable<z.ZodNumber>;
+                    postedAt: z.ZodNullable<z.ZodString>;
+                    draft: z.ZodNullable<z.ZodObject<{
+                        id: z.ZodNumber;
+                        reportDate: z.ZodString;
+                        windowFrom: z.ZodString;
+                        windowTo: z.ZodString;
+                        cutAt: z.ZodString;
+                        version: z.ZodNumber;
+                        versions: z.ZodNumber;
+                        status: z.ZodString;
+                        totalMills: z.ZodNumber;
+                        savedAt: z.ZodString;
+                        pages: z.ZodArray<z.ZodObject<{
+                            pageLabel: z.ZodString;
+                            amountMills: z.ZodNumber;
+                        }, z.core.$strip>>;
+                        lines: z.ZodArray<z.ZodObject<{
+                            n: z.ZodNullable<z.ZodNumber>;
+                            pageLabel: z.ZodString;
+                            fanRef: z.ZodString;
+                            fanName: z.ZodString;
+                            kind: z.ZodString;
+                            occurredAt: z.ZodNullable<z.ZodString>;
+                            netMills: z.ZodNumber;
+                            counted: z.ZodBoolean;
+                            added: z.ZodBoolean;
+                            what: z.ZodString;
+                            flags: z.ZodArray<z.ZodString>;
+                            notes: z.ZodArray<z.ZodString>;
+                            ppvAuthor: z.ZodString;
+                            ppvSentAt: z.ZodString;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>>;
+                    postIds: z.ZodArray<z.ZodNumber>;
+                }, z.core.$strip>>;
+                posts: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    postedAt: z.ZodString;
+                    sender: z.ZodString;
+                    tag: z.ZodString;
+                    person: z.ZodObject<{
+                        slug: z.ZodNullable<z.ZodString>;
+                        hubUser: z.ZodNullable<z.ZodObject<{
+                            userId: z.ZodNumber;
+                            username: z.ZodString;
+                        }, z.core.$strip>>;
+                        name: z.ZodString;
+                    }, z.core.$strip>;
+                    model: z.ZodString;
+                    reportDate: z.ZodNullable<z.ZodString>;
+                    totalMills: z.ZodNumber;
+                    pagesMills: z.ZodNumber;
+                    flags: z.ZodArray<z.ZodString>;
+                    blocking: z.ZodBoolean;
+                    pages: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        pageLabel: z.ZodNullable<z.ZodString>;
+                        inShift: z.ZodBoolean;
+                        amountMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    link: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                postsRead: z.ZodBoolean;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamLedgerQuestions: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The open questions «whose is this sale» from the agency ledger, split by whom they wait for";
+        readonly description: string;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                owner: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    transactionRef: z.ZodNullable<z.ZodString>;
+                    netMills: z.ZodNullable<z.ZodNumber>;
+                    occurredAt: z.ZodNullable<z.ZodString>;
+                    question: z.ZodString;
+                    who: z.ZodString;
+                    askedAt: z.ZodString;
+                    sourceLink: z.ZodNullable<z.ZodString>;
+                    note: z.ZodString;
+                }, z.core.$strip>>;
+                chatters: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    transactionRef: z.ZodNullable<z.ZodString>;
+                    netMills: z.ZodNullable<z.ZodNumber>;
+                    occurredAt: z.ZodNullable<z.ZodString>;
+                    question: z.ZodString;
+                    who: z.ZodString;
+                    askedAt: z.ZodString;
+                    sourceLink: z.ZodNullable<z.ZodString>;
+                    note: z.ZodString;
+                }, z.core.$strip>>;
+                questionsRead: z.ZodBoolean;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly teamShiftReview: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -19882,6 +18355,7 @@ declare const baseRouteSchemas: {
                         platform: z.ZodString;
                         messages: z.ZodNumber;
                         worked: z.ZodBoolean;
+                        allFans: z.ZodOptional<z.ZodBoolean>;
                     }, z.core.$strip>>;
                     salesNetMills: z.ZodNumber;
                 }, z.core.$strip>;
@@ -19922,9 +18396,12 @@ declare const baseRouteSchemas: {
                             me: "me";
                         }>>;
                         mass: z.ZodBoolean;
+                        unarchived: z.ZodOptional<z.ZodBoolean>;
+                        deletedAt: z.ZodOptional<z.ZodString>;
                         byName: z.ZodNullable<z.ZodString>;
                         mine: z.ZodNullable<z.ZodObject<{
                             composedWith: z.ZodNullable<z.ZodString>;
+                            part: z.ZodOptional<z.ZodNumber>;
                             edited: z.ZodNullable<z.ZodBoolean>;
                             origin: z.ZodNullable<z.ZodEnum<{
                                 fix: "fix";
@@ -19935,6 +18412,7 @@ declare const baseRouteSchemas: {
                             aiFeature: z.ZodNullable<z.ZodString>;
                             aiText: z.ZodNullable<z.ZodString>;
                             draft: z.ZodNullable<z.ZodString>;
+                            fixExpanded: z.ZodOptional<z.ZodBoolean>;
                             replySeconds: z.ZodNullable<z.ZodNumber>;
                             repeats: z.ZodNumber;
                             marks: z.ZodArray<z.ZodEnum<{
@@ -19944,6 +18422,120 @@ declare const baseRouteSchemas: {
                             }>>;
                         }, z.core.$strip>>;
                     }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                sales: z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        campaign: "campaign";
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                    }>;
+                }, z.core.$strip>>;
+                beforeSales: z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        campaign: "campaign";
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                    }>;
+                }, z.core.$strip>>;
+                laterSales: z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        campaign: "campaign";
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                    }>;
                 }, z.core.$strip>>;
                 waits: z.ZodArray<z.ZodObject<{
                     chat: z.ZodString;
@@ -19955,6 +18547,7 @@ declare const baseRouteSchemas: {
                         none: "none";
                         me: "me";
                     }>>;
+                    pending: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
                 unarchived: z.ZodNumber;
                 deleted: z.ZodNumber;
@@ -20025,6 +18618,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         bare: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20034,6 +18630,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         named: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20043,6 +18642,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         other: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20052,6 +18654,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                     }, z.core.$strict>;
                 }, z.core.$strict>>;
@@ -20126,6 +18731,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         bare: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20135,6 +18743,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         named: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20144,6 +18755,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         other: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20153,6 +18767,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                     }, z.core.$strict>;
                 }, z.core.$strict>>;
@@ -20226,6 +18843,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         bare: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20235,6 +18855,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         named: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20244,6 +18867,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         other: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -20253,6 +18879,9 @@ declare const baseRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                     }, z.core.$strict>;
                 }, z.core.$strict>>;
@@ -21918,368 +20547,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly eventsStream: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["events"];
-        readonly summary: "SSE stream of sync events for the chatter's assigned pages";
-        readonly description: string;
-        readonly querystring: z.ZodObject<{
-            lastEventId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodString;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodLiteral<"sync_snapshot_required">;
-                message: z.ZodString;
-                statusCode: z.ZodLiteral<409>;
-                version: z.ZodLiteral<1>;
-                requestedSeq: z.ZodNumber;
-                oldestAvailableSeq: z.ZodNullable<z.ZodNumber>;
-                currentSeq: z.ZodNumber;
-                snapshotPath: z.ZodLiteral<"/api/v1/events/snapshot">;
-            }, z.core.$strip>;
-        };
-    };
-    readonly eventsSnapshot: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["events"];
-        readonly summary: "Current durable sync state for replay-gap recovery";
-        readonly description: string;
-        readonly querystring: z.ZodObject<{
-            accountId: z.ZodString;
-            afterSeq: z.ZodCoercedNumber<unknown>;
-            snapshotCursor: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-            pageCursor: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-            limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-            pageMode: z.ZodOptional<z.ZodLiteral<"bounded_v1">>;
-            stateCursor: z.ZodOptional<z.ZodString>;
-            messageLimit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                version: z.ZodLiteral<1>;
-                requestedAfterSeq: z.ZodNumber;
-                snapshotCursor: z.ZodNumber;
-                stateAt: z.ZodString;
-                resumeAllowed: z.ZodBoolean;
-                page: z.ZodObject<{
-                    pageId: z.ZodNumber;
-                    label: z.ZodString;
-                    accountId: z.ZodString;
-                    username: z.ZodNullable<z.ZodString>;
-                    authStatus: z.ZodNullable<z.ZodString>;
-                    authenticated: z.ZodNullable<z.ZodBoolean>;
-                    authChangedAt: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>;
-                coverage: z.ZodObject<{
-                    durableDomains: z.ZodArray<z.ZodEnum<{
-                        chat_heads: "chat_heads";
-                        hot_messages: "hot_messages";
-                        message_tombstones: "message_tombstones";
-                        account_auth: "account_auth";
-                    }>>;
-                    omittedDomains: z.ZodArray<z.ZodObject<{
-                        domain: z.ZodString;
-                        reason: z.ZodString;
-                    }, z.core.$strip>>;
-                    messageWindow: z.ZodLiteral<"hot_projection_plus_archive_delta">;
-                }, z.core.$strip>;
-                threads: z.ZodArray<z.ZodObject<{
-                    chatId: z.ZodString;
-                    fanName: z.ZodString;
-                    unreadCount: z.ZodNumber;
-                    hasUnreadTips: z.ZodBoolean;
-                    lastMessageId: z.ZodNullable<z.ZodString>;
-                    lastMessageAt: z.ZodNullable<z.ZodString>;
-                    lastMessageIsSentByMe: z.ZodBoolean;
-                    lastMessagePreview: z.ZodString;
-                    visible: z.ZodBoolean;
-                    sourceUpdatedAt: z.ZodString;
-                    messages: z.ZodArray<z.ZodObject<{
-                        chatId: z.ZodString;
-                        messageId: z.ZodString;
-                        message: z.ZodNullable<z.ZodObject<{
-                            id: z.ZodString;
-                            text: z.ZodString;
-                            createdAt: z.ZodString;
-                            isSentByMe: z.ZodBoolean;
-                            price: z.ZodNumber;
-                            isOpened: z.ZodOptional<z.ZodNullable<z.ZodBoolean>>;
-                            isNew: z.ZodOptional<z.ZodBoolean>;
-                            isTip: z.ZodOptional<z.ZodBoolean>;
-                            tipAmountUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-                            tipText: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                            mediaCount: z.ZodOptional<z.ZodNumber>;
-                            media: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                                id: z.ZodString;
-                                type: z.ZodEnum<{
-                                    other: "other";
-                                    video: "video";
-                                    audio: "audio";
-                                    photo: "photo";
-                                    gif: "gif";
-                                }>;
-                                isReady: z.ZodBoolean;
-                                locked: z.ZodBoolean;
-                                durationSeconds: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-                            }, z.core.$strip>>>;
-                            replyTo: z.ZodOptional<z.ZodNullable<z.ZodObject<{
-                                messageId: z.ZodOptional<z.ZodString>;
-                                sender: z.ZodOptional<z.ZodEnum<{
-                                    fan: "fan";
-                                    model: "model";
-                                }>>;
-                                textPreview: z.ZodString;
-                            }, z.core.$strip>>>;
-                        }, z.core.$strip>>;
-                        deletedAt: z.ZodNullable<z.ZodString>;
-                        sourceUpdatedAt: z.ZodString;
-                        sourceFanoutSeq: z.ZodNullable<z.ZodNumber>;
-                    }, z.core.$strip>>;
-                }, z.core.$strip>>;
-                unresolvedTombstones: z.ZodArray<z.ZodObject<{
-                    messageId: z.ZodString;
-                    deletedAt: z.ZodString;
-                    sourceUpdatedAt: z.ZodString;
-                    sourceFanoutSeq: z.ZodNumber;
-                }, z.core.$strip>>;
-                nextPageCursor: z.ZodNullable<z.ZodNumber>;
-                nextStateCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodLiteral<"sync_snapshot_restart_required">;
-                message: z.ZodString;
-                statusCode: z.ZodLiteral<409>;
-                replayFloor: z.ZodNumber;
-                snapshotPath: z.ZodLiteral<"/api/v1/events/snapshot">;
-            }, z.core.$strip>;
-        };
-    };
-    readonly eventsV2Stream: {
-        readonly auth: {
-            readonly kind: "any";
-        };
-        readonly tags: readonly ["events"];
-        readonly summary: "SSE stream of canonical domain events (v2) for granted accounts";
-        readonly description: string;
-        readonly querystring: z.ZodObject<{
-            cursor: z.ZodOptional<z.ZodString>;
-            platform: z.ZodOptional<z.ZodEnum<{
-                fansly: "fansly";
-                onlyfans: "onlyfans";
-                telegram: "telegram";
-            }>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodString;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodLiteral<"sync_snapshot_required">;
-                message: z.ZodString;
-                statusCode: z.ZodLiteral<409>;
-                version: z.ZodLiteral<2>;
-                accounts: z.ZodArray<z.ZodObject<{
-                    accountId: z.ZodNumber;
-                    requestedSeq: z.ZodNumber;
-                    oldestAvailableSeq: z.ZodNullable<z.ZodNumber>;
-                    currentSeq: z.ZodNumber;
-                }, z.core.$strip>>;
-                snapshotPath: z.ZodLiteral<"/api/v1/events/v2/snapshot">;
-            }, z.core.$strip>;
-        };
-    };
-    readonly eventsV2Snapshot: {
-        readonly auth: {
-            readonly kind: "any";
-        };
-        readonly tags: readonly ["events"];
-        readonly summary: "Fresh v2 cursor (and per-account heads) for cold start or gap recovery";
-        readonly description: string;
-        readonly querystring: z.ZodObject<{
-            accounts: z.ZodOptional<z.ZodString>;
-            sourceCursor: z.ZodOptional<z.ZodString>;
-            platform: z.ZodOptional<z.ZodEnum<{
-                fansly: "fansly";
-                onlyfans: "onlyfans";
-                telegram: "telegram";
-            }>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                cursor: z.ZodString;
-                accounts: z.ZodArray<z.ZodObject<{
-                    accountId: z.ZodNumber;
-                    accountRef: z.ZodNullable<z.ZodString>;
-                    currentSeq: z.ZodNumber;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly eventsV2Facts: {
-        readonly auth: {
-            readonly kind: "any";
-        };
-        readonly tags: readonly ["events"];
-        readonly summary: "Money facts (PPV unlocks, tips, posted transactions) of one granted account";
-        readonly description: string;
-        readonly querystring: z.ZodObject<{
-            accountId: z.ZodCoercedNumber<unknown>;
-            afterSeq: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-            limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                accountId: z.ZodNumber;
-                throughSeq: z.ZodNumber;
-                facts: z.ZodArray<z.ZodObject<{
-                    accountId: z.ZodNumber;
-                    accountSeq: z.ZodNumber;
-                    type: z.ZodString;
-                    occurredAt: z.ZodString;
-                    data: z.ZodUnknown;
-                    fanRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                    conversationRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                    messageRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                    accountRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                    payload: z.ZodOptional<z.ZodUnknown>;
-                    transactionRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                    provenance: z.ZodOptional<z.ZodEnum<{
-                        live: "live";
-                        repair: "repair";
-                        redelivery: "redelivery";
-                    }>>;
-                    thread: z.ZodOptional<z.ZodObject<{
-                        fanName: z.ZodNullable<z.ZodString>;
-                        username: z.ZodNullable<z.ZodString>;
-                    }, z.core.$strip>>;
-                }, z.core.$strip>>;
-                nextAfterSeq: z.ZodNumber;
-                hasMore: z.ZodBoolean;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly adminOfapiWebhookStatus: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -23516,8 +21783,8 @@ declare const baseRouteSchemas: {
             readonly 200: z.ZodObject<{
                 dryRun: z.ZodBoolean;
                 status: z.ZodEnum<{
-                    replayed: "replayed";
                     would_replay: "would_replay";
+                    replayed: "replayed";
                 }>;
                 jobId: z.ZodString;
                 attemptId: z.ZodString;
@@ -24261,505 +22528,6 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly ofapiCreditsChatterSummary: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ofapi"];
-        readonly summary: "Get page-scoped OFAPI credit spend visible to the authenticated chatter";
-        readonly description: string;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                enabled: z.ZodBoolean;
-                scope: z.ZodObject<{
-                    pageIds: z.ZodArray<z.ZodNumber>;
-                    pageCount: z.ZodNumber;
-                }, z.core.$strip>;
-                today: z.ZodObject<{
-                    day: z.ZodString;
-                    from: z.ZodString;
-                    to: z.ZodString;
-                    restCredits: z.ZodNumber;
-                    webhook: z.ZodObject<{
-                        eventCount: z.ZodNumber;
-                        estimatedCredits: z.ZodNumber;
-                    }, z.core.$strip>;
-                    totalEstimatedCredits: z.ZodNumber;
-                    netRestCredits: z.ZodOptional<z.ZodNumber>;
-                    netTotalEstimatedCredits: z.ZodOptional<z.ZodNumber>;
-                }, z.core.$strip>;
-                last7d: z.ZodObject<{
-                    from: z.ZodString;
-                    to: z.ZodString;
-                    restCredits: z.ZodNumber;
-                    webhook: z.ZodObject<{
-                        eventCount: z.ZodNumber;
-                        estimatedCredits: z.ZodNumber;
-                    }, z.core.$strip>;
-                    totalEstimatedCredits: z.ZodNumber;
-                    netRestCredits: z.ZodOptional<z.ZodNumber>;
-                    netTotalEstimatedCredits: z.ZodOptional<z.ZodNumber>;
-                }, z.core.$strip>;
-                limitations: z.ZodArray<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly ofapiReadGateway: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ofapi"];
-        readonly summary: "Read an allowlisted OFAPI resource through the core custody boundary";
-        readonly description: string;
-        readonly params: z.ZodObject<{
-            "*": z.ZodString;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodUnknown;
-            readonly 400: z.ZodUnknown;
-            readonly 401: z.ZodUnknown;
-            readonly 402: z.ZodUnknown;
-            readonly 403: z.ZodUnknown;
-            readonly 404: z.ZodUnknown;
-            readonly 429: z.ZodUnknown;
-            readonly 422: z.ZodUnknown;
-            readonly 500: z.ZodUnknown;
-            readonly 502: z.ZodUnknown;
-            readonly 503: z.ZodUnknown;
-            readonly 504: z.ZodUnknown;
-        };
-    };
-    readonly createOfapiCommand: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ofapi"];
-        readonly summary: "Create or deduplicate a desktop OFAPI command";
-        readonly description: string;
-        readonly body: z.ZodDiscriminatedUnion<[z.ZodObject<{
-            kind: z.ZodLiteral<"send_message_v2">;
-            payload: z.ZodObject<{
-                text: z.ZodString;
-                priceCents: z.ZodNumber;
-                mediaFiles: z.ZodArray<z.ZodString>;
-                previews: z.ZodArray<z.ZodString>;
-                lockedText: z.ZodBoolean;
-                replyToMessageId: z.ZodNullable<z.ZodString>;
-                giphyId: z.ZodNullable<z.ZodString>;
-                rfTag: z.ZodArray<z.ZodString>;
-                rfPartner: z.ZodArray<z.ZodString>;
-                rfGuest: z.ZodArray<z.ZodString>;
-                blockBannedWords: z.ZodNullable<z.ZodEnum<{
-                    risky: "risky";
-                    strict_ban: "strict_ban";
-                    replace_soften: "replace_soften";
-                }>>;
-                reuseProviderOperation: z.ZodDefault<z.ZodBoolean>;
-            }, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            outreachPurpose: z.ZodOptional<z.ZodLiteral<"new-follower">>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>, z.ZodObject<{
-            kind: z.ZodLiteral<"set_fan_custom_name_v1">;
-            payload: z.ZodObject<{
-                customName: z.ZodString;
-            }, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNull>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>, ...(z.ZodObject<{
-            kind: z.ZodLiteral<"like_message_v1" | "unlike_message_v1" | "pin_message_v1" | "unpin_message_v1">;
-            payload: z.ZodObject<{
-                messageId: z.ZodString;
-            }, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNull>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict> | z.ZodObject<{
-            kind: z.ZodLiteral<"mark_chat_unread_v1" | "mute_chat_v1" | "unmute_chat_v1" | "hide_chat_v1">;
-            payload: z.ZodObject<{}, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNull>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>)[], z.ZodObject<{
-            kind: z.ZodLiteral<"send_text_message_v1">;
-            outreachPurpose: z.ZodOptional<z.ZodLiteral<"new-follower">>;
-            payload: z.ZodObject<{
-                text: z.ZodString;
-            }, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>, z.ZodObject<{
-            kind: z.ZodLiteral<"send_media_message_v1">;
-            payload: z.ZodObject<{
-                text: z.ZodString;
-                price: z.ZodNumber;
-                mediaFiles: z.ZodArray<z.ZodString>;
-                previews: z.ZodArray<z.ZodString>;
-            }, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>, z.ZodObject<{
-            kind: z.ZodLiteral<"typing_active_v1">;
-            payload: z.ZodObject<{}, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNull>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>, z.ZodObject<{
-            kind: z.ZodLiteral<"unsend_message_v1">;
-            payload: z.ZodObject<{
-                messageId: z.ZodString;
-            }, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNull>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>, z.ZodObject<{
-            kind: z.ZodLiteral<"mark_chat_read_v1">;
-            payload: z.ZodObject<{}, z.core.$strict>;
-            retryOfCommandId: z.ZodOptional<z.ZodNull>;
-            clientCommandId: z.ZodString;
-            accountId: z.ZodString;
-            conversationId: z.ZodString;
-        }, z.core.$strict>], "kind">;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                commandId: z.ZodString;
-                clientCommandId: z.ZodString;
-                kind: z.ZodEnum<{
-                    send_message_v2: "send_message_v2";
-                    set_fan_custom_name_v1: "set_fan_custom_name_v1";
-                    like_message_v1: "like_message_v1";
-                    unlike_message_v1: "unlike_message_v1";
-                    pin_message_v1: "pin_message_v1";
-                    unpin_message_v1: "unpin_message_v1";
-                    mark_chat_unread_v1: "mark_chat_unread_v1";
-                    mute_chat_v1: "mute_chat_v1";
-                    unmute_chat_v1: "unmute_chat_v1";
-                    hide_chat_v1: "hide_chat_v1";
-                    send_text_message_v1: "send_text_message_v1";
-                    send_media_message_v1: "send_media_message_v1";
-                    typing_active_v1: "typing_active_v1";
-                    unsend_message_v1: "unsend_message_v1";
-                    mark_chat_read_v1: "mark_chat_read_v1";
-                }>;
-                outreachPurpose: z.ZodOptional<z.ZodNullable<z.ZodLiteral<"new-follower">>>;
-                accountId: z.ZodString;
-                conversationId: z.ZodString;
-                state: z.ZodEnum<{
-                    cancelled: "cancelled";
-                    queued: "queued";
-                    confirmed: "confirmed";
-                    indeterminate: "indeterminate";
-                    in_flight: "in_flight";
-                    failed_retryable: "failed_retryable";
-                    failed_terminal: "failed_terminal";
-                }>;
-                payloadHash: z.ZodString;
-                retryOfCommandId: z.ZodNullable<z.ZodString>;
-                attemptCount: z.ZodNumber;
-                lastErrorCode: z.ZodNullable<z.ZodString>;
-                lastErrorClass: z.ZodNullable<z.ZodString>;
-                verifierResult: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-                platformMessageId: z.ZodNullable<z.ZodString>;
-                attemptStartedAt: z.ZodNullable<z.ZodString>;
-                attemptFinishedAt: z.ZodNullable<z.ZodString>;
-                createdAt: z.ZodString;
-                updatedAt: z.ZodString;
-                deduplicated: z.ZodBoolean;
-            }, z.core.$strip>;
-            readonly 202: z.ZodObject<{
-                commandId: z.ZodString;
-                clientCommandId: z.ZodString;
-                kind: z.ZodEnum<{
-                    send_message_v2: "send_message_v2";
-                    set_fan_custom_name_v1: "set_fan_custom_name_v1";
-                    like_message_v1: "like_message_v1";
-                    unlike_message_v1: "unlike_message_v1";
-                    pin_message_v1: "pin_message_v1";
-                    unpin_message_v1: "unpin_message_v1";
-                    mark_chat_unread_v1: "mark_chat_unread_v1";
-                    mute_chat_v1: "mute_chat_v1";
-                    unmute_chat_v1: "unmute_chat_v1";
-                    hide_chat_v1: "hide_chat_v1";
-                    send_text_message_v1: "send_text_message_v1";
-                    send_media_message_v1: "send_media_message_v1";
-                    typing_active_v1: "typing_active_v1";
-                    unsend_message_v1: "unsend_message_v1";
-                    mark_chat_read_v1: "mark_chat_read_v1";
-                }>;
-                outreachPurpose: z.ZodOptional<z.ZodNullable<z.ZodLiteral<"new-follower">>>;
-                accountId: z.ZodString;
-                conversationId: z.ZodString;
-                state: z.ZodEnum<{
-                    cancelled: "cancelled";
-                    queued: "queued";
-                    confirmed: "confirmed";
-                    indeterminate: "indeterminate";
-                    in_flight: "in_flight";
-                    failed_retryable: "failed_retryable";
-                    failed_terminal: "failed_terminal";
-                }>;
-                payloadHash: z.ZodString;
-                retryOfCommandId: z.ZodNullable<z.ZodString>;
-                attemptCount: z.ZodNumber;
-                lastErrorCode: z.ZodNullable<z.ZodString>;
-                lastErrorClass: z.ZodNullable<z.ZodString>;
-                verifierResult: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-                platformMessageId: z.ZodNullable<z.ZodString>;
-                attemptStartedAt: z.ZodNullable<z.ZodString>;
-                attemptFinishedAt: z.ZodNullable<z.ZodString>;
-                createdAt: z.ZodString;
-                updatedAt: z.ZodString;
-                deduplicated: z.ZodBoolean;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly getOfapiCommand: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ofapi"];
-        readonly summary: "Get one owned desktop OFAPI command";
-        readonly description: "Returns command state and audit metadata without echoing message text.";
-        readonly params: z.ZodObject<{
-            commandId: z.ZodString;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                commandId: z.ZodString;
-                clientCommandId: z.ZodString;
-                kind: z.ZodEnum<{
-                    send_message_v2: "send_message_v2";
-                    set_fan_custom_name_v1: "set_fan_custom_name_v1";
-                    like_message_v1: "like_message_v1";
-                    unlike_message_v1: "unlike_message_v1";
-                    pin_message_v1: "pin_message_v1";
-                    unpin_message_v1: "unpin_message_v1";
-                    mark_chat_unread_v1: "mark_chat_unread_v1";
-                    mute_chat_v1: "mute_chat_v1";
-                    unmute_chat_v1: "unmute_chat_v1";
-                    hide_chat_v1: "hide_chat_v1";
-                    send_text_message_v1: "send_text_message_v1";
-                    send_media_message_v1: "send_media_message_v1";
-                    typing_active_v1: "typing_active_v1";
-                    unsend_message_v1: "unsend_message_v1";
-                    mark_chat_read_v1: "mark_chat_read_v1";
-                }>;
-                outreachPurpose: z.ZodOptional<z.ZodNullable<z.ZodLiteral<"new-follower">>>;
-                accountId: z.ZodString;
-                conversationId: z.ZodString;
-                state: z.ZodEnum<{
-                    cancelled: "cancelled";
-                    queued: "queued";
-                    confirmed: "confirmed";
-                    indeterminate: "indeterminate";
-                    in_flight: "in_flight";
-                    failed_retryable: "failed_retryable";
-                    failed_terminal: "failed_terminal";
-                }>;
-                payloadHash: z.ZodString;
-                retryOfCommandId: z.ZodNullable<z.ZodString>;
-                attemptCount: z.ZodNumber;
-                lastErrorCode: z.ZodNullable<z.ZodString>;
-                lastErrorClass: z.ZodNullable<z.ZodString>;
-                verifierResult: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-                platformMessageId: z.ZodNullable<z.ZodString>;
-                attemptStartedAt: z.ZodNullable<z.ZodString>;
-                attemptFinishedAt: z.ZodNullable<z.ZodString>;
-                createdAt: z.ZodString;
-                updatedAt: z.ZodString;
-                deduplicated: z.ZodBoolean;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly cancelOfapiCommand: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ofapi"];
-        readonly summary: "Cancel one queued desktop OFAPI command";
-        readonly description: string;
-        readonly params: z.ZodObject<{
-            commandId: z.ZodString;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                commandId: z.ZodString;
-                clientCommandId: z.ZodString;
-                kind: z.ZodEnum<{
-                    send_message_v2: "send_message_v2";
-                    set_fan_custom_name_v1: "set_fan_custom_name_v1";
-                    like_message_v1: "like_message_v1";
-                    unlike_message_v1: "unlike_message_v1";
-                    pin_message_v1: "pin_message_v1";
-                    unpin_message_v1: "unpin_message_v1";
-                    mark_chat_unread_v1: "mark_chat_unread_v1";
-                    mute_chat_v1: "mute_chat_v1";
-                    unmute_chat_v1: "unmute_chat_v1";
-                    hide_chat_v1: "hide_chat_v1";
-                    send_text_message_v1: "send_text_message_v1";
-                    send_media_message_v1: "send_media_message_v1";
-                    typing_active_v1: "typing_active_v1";
-                    unsend_message_v1: "unsend_message_v1";
-                    mark_chat_read_v1: "mark_chat_read_v1";
-                }>;
-                outreachPurpose: z.ZodOptional<z.ZodNullable<z.ZodLiteral<"new-follower">>>;
-                accountId: z.ZodString;
-                conversationId: z.ZodString;
-                state: z.ZodEnum<{
-                    cancelled: "cancelled";
-                    queued: "queued";
-                    confirmed: "confirmed";
-                    indeterminate: "indeterminate";
-                    in_flight: "in_flight";
-                    failed_retryable: "failed_retryable";
-                    failed_terminal: "failed_terminal";
-                }>;
-                payloadHash: z.ZodString;
-                retryOfCommandId: z.ZodNullable<z.ZodString>;
-                attemptCount: z.ZodNumber;
-                lastErrorCode: z.ZodNullable<z.ZodString>;
-                lastErrorClass: z.ZodNullable<z.ZodString>;
-                verifierResult: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
-                platformMessageId: z.ZodNullable<z.ZodString>;
-                attemptStartedAt: z.ZodNullable<z.ZodString>;
-                attemptFinishedAt: z.ZodNullable<z.ZodString>;
-                createdAt: z.ZodString;
-                updatedAt: z.ZodString;
-                deduplicated: z.ZodBoolean;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -25752,161 +23520,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly modelRevenue: {
-        readonly auth: {
-            readonly kind: "session";
-        };
-        readonly tags: readonly ["revenue"];
-        readonly summary: "Get revenue for one model";
-        readonly params: z.ZodObject<{
-            modelSlug: z.ZodString;
-        }, z.core.$strip>;
-        readonly querystring: z.ZodUnion<readonly [z.ZodObject<{
-            period: z.ZodEnum<{
-                today: "today";
-                "7d": "7d";
-                "30d": "30d";
-                all: "all";
-            }>;
-            windowAt: z.ZodOptional<z.ZodISODateTime>;
-            from: z.ZodOptional<z.ZodString>;
-            to: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>, z.ZodObject<{
-            period: z.ZodLiteral<"custom">;
-            windowAt: z.ZodOptional<z.ZodISODateTime>;
-            from: z.ZodString;
-            to: z.ZodString;
-        }, z.core.$strip>]>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                revenueMills: z.ZodNumber;
-                adjustmentMills: z.ZodNumber;
-                unclassifiedMills: z.ZodNumber;
-                netEarningsMills: z.ZodNumber;
-                totalNetMills: z.ZodNumber;
-                period: z.ZodEnum<{
-                    today: "today";
-                    "7d": "7d";
-                    "30d": "30d";
-                    all: "all";
-                    custom: "custom";
-                }>;
-                windowAt: z.ZodOptional<z.ZodString>;
-                from: z.ZodNullable<z.ZodString>;
-                to: z.ZodNullable<z.ZodString>;
-                currency: z.ZodLiteral<"USD">;
-                breakdown: z.ZodArray<z.ZodObject<{
-                    canonicalType: z.ZodEnum<{
-                        subscription: "subscription";
-                        tip: "tip";
-                        message_purchase: "message_purchase";
-                        post_purchase: "post_purchase";
-                        stream_tip: "stream_tip";
-                        chargeback: "chargeback";
-                        refund: "refund";
-                        payout_reversal: "payout_reversal";
-                        other: "other";
-                    }>;
-                    bucket: z.ZodEnum<{
-                        revenue: "revenue";
-                        adjustment: "adjustment";
-                        unclassified: "unclassified";
-                        excluded: "excluded";
-                    }>;
-                    netAmountMills: z.ZodNumber;
-                }, z.core.$strip>>;
-                comparison: z.ZodNullable<z.ZodObject<{
-                    from: z.ZodString;
-                    to: z.ZodString;
-                    netEarningsMills: z.ZodNumber;
-                    totalNetMills: z.ZodNumber;
-                    deltaNetMills: z.ZodNumber;
-                    deltaPct: z.ZodNullable<z.ZodNumber>;
-                    sources: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                        canonicalType: z.ZodEnum<{
-                            subscription: "subscription";
-                            tip: "tip";
-                            message_purchase: "message_purchase";
-                            post_purchase: "post_purchase";
-                            stream_tip: "stream_tip";
-                            chargeback: "chargeback";
-                            refund: "refund";
-                            payout_reversal: "payout_reversal";
-                            other: "other";
-                        }>;
-                        bucket: z.ZodEnum<{
-                            revenue: "revenue";
-                            adjustment: "adjustment";
-                            unclassified: "unclassified";
-                            excluded: "excluded";
-                        }>;
-                        currentNetMills: z.ZodNumber;
-                        previousNetMills: z.ZodNumber;
-                        deltaNetMills: z.ZodNumber;
-                        deltaPct: z.ZodNullable<z.ZodNumber>;
-                    }, z.core.$strip>>>;
-                }, z.core.$strip>>;
-                platformWindows: z.ZodArray<z.ZodObject<{
-                    platform: z.ZodEnum<{
-                        fansly: "fansly";
-                        onlyfans: "onlyfans";
-                        telegram: "telegram";
-                    }>;
-                    from: z.ZodNullable<z.ZodString>;
-                    to: z.ZodNullable<z.ZodString>;
-                    comparisonFrom: z.ZodNullable<z.ZodString>;
-                    comparisonTo: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-                model: z.ZodObject<{
-                    id: z.ZodNumber;
-                    slug: z.ZodString;
-                    name: z.ZodString;
-                    pageCount: z.ZodNumber;
-                }, z.core.$strip>;
-                pages: z.ZodArray<z.ZodObject<{
-                    pageId: z.ZodNumber;
-                    pageLabel: z.ZodString;
-                    modelSlug: z.ZodString;
-                    modelName: z.ZodString;
-                    netEarningsMills: z.ZodNumber;
-                    totalNetMills: z.ZodNumber;
-                    previousNetEarningsMills: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-                    deltaNetMills: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-                    deltaPct: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
-                    platform: z.ZodOptional<z.ZodEnum<{
-                        fansly: "fansly";
-                        onlyfans: "onlyfans";
-                        telegram: "telegram";
-                    }>>;
-                    status: z.ZodOptional<z.ZodEnum<{
-                        active: "active";
-                        deleted: "deleted";
-                    }>>;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly pageRevenue: {
         readonly auth: {
             readonly kind: "session";
@@ -26632,69 +24245,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly pageTopSpenders: {
-        readonly auth: {
-            readonly kind: "any";
-            readonly scope: "page";
-        };
-        readonly tags: readonly ["fans"];
-        readonly summary: "Top spenders for one page from the fan-earnings projection";
-        readonly params: z.ZodObject<{
-            pageLabel: z.ZodString;
-        }, z.core.$strip>;
-        readonly querystring: z.ZodObject<{
-            window: z.ZodDefault<z.ZodString>;
-            limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                window: z.ZodString;
-                builtAt: z.ZodNullable<z.ZodString>;
-                fanCount: z.ZodNumber;
-                source: z.ZodObject<{
-                    streamState: z.ZodEnum<{
-                        flag_off: "flag_off";
-                        ramped: "ramped";
-                        not_allowlisted: "not_allowlisted";
-                        unsupported_platform: "unsupported_platform";
-                    }>;
-                    lastSyncedAt: z.ZodNullable<z.ZodString>;
-                    consecutiveFailures: z.ZodNullable<z.ZodNumber>;
-                }, z.core.$strip>;
-                entries: z.ZodArray<z.ZodObject<{
-                    platformUserId: z.ZodString;
-                    username: z.ZodNullable<z.ZodString>;
-                    displayName: z.ZodNullable<z.ZodString>;
-                    grossMills: z.ZodNumber;
-                    netMills: z.ZodNullable<z.ZodNumber>;
-                    currency: z.ZodString;
-                    observedAt: z.ZodString;
-                    deletedAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly pageDeletedFans: {
         readonly auth: {
             readonly kind: "any";
@@ -27302,55 +24852,6 @@ declare const baseRouteSchemas: {
                     sourceGeneratedAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                     createdByUserId: z.ZodNullable<z.ZodNumber>;
                 }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly upsertFanProfile: {
-        readonly auth: {
-            readonly kind: "any";
-            readonly scope: "page";
-        };
-        readonly tags: readonly ["fans"];
-        readonly summary: "Append a new intelligence profile version for one fan on one page";
-        readonly params: z.ZodObject<{
-            pageLabel: z.ZodString;
-            platformUserId: z.ZodString;
-        }, z.core.$strip>;
-        readonly body: z.ZodObject<{
-            body: z.ZodString;
-            generatedAtMs: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                version: z.ZodNumber;
-                body: z.ZodString;
-                source: z.ZodEnum<{
-                    chatmuse: "chatmuse";
-                }>;
-                createdAt: z.ZodString;
-                sourceGeneratedAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                createdByUserId: z.ZodNullable<z.ZodNumber>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;
@@ -28693,67 +26194,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly followerOutreachAttempt: {
-        readonly auth: {
-            readonly kind: "any";
-            readonly scope: "page";
-        };
-        readonly tags: readonly ["conversations"];
-        readonly summary: "Reserve and record one human-triggered follower greeting send";
-        readonly params: z.ZodObject<{
-            pageLabel: z.ZodString;
-        }, z.core.$strip>;
-        readonly body: z.ZodObject<{
-            fanRef: z.ZodString;
-            attemptId: z.ZodString;
-            action: z.ZodEnum<{
-                sent: "sent";
-                dispatch: "dispatch";
-                reserve: "reserve";
-            }>;
-            messageRef: z.ZodOptional<z.ZodString>;
-        }, z.core.$strict>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                owned: z.ZodBoolean;
-                state: z.ZodEnum<{
-                    expired: "expired";
-                    dispatching: "dispatching";
-                    sent: "sent";
-                    reserved: "reserved";
-                }>;
-                expiresAt: z.ZodNullable<z.ZodString>;
-            }, z.core.$strict>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly overview: {
         readonly auth: {
             readonly kind: "session";
@@ -28881,310 +26321,6 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly syncStatus: {
-        readonly auth: {
-            readonly kind: "session";
-        };
-        readonly tags: readonly ["dashboard"];
-        readonly summary: "Get aggregated sync monitor data for visible pages";
-        readonly querystring: z.ZodObject<{
-            pageLabel: z.ZodOptional<z.ZodString>;
-            windowHours: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-            eventLimit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                generatedAt: z.ZodString;
-                window: z.ZodObject<{
-                    hours: z.ZodNumber;
-                    startedAt: z.ZodString;
-                }, z.core.$strip>;
-                overall: z.ZodObject<{
-                    pages: z.ZodNumber;
-                    streams: z.ZodNumber;
-                    runningStreams: z.ZodNumber;
-                    blockedStreams: z.ZodNumber;
-                    stalledStreams: z.ZodNumber;
-                    pendingStreams: z.ZodNumber;
-                    retryingStreams: z.ZodNumber;
-                    counts: z.ZodObject<{
-                        fans: z.ZodNumber;
-                        followers: z.ZodNumber;
-                        subscribers: z.ZodNumber;
-                        transactions: z.ZodNumber;
-                        conversations: z.ZodNumber;
-                        messages: z.ZodNumber;
-                    }, z.core.$strip>;
-                    recentRuns: z.ZodObject<{
-                        running: z.ZodNumber;
-                        success: z.ZodNumber;
-                        partial: z.ZodNumber;
-                        failed: z.ZodNumber;
-                        skipped: z.ZodNumber;
-                    }, z.core.$strip>;
-                    recentErrors: z.ZodObject<{
-                        total429s: z.ZodNumber;
-                        total5xxs: z.ZodNumber;
-                        failedRuns: z.ZodNumber;
-                        failedAttempts: z.ZodNumber;
-                        retryAttempts: z.ZodNumber;
-                        last429At: z.ZodNullable<z.ZodString>;
-                        last5xxAt: z.ZodNullable<z.ZodString>;
-                    }, z.core.$strip>;
-                    providers: z.ZodArray<z.ZodObject<{
-                        platform: z.ZodEnum<{
-                            fansly: "fansly";
-                            onlyfans: "onlyfans";
-                            telegram: "telegram";
-                        }>;
-                        rateHealth: z.ZodObject<{
-                            state: z.ZodEnum<{
-                                healthy: "healthy";
-                                warning: "warning";
-                                limited: "limited";
-                            }>;
-                            last429At: z.ZodNullable<z.ZodString>;
-                            nextAvailableAt: z.ZodNullable<z.ZodString>;
-                        }, z.core.$strip>;
-                        recent429s: z.ZodNumber;
-                        recent5xxs: z.ZodNumber;
-                    }, z.core.$strip>>;
-                    syncUx: z.ZodObject<{
-                        state: z.ZodEnum<{
-                            healthy: "healthy";
-                            off: "off";
-                            syncing: "syncing";
-                            catching_up: "catching_up";
-                            retrying: "retrying";
-                            attention: "attention";
-                            setup: "setup";
-                        }>;
-                        label: z.ZodString;
-                        headline: z.ZodString;
-                        detail: z.ZodNullable<z.ZodString>;
-                        progressLabel: z.ZodNullable<z.ZodString>;
-                        nextRetryAt: z.ZodNullable<z.ZodString>;
-                        updatedAt: z.ZodNullable<z.ZodString>;
-                        requiresAction: z.ZodBoolean;
-                    }, z.core.$strip>;
-                }, z.core.$strip>;
-                pages: z.ZodArray<z.ZodObject<{
-                    pageId: z.ZodNumber;
-                    pageLabel: z.ZodString;
-                    platform: z.ZodEnum<{
-                        fansly: "fansly";
-                        onlyfans: "onlyfans";
-                        telegram: "telegram";
-                    }>;
-                    modelSlug: z.ZodString;
-                    modelName: z.ZodString;
-                    username: z.ZodNullable<z.ZodString>;
-                    displayName: z.ZodNullable<z.ZodString>;
-                    counts: z.ZodObject<{
-                        fans: z.ZodNumber;
-                        followers: z.ZodNumber;
-                        subscribers: z.ZodNumber;
-                        transactions: z.ZodNumber;
-                        conversations: z.ZodNumber;
-                        messages: z.ZodNumber;
-                    }, z.core.$strip>;
-                    summary: z.ZodObject<{
-                        runningStreams: z.ZodNumber;
-                        blockedStreams: z.ZodNumber;
-                        stalledStreams: z.ZodNumber;
-                        pendingStreams: z.ZodNumber;
-                        retryingStreams: z.ZodNumber;
-                    }, z.core.$strip>;
-                    streams: z.ZodArray<z.ZodObject<{
-                        stream: z.ZodEnum<{
-                            subscribers: "subscribers";
-                            notifications: "notifications";
-                            posts: "posts";
-                            followers: "followers";
-                            catalog: "catalog";
-                            transactions: "transactions";
-                            media_stats: "media_stats";
-                            payouts: "payouts";
-                            fan_earnings: "fan_earnings";
-                            light: "light";
-                            fan_identities: "fan_identities";
-                            top_spenders: "top_spenders";
-                            dm_conversations: "dm_conversations";
-                            dm_messages: "dm_messages";
-                            followers_reconcile: "followers_reconcile";
-                            purchase_history: "purchase_history";
-                            stats_snapshot: "stats_snapshot";
-                            post_replies: "post_replies";
-                        }>;
-                        status: z.ZodEnum<{
-                            pending: "pending";
-                            blocked: "blocked";
-                            running: "running";
-                            paused: "paused";
-                            retrying: "retrying";
-                            idle: "idle";
-                        }>;
-                        stalled: z.ZodBoolean;
-                        pending: z.ZodBoolean;
-                        retryAt: z.ZodNullable<z.ZodString>;
-                        progress: z.ZodNullable<z.ZodObject<{
-                            label: z.ZodString;
-                            current: z.ZodNumber;
-                            total: z.ZodNullable<z.ZodNumber>;
-                            unit: z.ZodString;
-                            percent: z.ZodNullable<z.ZodNumber>;
-                        }, z.core.$strip>>;
-                        recentRuns: z.ZodObject<{
-                            running: z.ZodNumber;
-                            success: z.ZodNumber;
-                            partial: z.ZodNumber;
-                            failed: z.ZodNumber;
-                            skipped: z.ZodNumber;
-                        }, z.core.$strip>;
-                        recentErrors: z.ZodObject<{
-                            total429s: z.ZodNumber;
-                            total5xxs: z.ZodNumber;
-                            failedRuns: z.ZodNumber;
-                            failedAttempts: z.ZodNumber;
-                            retryAttempts: z.ZodNumber;
-                            last429At: z.ZodNullable<z.ZodString>;
-                            last5xxAt: z.ZodNullable<z.ZodString>;
-                        }, z.core.$strip>;
-                        rateHealth: z.ZodObject<{
-                            state: z.ZodEnum<{
-                                healthy: "healthy";
-                                warning: "warning";
-                                limited: "limited";
-                            }>;
-                            last429At: z.ZodNullable<z.ZodString>;
-                            nextAvailableAt: z.ZodNullable<z.ZodString>;
-                        }, z.core.$strip>;
-                        activeRun: z.ZodNullable<z.ZodObject<{
-                            runId: z.ZodNumber;
-                            trigger: z.ZodString;
-                            startedAt: z.ZodString;
-                            lastActivityAt: z.ZodString;
-                        }, z.core.$strip>>;
-                        lastCompletion: z.ZodNullable<z.ZodObject<{
-                            runId: z.ZodNumber;
-                            trigger: z.ZodString;
-                            status: z.ZodEnum<{
-                                failed: "failed";
-                                success: "success";
-                                partial: "partial";
-                                skipped: "skipped";
-                            }>;
-                            startedAt: z.ZodString;
-                            finishedAt: z.ZodString;
-                            durationMs: z.ZodNullable<z.ZodNumber>;
-                            errorSummary: z.ZodNullable<z.ZodString>;
-                        }, z.core.$strip>>;
-                        succeededAt: z.ZodNullable<z.ZodString>;
-                        failedAt: z.ZodNullable<z.ZodString>;
-                        lastErrorSummary: z.ZodNullable<z.ZodString>;
-                        consecutiveFailures: z.ZodNumber;
-                        syncUx: z.ZodObject<{
-                            state: z.ZodEnum<{
-                                healthy: "healthy";
-                                off: "off";
-                                syncing: "syncing";
-                                catching_up: "catching_up";
-                                retrying: "retrying";
-                                attention: "attention";
-                                setup: "setup";
-                            }>;
-                            label: z.ZodString;
-                            headline: z.ZodString;
-                            detail: z.ZodNullable<z.ZodString>;
-                            progressLabel: z.ZodNullable<z.ZodString>;
-                            nextRetryAt: z.ZodNullable<z.ZodString>;
-                            updatedAt: z.ZodNullable<z.ZodString>;
-                            requiresAction: z.ZodBoolean;
-                        }, z.core.$strip>;
-                    }, z.core.$strip>>;
-                    syncUx: z.ZodObject<{
-                        state: z.ZodEnum<{
-                            healthy: "healthy";
-                            off: "off";
-                            syncing: "syncing";
-                            catching_up: "catching_up";
-                            retrying: "retrying";
-                            attention: "attention";
-                            setup: "setup";
-                        }>;
-                        label: z.ZodString;
-                        headline: z.ZodString;
-                        detail: z.ZodNullable<z.ZodString>;
-                        progressLabel: z.ZodNullable<z.ZodString>;
-                        nextRetryAt: z.ZodNullable<z.ZodString>;
-                        updatedAt: z.ZodNullable<z.ZodString>;
-                        requiresAction: z.ZodBoolean;
-                    }, z.core.$strip>;
-                }, z.core.$strip>>;
-                recentEvents: z.ZodArray<z.ZodObject<{
-                    id: z.ZodNumber;
-                    runId: z.ZodNumber;
-                    pageId: z.ZodNumber;
-                    pageLabel: z.ZodString;
-                    platform: z.ZodEnum<{
-                        fansly: "fansly";
-                        onlyfans: "onlyfans";
-                        telegram: "telegram";
-                    }>;
-                    stream: z.ZodEnum<{
-                        subscribers: "subscribers";
-                        notifications: "notifications";
-                        posts: "posts";
-                        followers: "followers";
-                        catalog: "catalog";
-                        transactions: "transactions";
-                        media_stats: "media_stats";
-                        payouts: "payouts";
-                        fan_earnings: "fan_earnings";
-                        light: "light";
-                        fan_identities: "fan_identities";
-                        top_spenders: "top_spenders";
-                        dm_conversations: "dm_conversations";
-                        dm_messages: "dm_messages";
-                        followers_reconcile: "followers_reconcile";
-                        purchase_history: "purchase_history";
-                        stats_snapshot: "stats_snapshot";
-                        post_replies: "post_replies";
-                    }>;
-                    eventType: z.ZodString;
-                    severity: z.ZodEnum<{
-                        info: "info";
-                        warn: "warn";
-                        error: "error";
-                    }>;
-                    message: z.ZodString;
-                    details: z.ZodRecord<z.ZodString, z.ZodUnknown>;
-                    emittedAt: z.ZodString;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -31732,55 +28868,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly overviewRevenueByModel: {
-        readonly auth: {
-            readonly kind: "session";
-        };
-        readonly tags: readonly ["dashboard"];
-        readonly summary: "Get per-model revenue totals and daily series";
-        readonly querystring: z.ZodObject<{
-            period: z.ZodDefault<z.ZodEnum<{
-                today: "today";
-                "7d": "7d";
-                "30d": "30d";
-                all: "all";
-                custom: "custom";
-            }>>;
-            windowAt: z.ZodOptional<z.ZodISODateTime>;
-            from: z.ZodOptional<z.ZodString>;
-            to: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                models: z.ZodArray<z.ZodObject<{
-                    modelSlug: z.ZodString;
-                    modelName: z.ZodString;
-                    pageCount: z.ZodNumber;
-                    totalNetAmountMills: z.ZodNumber;
-                    transactionCount: z.ZodNumber;
-                    series: z.ZodArray<z.ZodObject<{
-                        businessDate: z.ZodString;
-                        netAmountMills: z.ZodNumber;
-                        transactionCount: z.ZodNumber;
-                    }, z.core.$strip>>;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
     readonly pageRevenueDaily: {
         readonly auth: {
             readonly kind: "session";
@@ -32774,12 +29861,6 @@ declare const baseRouteSchemas: {
                     sampledAt: z.ZodString;
                 }, z.core.$strip>>;
                 thresholdsMs: z.ZodRecord<z.ZodString, z.ZodNumber>;
-                smoke: z.ZodNullable<z.ZodObject<{
-                    framesSeen: z.ZodNumber;
-                    gapCount: z.ZodNumber;
-                    duplicateCount: z.ZodNumber;
-                    updatedAt: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;
@@ -33489,6 +30570,7 @@ declare const baseRouteSchemas: {
         readonly description: string;
         readonly querystring: z.ZodObject<{
             days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+            until: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>;
         readonly response: {
             readonly 400: z.ZodObject<{
@@ -33683,6 +30765,7 @@ declare const baseRouteSchemas: {
         readonly description: string;
         readonly querystring: z.ZodObject<{
             days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+            until: z.ZodOptional<z.ZodString>;
             userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
         }, z.core.$strip>;
         readonly response: {
@@ -33988,6 +31071,33 @@ declare const baseRouteSchemas: {
                     overlapNetMills: z.ZodNumber;
                     sales: z.ZodNumber;
                 }, z.core.$strip>>;
+                outside: z.ZodObject<{
+                    visitsNetMills: z.ZodNumber;
+                    nobodyNetMills: z.ZodNumber;
+                    daily: z.ZodArray<z.ZodObject<{
+                        date: z.ZodString;
+                        visitsNetMills: z.ZodNumber;
+                        nobodyNetMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    pages: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        visitsNetMills: z.ZodNumber;
+                        nobodyNetMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    sales: z.ZodArray<z.ZodObject<{
+                        at: z.ZodString;
+                        pageLabel: z.ZodString;
+                        fanName: z.ZodNullable<z.ZodString>;
+                        kind: z.ZodEnum<{
+                            subscription: "subscription";
+                            tip: "tip";
+                            post: "post";
+                            ppv: "ppv";
+                        }>;
+                        netMills: z.ZodNumber;
+                        visitBy: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -34481,6 +31591,134 @@ declare const baseRouteSchemas: {
                         isMe: z.ZodBoolean;
                     }, z.core.$strip>>;
                     outreachId: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentTeamSales: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly body: z.ZodObject<{
+            from: z.ZodISODateTime;
+            to: z.ZodISODateTime;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                workFrom: z.ZodString;
+                workTo: z.ZodString;
+                pages: z.ZodArray<z.ZodString>;
+                works: z.ZodArray<z.ZodObject<{
+                    ref: z.ZodString;
+                    userId: z.ZodNumber;
+                    username: z.ZodString;
+                    role: z.ZodEnum<{
+                        owner: "owner";
+                        team_lead: "team_lead";
+                        chatter: "chatter";
+                    }>;
+                    kind: z.ZodEnum<{
+                        shift: "shift";
+                        visit: "visit";
+                    }>;
+                    startedAt: z.ZodString;
+                    endedAt: z.ZodString;
+                    ongoing: z.ZodBoolean;
+                    workedMinutes: z.ZodNumber;
+                    pages: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        messages: z.ZodNumber;
+                        salesFrom: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                sales: z.ZodArray<z.ZodObject<{
+                    transactionRef: z.ZodString;
+                    pageLabel: z.ZodString;
+                    platform: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    occurredAt: z.ZodString;
+                    holders: z.ZodArray<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        username: z.ZodString;
+                        role: z.ZodEnum<{
+                            owner: "owner";
+                            team_lead: "team_lead";
+                            chatter: "chatter";
+                        }>;
+                    }, z.core.$strip>>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    ppvWithoutAuthor: z.ZodBoolean;
+                    postTip: z.ZodBoolean;
+                    campaign: z.ZodBoolean;
+                    lastWriterUserId: z.ZodNullable<z.ZodNumber>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        username: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    marks: z.ZodArray<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        mark: z.ZodEnum<{
+                            mine: "mine";
+                            share: "share";
+                            not_mine: "not_mine";
+                        }>;
+                        shareWithUserId: z.ZodNullable<z.ZodNumber>;
+                        amountMills: z.ZodNullable<z.ZodNumber>;
+                        confirmed: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    resolution: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        percent: z.ZodNumber;
+                    }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
@@ -35789,6 +33027,247 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
             readonly 200: z.ZodObject<{
                 released: z.ZodNumber;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentMediaLookCreate: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            publicationId: z.ZodOptional<z.ZodNumber>;
+            postRef: z.ZodOptional<z.ZodString>;
+            mediaRef: z.ZodOptional<z.ZodString>;
+            index: z.ZodDefault<z.ZodNumber>;
+            cover: z.ZodDefault<z.ZodBoolean>;
+            fresh: z.ZodDefault<z.ZodBoolean>;
+            frames: z.ZodDefault<z.ZodEnum<{
+                none: "none";
+                inline: "inline";
+            }>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                lookId: z.ZodNumber;
+                status: z.ZodEnum<{
+                    ready: "ready";
+                    failed: "failed";
+                    queued: "queued";
+                }>;
+                failure: z.ZodNullable<z.ZodString>;
+                target: z.ZodObject<{
+                    publicationId: z.ZodNullable<z.ZodNumber>;
+                    postRef: z.ZodNullable<z.ZodString>;
+                    index: z.ZodNullable<z.ZodNumber>;
+                    mediaRef: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+                source: z.ZodEnum<{
+                    schedule_read: "schedule_read";
+                    post_read: "post_read";
+                    vault_read: "vault_read";
+                }>;
+                requestsSent: z.ZodNumber;
+                media: z.ZodObject<{
+                    type: z.ZodNullable<z.ZodEnum<{
+                        image: "image";
+                        video: "video";
+                    }>>;
+                    durationMs: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>;
+                coverage: z.ZodNullable<z.ZodEnum<{
+                    per_second: "per_second";
+                    sampled: "sampled";
+                    cover_only: "cover_only";
+                    whole_image: "whole_image";
+                    first_frame: "first_frame";
+                }>>;
+                frameIntervalMs: z.ZodNullable<z.ZodNumber>;
+                coverageNote: z.ZodNullable<z.ZodString>;
+                frames: z.ZodArray<z.ZodObject<{
+                    index: z.ZodNumber;
+                    atMs: z.ZodNullable<z.ZodNumber>;
+                    width: z.ZodNumber;
+                    height: z.ZodNumber;
+                    jpegBase64: z.ZodOptional<z.ZodString>;
+                }, z.core.$strip>>;
+                cached: z.ZodBoolean;
+                budget: z.ZodObject<{
+                    usedToday: z.ZodNumber;
+                    limit: z.ZodNumber;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentMediaLookGet: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            lookId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            frames: z.ZodDefault<z.ZodEnum<{
+                none: "none";
+                inline: "inline";
+            }>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                lookId: z.ZodNumber;
+                status: z.ZodEnum<{
+                    ready: "ready";
+                    failed: "failed";
+                    queued: "queued";
+                }>;
+                failure: z.ZodNullable<z.ZodString>;
+                target: z.ZodObject<{
+                    publicationId: z.ZodNullable<z.ZodNumber>;
+                    postRef: z.ZodNullable<z.ZodString>;
+                    index: z.ZodNullable<z.ZodNumber>;
+                    mediaRef: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+                source: z.ZodEnum<{
+                    schedule_read: "schedule_read";
+                    post_read: "post_read";
+                    vault_read: "vault_read";
+                }>;
+                requestsSent: z.ZodNumber;
+                media: z.ZodObject<{
+                    type: z.ZodNullable<z.ZodEnum<{
+                        image: "image";
+                        video: "video";
+                    }>>;
+                    durationMs: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>;
+                coverage: z.ZodNullable<z.ZodEnum<{
+                    per_second: "per_second";
+                    sampled: "sampled";
+                    cover_only: "cover_only";
+                    whole_image: "whole_image";
+                    first_frame: "first_frame";
+                }>>;
+                frameIntervalMs: z.ZodNullable<z.ZodNumber>;
+                coverageNote: z.ZodNullable<z.ZodString>;
+                frames: z.ZodArray<z.ZodObject<{
+                    index: z.ZodNumber;
+                    atMs: z.ZodNullable<z.ZodNumber>;
+                    width: z.ZodNumber;
+                    height: z.ZodNumber;
+                    jpegBase64: z.ZodOptional<z.ZodString>;
+                }, z.core.$strip>>;
+                cached: z.ZodBoolean;
+                budget: z.ZodObject<{
+                    usedToday: z.ZodNumber;
+                    limit: z.ZodNumber;
+                }, z.core.$strip>;
             }, z.core.$strip>;
         };
     };
@@ -37432,8 +34911,8 @@ declare const baseRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
-                        accepted: "accepted";
                         not_sent: "not_sent";
+                        accepted: "accepted";
                     }>;
                     reason: z.ZodNullable<z.ZodString>;
                     publication: z.ZodNullable<z.ZodObject<{
@@ -37623,8 +35102,8 @@ declare const baseRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
-                        accepted: "accepted";
                         not_sent: "not_sent";
+                        accepted: "accepted";
                     }>;
                     reason: z.ZodNullable<z.ZodString>;
                     publication: z.ZodNullable<z.ZodObject<{
@@ -37814,8 +35293,8 @@ declare const baseRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
-                        accepted: "accepted";
                         not_sent: "not_sent";
+                        accepted: "accepted";
                     }>;
                     reason: z.ZodNullable<z.ZodString>;
                     publication: z.ZodNullable<z.ZodObject<{
@@ -39366,6 +36845,822 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly agentPublicationWithdraw: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            id: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                results: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    outcome: z.ZodEnum<{
+                        unknown: "unknown";
+                        rejected: "rejected";
+                        withdrawn: "withdrawn";
+                        refused: "refused";
+                        not_sent: "not_sent";
+                        accepted: "accepted";
+                    }>;
+                    reason: z.ZodNullable<z.ZodString>;
+                    publication: z.ZodNullable<z.ZodObject<{
+                        id: z.ZodNumber;
+                        pageLabel: z.ZodString;
+                        platform: z.ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        kind: z.ZodEnum<{
+                            story: "story";
+                            fyp_post: "fyp_post";
+                            subscriber_post: "subscriber_post";
+                            paid_post: "paid_post";
+                            vault_album: "vault_album";
+                        }>;
+                        status: z.ZodEnum<{
+                            unknown: "unknown";
+                            cancelled: "cancelled";
+                            scheduled: "scheduled";
+                            draft: "draft";
+                            approved: "approved";
+                            submitting: "submitting";
+                            processing: "processing";
+                            published: "published";
+                            not_published: "not_published";
+                            rejected: "rejected";
+                            missed: "missed";
+                            withdrawn: "withdrawn";
+                        }>;
+                        version: z.ZodNumber;
+                        text: z.ZodString;
+                        publishAt: z.ZodString;
+                        expiresAt: z.ZodNullable<z.ZodString>;
+                        wallRefs: z.ZodArray<z.ZodString>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        repost: z.ZodBoolean;
+                        pinWallRefs: z.ZodArray<z.ZodString>;
+                        replyLock: z.ZodArray<z.ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: z.ZodBoolean;
+                        extraAttachments: z.ZodArray<z.ZodObject<{
+                            attachment: z.ZodNumber;
+                            access: z.ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: z.ZodArray<z.ZodString>;
+                            priceMills: z.ZodNullable<z.ZodNumber>;
+                            subscribersOnly: z.ZodBoolean;
+                        }, z.core.$strip>>;
+                        media: z.ZodArray<z.ZodObject<{
+                            role: z.ZodEnum<{
+                                media: "media";
+                                preview: "preview";
+                            }>;
+                            position: z.ZodNumber;
+                            source: z.ZodEnum<{
+                                file: "file";
+                                vault: "vault";
+                            }>;
+                            mediaRef: z.ZodNullable<z.ZodString>;
+                            fileId: z.ZodNullable<z.ZodNumber>;
+                            attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        }, z.core.$strip>>;
+                        findings: z.ZodArray<z.ZodObject<{
+                            code: z.ZodEnum<{
+                                publish_time_past: "publish_time_past";
+                                file_of_another_model: "file_of_another_model";
+                                file_deleted: "file_deleted";
+                                media_not_on_page: "media_not_on_page";
+                                repost_within_threshold: "repost_within_threshold";
+                                posted_before: "posted_before";
+                                price_range_not_set: "price_range_not_set";
+                                price_out_of_range: "price_out_of_range";
+                                paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                                volume_high: "volume_high";
+                                daily_limit_exceeded: "daily_limit_exceeded";
+                                wall_not_on_page: "wall_not_on_page";
+                                wall_default_unknown: "wall_default_unknown";
+                                tier_not_on_page: "tier_not_on_page";
+                                onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                                onlyfans_file_too_large: "onlyfans_file_too_large";
+                                fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
+                            }>;
+                            severity: z.ZodEnum<{
+                                info: "info";
+                                blocking: "blocking";
+                                warning: "warning";
+                            }>;
+                            mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                            detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+                        }, z.core.$strip>>;
+                        blocked: z.ZodBoolean;
+                        author: z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                human: "human";
+                                agent: "agent";
+                            }>;
+                            userId: z.ZodNullable<z.ZodNumber>;
+                            agentKeyId: z.ZodNullable<z.ZodNumber>;
+                        }, z.core.$strip>;
+                        approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+                        platformPostRef: z.ZodNullable<z.ZodString>;
+                        vaultAlbumRef: z.ZodNullable<z.ZodString>;
+                        statusReason: z.ZodNullable<z.ZodString>;
+                        previousPublicationId: z.ZodNullable<z.ZodNumber>;
+                        withdrawal: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        deletion: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        createdAt: z.ZodString;
+                        updatedAt: z.ZodString;
+                        statusChangedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentPostWithdraw: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            postRef: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                platform: z.ZodEnum<{
+                    fansly: "fansly";
+                    onlyfans: "onlyfans";
+                }>;
+                postRef: z.ZodString;
+                action: z.ZodEnum<{
+                    withdraw: "withdraw";
+                    delete: "delete";
+                }>;
+                outcome: z.ZodEnum<{
+                    unknown: "unknown";
+                    rejected: "rejected";
+                    withdrawn: "withdrawn";
+                    refused: "refused";
+                    deleted: "deleted";
+                    not_sent: "not_sent";
+                    accepted: "accepted";
+                }>;
+                reason: z.ZodNullable<z.ZodString>;
+                repeat: z.ZodBoolean;
+                publicationId: z.ZodNullable<z.ZodNumber>;
+                publication: z.ZodNullable<z.ZodObject<{
+                    id: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    platform: z.ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                        telegram: "telegram";
+                    }>;
+                    kind: z.ZodEnum<{
+                        story: "story";
+                        fyp_post: "fyp_post";
+                        subscriber_post: "subscriber_post";
+                        paid_post: "paid_post";
+                        vault_album: "vault_album";
+                    }>;
+                    status: z.ZodEnum<{
+                        unknown: "unknown";
+                        cancelled: "cancelled";
+                        scheduled: "scheduled";
+                        draft: "draft";
+                        approved: "approved";
+                        submitting: "submitting";
+                        processing: "processing";
+                        published: "published";
+                        not_published: "not_published";
+                        rejected: "rejected";
+                        missed: "missed";
+                        withdrawn: "withdrawn";
+                    }>;
+                    version: z.ZodNumber;
+                    text: z.ZodString;
+                    publishAt: z.ZodString;
+                    expiresAt: z.ZodNullable<z.ZodString>;
+                    wallRefs: z.ZodArray<z.ZodString>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    repost: z.ZodBoolean;
+                    pinWallRefs: z.ZodArray<z.ZodString>;
+                    replyLock: z.ZodArray<z.ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: z.ZodBoolean;
+                    extraAttachments: z.ZodArray<z.ZodObject<{
+                        attachment: z.ZodNumber;
+                        access: z.ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        subscribersOnly: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    media: z.ZodArray<z.ZodObject<{
+                        role: z.ZodEnum<{
+                            media: "media";
+                            preview: "preview";
+                        }>;
+                        position: z.ZodNumber;
+                        source: z.ZodEnum<{
+                            file: "file";
+                            vault: "vault";
+                        }>;
+                        mediaRef: z.ZodNullable<z.ZodString>;
+                        fileId: z.ZodNullable<z.ZodNumber>;
+                        attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                    }, z.core.$strip>>;
+                    findings: z.ZodArray<z.ZodObject<{
+                        code: z.ZodEnum<{
+                            publish_time_past: "publish_time_past";
+                            file_of_another_model: "file_of_another_model";
+                            file_deleted: "file_deleted";
+                            media_not_on_page: "media_not_on_page";
+                            repost_within_threshold: "repost_within_threshold";
+                            posted_before: "posted_before";
+                            price_range_not_set: "price_range_not_set";
+                            price_out_of_range: "price_out_of_range";
+                            paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                            volume_high: "volume_high";
+                            daily_limit_exceeded: "daily_limit_exceeded";
+                            wall_not_on_page: "wall_not_on_page";
+                            wall_default_unknown: "wall_default_unknown";
+                            tier_not_on_page: "tier_not_on_page";
+                            onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                            onlyfans_file_too_large: "onlyfans_file_too_large";
+                            fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
+                        }>;
+                        severity: z.ZodEnum<{
+                            info: "info";
+                            blocking: "blocking";
+                            warning: "warning";
+                        }>;
+                        mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                        detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+                    }, z.core.$strip>>;
+                    blocked: z.ZodBoolean;
+                    author: z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            human: "human";
+                            agent: "agent";
+                        }>;
+                        userId: z.ZodNullable<z.ZodNumber>;
+                        agentKeyId: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>;
+                    approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+                    platformPostRef: z.ZodNullable<z.ZodString>;
+                    vaultAlbumRef: z.ZodNullable<z.ZodString>;
+                    statusReason: z.ZodNullable<z.ZodString>;
+                    previousPublicationId: z.ZodNullable<z.ZodNumber>;
+                    withdrawal: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
+                    deletion: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
+                    createdAt: z.ZodString;
+                    updatedAt: z.ZodString;
+                    statusChangedAt: z.ZodString;
+                }, z.core.$strip>>;
+                command: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    stateReason: z.ZodNullable<z.ZodString>;
+                    createdAt: z.ZodString;
+                    settledAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                check: z.ZodNullable<z.ZodString>;
+                dailyLimit: z.ZodNullable<z.ZodObject<{
+                    limit: z.ZodNumber;
+                    used: z.ZodNumber;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentPostDelete: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            postRef: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            reason: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                platform: z.ZodEnum<{
+                    fansly: "fansly";
+                    onlyfans: "onlyfans";
+                }>;
+                postRef: z.ZodString;
+                action: z.ZodEnum<{
+                    withdraw: "withdraw";
+                    delete: "delete";
+                }>;
+                outcome: z.ZodEnum<{
+                    unknown: "unknown";
+                    rejected: "rejected";
+                    withdrawn: "withdrawn";
+                    refused: "refused";
+                    deleted: "deleted";
+                    not_sent: "not_sent";
+                    accepted: "accepted";
+                }>;
+                reason: z.ZodNullable<z.ZodString>;
+                repeat: z.ZodBoolean;
+                publicationId: z.ZodNullable<z.ZodNumber>;
+                publication: z.ZodNullable<z.ZodObject<{
+                    id: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    platform: z.ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                        telegram: "telegram";
+                    }>;
+                    kind: z.ZodEnum<{
+                        story: "story";
+                        fyp_post: "fyp_post";
+                        subscriber_post: "subscriber_post";
+                        paid_post: "paid_post";
+                        vault_album: "vault_album";
+                    }>;
+                    status: z.ZodEnum<{
+                        unknown: "unknown";
+                        cancelled: "cancelled";
+                        scheduled: "scheduled";
+                        draft: "draft";
+                        approved: "approved";
+                        submitting: "submitting";
+                        processing: "processing";
+                        published: "published";
+                        not_published: "not_published";
+                        rejected: "rejected";
+                        missed: "missed";
+                        withdrawn: "withdrawn";
+                    }>;
+                    version: z.ZodNumber;
+                    text: z.ZodString;
+                    publishAt: z.ZodString;
+                    expiresAt: z.ZodNullable<z.ZodString>;
+                    wallRefs: z.ZodArray<z.ZodString>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    repost: z.ZodBoolean;
+                    pinWallRefs: z.ZodArray<z.ZodString>;
+                    replyLock: z.ZodArray<z.ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: z.ZodBoolean;
+                    extraAttachments: z.ZodArray<z.ZodObject<{
+                        attachment: z.ZodNumber;
+                        access: z.ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        subscribersOnly: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    media: z.ZodArray<z.ZodObject<{
+                        role: z.ZodEnum<{
+                            media: "media";
+                            preview: "preview";
+                        }>;
+                        position: z.ZodNumber;
+                        source: z.ZodEnum<{
+                            file: "file";
+                            vault: "vault";
+                        }>;
+                        mediaRef: z.ZodNullable<z.ZodString>;
+                        fileId: z.ZodNullable<z.ZodNumber>;
+                        attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                    }, z.core.$strip>>;
+                    findings: z.ZodArray<z.ZodObject<{
+                        code: z.ZodEnum<{
+                            publish_time_past: "publish_time_past";
+                            file_of_another_model: "file_of_another_model";
+                            file_deleted: "file_deleted";
+                            media_not_on_page: "media_not_on_page";
+                            repost_within_threshold: "repost_within_threshold";
+                            posted_before: "posted_before";
+                            price_range_not_set: "price_range_not_set";
+                            price_out_of_range: "price_out_of_range";
+                            paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                            volume_high: "volume_high";
+                            daily_limit_exceeded: "daily_limit_exceeded";
+                            wall_not_on_page: "wall_not_on_page";
+                            wall_default_unknown: "wall_default_unknown";
+                            tier_not_on_page: "tier_not_on_page";
+                            onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                            onlyfans_file_too_large: "onlyfans_file_too_large";
+                            fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
+                        }>;
+                        severity: z.ZodEnum<{
+                            info: "info";
+                            blocking: "blocking";
+                            warning: "warning";
+                        }>;
+                        mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                        detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+                    }, z.core.$strip>>;
+                    blocked: z.ZodBoolean;
+                    author: z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            human: "human";
+                            agent: "agent";
+                        }>;
+                        userId: z.ZodNullable<z.ZodNumber>;
+                        agentKeyId: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>;
+                    approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+                    platformPostRef: z.ZodNullable<z.ZodString>;
+                    vaultAlbumRef: z.ZodNullable<z.ZodString>;
+                    statusReason: z.ZodNullable<z.ZodString>;
+                    previousPublicationId: z.ZodNullable<z.ZodNumber>;
+                    withdrawal: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
+                    deletion: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
+                    createdAt: z.ZodString;
+                    updatedAt: z.ZodString;
+                    statusChangedAt: z.ZodString;
+                }, z.core.$strip>>;
+                command: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    stateReason: z.ZodNullable<z.ZodString>;
+                    createdAt: z.ZodString;
+                    settledAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                check: z.ZodNullable<z.ZodString>;
+                dailyLimit: z.ZodNullable<z.ZodObject<{
+                    limit: z.ZodNumber;
+                    used: z.ZodNumber;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentPublicationQueue: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                platform: z.ZodEnum<{
+                    fansly: "fansly";
+                    onlyfans: "onlyfans";
+                }>;
+                readAt: z.ZodNullable<z.ZodString>;
+                windowFrom: z.ZodNullable<z.ZodString>;
+                windowTo: z.ZodNullable<z.ZodString>;
+                complete: z.ZodBoolean;
+                incompleteReasons: z.ZodArray<z.ZodString>;
+                stale: z.ZodBoolean;
+                postsPerDay: z.ZodRecord<z.ZodString, z.ZodNumber>;
+                refreshRequestedAt: z.ZodNullable<z.ZodString>;
+                lastFailure: z.ZodNullable<z.ZodString>;
+                lastFailedAt: z.ZodNullable<z.ZodString>;
+                entries: z.ZodArray<z.ZodObject<{
+                    queueId: z.ZodString;
+                    postRef: z.ZodNullable<z.ZodString>;
+                    publishAt: z.ZodNullable<z.ZodString>;
+                    text: z.ZodString;
+                    mediaCount: z.ZodNullable<z.ZodNumber>;
+                    publicationId: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentPublicationQueueRefresh: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                requestedAt: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
     readonly agentPublicationTargets: {
         readonly auth: {
             readonly kind: "agentKey";
@@ -40211,8 +38506,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -40395,8 +38690,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -40473,8 +38768,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -40550,8 +38845,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -40826,8 +39121,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -41003,8 +39298,8 @@ declare const baseRouteSchemas: {
                 ok: z.ZodBoolean;
                 problem: z.ZodNullable<z.ZodObject<{
                     code: z.ZodEnum<{
-                        refused: "refused";
                         ipv6: "ipv6";
+                        refused: "refused";
                         unreachable: "unreachable";
                         dns: "dns";
                         no_answer: "no_answer";
@@ -41525,8 +39820,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -41603,8 +39898,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -41680,8 +39975,8 @@ declare const baseRouteSchemas: {
                 screen: z.ZodNullable<z.ZodObject<{
                     screen: z.ZodEnum<{
                         unknown: "unknown";
-                        success: "success";
                         error: "error";
+                        success: "success";
                         code: "code";
                         landing: "landing";
                         login: "login";
@@ -42992,197 +41287,6 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly ofapiMediaResolve: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ofapi"];
-        readonly summary: "Decide how the desktop may fetch one media file (free URL, OFAPI cache or a budgeted paid download)";
-        readonly description: string;
-        readonly body: z.ZodObject<{
-            requestId: z.ZodUUID;
-            accountId: z.ZodString;
-            mediaId: z.ZodString;
-            variant: z.ZodEnum<{
-                thumb: "thumb";
-                full: "full";
-            }>;
-            surface: z.ZodEnum<{
-                vault: "vault";
-                thread: "thread";
-                gallery: "gallery";
-                lightbox: "lightbox";
-            }>;
-            trigger: z.ZodEnum<{
-                auto: "auto";
-                click: "click";
-            }>;
-            afterReread: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strict>;
-        readonly response: {
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 429: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 200: z.ZodObject<{
-                resolveId: z.ZodUUID;
-                outcome: z.ZodEnum<{
-                    pending: "pending";
-                    error: "error";
-                    paid: "paid";
-                    free_url: "free_url";
-                    ofapi_cache: "ofapi_cache";
-                    cap_blocked: "cap_blocked";
-                    source_expired: "source_expired";
-                    unavailable: "unavailable";
-                    refused: "refused";
-                }>;
-                url: z.ZodNullable<z.ZodString>;
-                urlExpiresAt: z.ZodNullable<z.ZodString>;
-                contentLength: z.ZodNullable<z.ZodNumber>;
-                maxBytes: z.ZodNullable<z.ZodNumber>;
-                credits: z.ZodNumber;
-                overCap: z.ZodBoolean;
-                reason: z.ZodNullable<z.ZodString>;
-                retryAfterMs: z.ZodNullable<z.ZodNumber>;
-                retryAt: z.ZodNullable<z.ZodString>;
-                mediaType: z.ZodNullable<z.ZodString>;
-                reread: z.ZodNullable<z.ZodDiscriminatedUnion<[z.ZodObject<{
-                    kind: z.ZodLiteral<"message">;
-                    chatId: z.ZodString;
-                    messageId: z.ZodString;
-                }, z.core.$strip>, z.ZodObject<{
-                    kind: z.ZodLiteral<"vault">;
-                    mediaId: z.ZodString;
-                }, z.core.$strip>], "kind">>;
-                replayed: z.ZodBoolean;
-            }, z.core.$strip>;
-        };
-    };
-    readonly ofapiMediaReports: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ofapi"];
-        readonly summary: "Report desktop media transfer results (batched, idempotent by resolveId)";
-        readonly description: string;
-        readonly body: z.ZodObject<{
-            reports: z.ZodArray<z.ZodObject<{
-                resolveId: z.ZodUUID;
-                result: z.ZodEnum<{
-                    failed: "failed";
-                    timeout: "timeout";
-                    ok: "ok";
-                    aborted_size: "aborted_size";
-                    http_error: "http_error";
-                }>;
-                bytesReceived: z.ZodNullable<z.ZodNumber>;
-                httpStatus: z.ZodNullable<z.ZodNumber>;
-            }, z.core.$strict>>;
-        }, z.core.$strict>;
-        readonly response: {
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 429: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 200: z.ZodObject<{
-                accepted: z.ZodNumber;
-                duplicate: z.ZodNumber;
-                unknown: z.ZodNumber;
-                rejected: z.ZodNumber;
-            }, z.core.$strip>;
-        };
-    };
     readonly ofapiMediaUploadResume: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -44337,8 +42441,8 @@ declare const baseRouteSchemas: {
                     availability: z.ZodEnum<{
                         complete: "complete";
                         partial: "partial";
-                        unavailable: "unavailable";
                         missing: "missing";
+                        unavailable: "unavailable";
                         ineligible: "ineligible";
                     }>;
                     observedAt: z.ZodNullable<z.ZodString>;
@@ -44795,109 +42899,6 @@ declare const baseRouteSchemas: {
                     alternatives: z.ZodNullable<z.ZodString>;
                 }, z.core.$strip>>;
             }, z.core.$strip>>;
-        };
-    };
-    readonly ofapiBannedWordsGet: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ingest"];
-        readonly summary: "Read retained vendor banned-word dictionary with coverage";
-        readonly response: {
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 200: z.ZodNullable<z.ZodObject<{
-                version: z.ZodString;
-                observedAt: z.ZodString;
-                complete: z.ZodBoolean;
-                pages: z.ZodNumber;
-                entries: z.ZodArray<z.ZodObject<{
-                    word: z.ZodString;
-                    riskLevel: z.ZodString;
-                    category: z.ZodNullable<z.ZodString>;
-                    alternatives: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-            }, z.core.$strip>>;
-        };
-    };
-    readonly ofapiBannedWordsPreview: {
-        readonly auth: {
-            readonly kind: "apiKey";
-        };
-        readonly tags: readonly ["ingest"];
-        readonly summary: "Preview literal banned words locally without altering text";
-        readonly body: z.ZodObject<{
-            text: z.ZodString;
-        }, z.core.$strict>;
-        readonly response: {
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 503: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 200: z.ZodObject<{
-                version: z.ZodNullable<z.ZodString>;
-                observedAt: z.ZodNullable<z.ZodString>;
-                complete: z.ZodBoolean;
-                matching: z.ZodLiteral<"literal_case_insensitive">;
-                matches: z.ZodArray<z.ZodObject<{
-                    word: z.ZodString;
-                    riskLevel: z.ZodString;
-                    category: z.ZodNullable<z.ZodString>;
-                    alternatives: z.ZodNullable<z.ZodString>;
-                    start: z.ZodNumber;
-                    end: z.ZodNumber;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
         };
     };
     readonly ofapiBannedWordsRefresh: {
@@ -46064,7 +44065,6 @@ export type OfapiExportPilotApprovalResponse = z.infer<typeof ofapiExportPilotAp
 export type OfapiExportArtifactCaptureBody = z.infer<typeof ofapiExportArtifactCaptureBodySchema>;
 export type OfapiExportArtifactCaptureResponse = z.infer<typeof ofapiExportArtifactCaptureResponseSchema>;
 export type OfapiCreditsSummaryResponse = z.infer<typeof ofapiCreditsSummaryResponseSchema>;
-export type OfapiCreditsChatterSummaryResponse = z.infer<typeof ofapiCreditsChatterSummaryResponseSchema>;
 export type OfapiCreditsDailyResponse = z.infer<typeof ofapiCreditsDailyResponseSchema>;
 export type AdminOfapiCreditsLedgerQuery = z.infer<typeof adminOfapiCreditsLedgerQuerySchema>;
 export type AdminOfapiCreditsLedgerCsvQuery = z.infer<typeof adminOfapiCreditsLedgerCsvQuerySchema>;
@@ -46163,8 +44163,6 @@ export type AdminTerminateAllAccessResponse = z.infer<typeof adminTerminateAllAc
 export type AdminAssignPageBody = z.infer<typeof adminAssignPageBodySchema>;
 export type SyncRunItem = z.infer<typeof syncRunItemSchema>;
 export type SyncRunDetailResponse = z.infer<typeof syncRunDetailResponseSchema>;
-export type SyncStatusQuery = z.infer<typeof syncStatusQuerySchema>;
-export type SyncMonitorResponse = z.infer<typeof syncStatusResponseSchema>;
 export type SyncRequestsQuery = z.infer<typeof syncRequestsQuerySchema>;
 export type SyncRequestItem = z.infer<typeof syncRequestItemSchema>;
 export type SyncRequestsResponse = z.infer<typeof syncRequestsResponseSchema>;
@@ -46190,8 +44188,6 @@ export type SyncRunsQuery = z.infer<typeof syncRunsQuerySchema>;
 export type ConnectionItem = z.infer<typeof connectionItemSchema>;
 export type VerifyCredentialsBody = z.infer<typeof verifyCredentialsBodySchema>;
 export type VerifyCredentialsResponse = z.infer<typeof verifyCredentialsResponseSchema>;
-export type TestProxyBody = z.infer<typeof testProxyBodySchema>;
-export type TestProxyResponse = z.infer<typeof testProxyResponseSchema>;
 export type CreateModelBody = z.infer<typeof createModelBodySchema>;
 export type UpdateModelBody = z.infer<typeof updateModelBodySchema>;
 export type CreateModelResponse = z.infer<typeof createModelResponseSchema>;
@@ -46219,16 +44215,9 @@ export type NotificationsReportPreviewResponse = z.infer<typeof notificationsRep
 export type NotificationsReportSendResponse = z.infer<typeof notificationsReportSendResponseSchema>;
 export type NotificationsDeliveryAttemptItem = z.infer<typeof notificationsDeliveryAttemptItemSchema>;
 export type NotificationsReportHistoryResponse = z.infer<typeof notificationsReportHistoryResponseSchema>;
-export type DomainEventFrame = z.infer<typeof domainEventFrameSchema>;
-export type DomainEventsSnapshotRequired = z.infer<typeof domainEventsSnapshotRequiredResponseSchema>;
-export type DomainEventsSnapshotResponse = z.infer<typeof domainEventsSnapshotResponseSchema>;
-export type DomainEventProvenance = z.infer<typeof domainEventProvenanceEnum>;
-export type DomainEventFactsResponse = z.infer<typeof domainEventFactsResponseSchema>;
 export type ChangePasswordBody = z.infer<typeof changePasswordBodySchema>;
 export type DeviceTokenItem = z.infer<typeof deviceTokenItemSchema>;
 export type IssuedDeviceTokenResponse = z.infer<typeof issuedDeviceTokenResponseSchema>;
-export type StatsTrafficQuery = z.infer<typeof statsTrafficQuerySchema>;
-export type StatsTrafficResponse = z.infer<typeof statsTrafficResponseSchema>;
 export type PageSettingsResponse = z.infer<typeof pageSettingsResponseSchema>;
 export type PagePromoResponse = z.infer<typeof pagePromoResponseSchema>;
 export type PageMassMessagesQuery = z.infer<typeof pageMassMessagesQuerySchema>;
@@ -46246,8 +44235,6 @@ export type StatsTagsQuery = z.infer<typeof statsTagsQuerySchema>;
 export type StatsTagsResponse = z.infer<typeof statsTagsResponseSchema>;
 export type StatsCoverageResponse = z.infer<typeof statsCoverageResponseSchema>;
 export type StatsHoldingsResponse = z.infer<typeof statsHoldingsResponseSchema>;
-export type ContentMediaQuery = z.infer<typeof contentMediaQuerySchema>;
-export type ContentMediaResponse = z.infer<typeof contentMediaResponseSchema>;
 export type ContentCommentsQuery = z.infer<typeof contentCommentsQuerySchema>;
 export type ContentCommentsResponse = z.infer<typeof contentCommentsResponseSchema>;
 export type MoneyRevenueMixQuery = z.infer<typeof moneyRevenueMixQuerySchema>;

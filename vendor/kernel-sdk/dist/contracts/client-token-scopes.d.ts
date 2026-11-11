@@ -8,14 +8,13 @@ import { type RouteAuthPolicy } from "./routes";
  * reaches tokens already issued, with no re-issue.
  *
  * The API server refuses every route outside `operations` with a reason-less
- * 403; routes that take no principal (`public`, `hmac`,
- * `pending-device-token`) are not subject to it. The capture
+ * 403; routes that take no principal (`public`, `hmac`) are not subject to
+ * it. The capture
  * lane accepts only `ingestKinds` from such a token, under the profile's own
  * producer.
  *
  * Never on a list: `/ofapi/*`, the event streams, the full persona texts and
- * their writes, the raw AI gateway, the Fansly outreach route, the top-spenders
- * read, and any cookie-session route.
+ * their writes, the raw AI gateway, and any cookie-session route.
  *
  * The boundary is honest about what it is: it keeps a leaked or misbehaving
  * extension inside its own surface. The person behind it can still sign in

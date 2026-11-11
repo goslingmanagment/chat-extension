@@ -1,12 +1,18 @@
 import { errorResponseSchema } from "./primitives";
-import { agentPublicationChangesQuerySchema, agentPublicationChangesResponseSchema, agentPublicationCreateBodySchema, agentPublicationListQuerySchema, agentPublicationMediaQuerySchema, agentPublicationMediaResponseSchema, agentPublicationTargetsResponseSchema, publicationApproveBodySchema, publicationApproveResponseSchema, publicationCreateBodySchema, publicationDetailSchema, publicationIdParamsSchema, publicationListQuerySchema, publicationListResponseSchema, publicationPageParamsSchema, publicationResolveBodySchema, publicationResolveResponseSchema, publicationSchema, publicationSettingsListResponseSchema, publicationSettingsSchema, publicationSettingsUpdateBodySchema, publicationUpdateBodySchema, publicationQueueListResponseSchema, publicationQueueRefreshBodySchema, publicationQueueRefreshResponseSchema, publicationWithdrawPageBodySchema, publicationWithdrawResponseSchema, } from "./publications";
+import { agentPostCommandResponseSchema, agentPostDeleteBodySchema, agentPostParamsSchema, agentPublicationChangesQuerySchema, agentPublicationChangesResponseSchema, agentPublicationCreateBodySchema, agentPublicationListQuerySchema, agentPublicationMediaQuerySchema, agentPublicationMediaResponseSchema, agentPublicationTargetsResponseSchema, publicationApproveBodySchema, publicationApproveResponseSchema, publicationCreateBodySchema, publicationDetailSchema, publicationIdParamsSchema, publicationListQuerySchema, publicationListResponseSchema, publicationPageParamsSchema, publicationResolveBodySchema, publicationResolveResponseSchema, publicationSchema, publicationSettingsListResponseSchema, publicationSettingsSchema, publicationSettingsUpdateBodySchema, publicationUpdateBodySchema, publicationQueueListResponseSchema, publicationQueueRefreshBodySchema, publicationQueueRefreshResponseSchema, publicationQueueSnapshotSchema, publicationWithdrawPageBodySchema, publicationWithdrawResponseSchema, } from "./publications";
 // Publications (docs/plans/2026-10-23-wall-posts, spec §9). The owner's routes
 // draft, approve, cancel, answer "unknown" and set the pages' publishing; an
 // agent key with write:publication_drafts drafts on its own pages, reads
 // their statuses and picks files from the page's media; one with
 // approve:publications also approves them, on the owner's word in the chat
 // (owner 2026-10-27). An agent cancels what its key drafted while Hub has not
-// handed it to the platform (owner 2026-10-29). Nothing here talks to a platform.
+// handed it to the platform (owner 2026-10-29); one with withdraw:publications
+// takes any Hub post of its pages off the platform's schedule, as the owner's
+// «Снять» does, and reads the page's schedule (owner 2026-11-11). Only the
+// withdrawal talks to a platform, through the owner's own services. By the
+// platform's post id (owner 2026-11-11) a key takes any post of its pages off
+// the schedule, one placed by hand too, and with delete:posts deletes a
+// published one — the owner's «да» for that post is the agent's to hold.
 const owner = { kind: "owner-session" };
 const ownerErrors = {
     400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema,
@@ -14,7 +20,7 @@ const ownerErrors = {
     409: errorResponseSchema,
 };
 const agentErrors = { ...ownerErrors, 429: errorResponseSchema, 503: errorResponseSchema };
-// publication_handed_to_platform: Hub has sent it to the platform; only the owner takes it off, in Hub.
+// publication_handed_to_platform: Hub has sent it to the platform; a cancel no longer applies, a withdrawal does.
 export const publicationRouteSchemas = {
     adminPublicationList: {
         auth: owner, tags: ["admin"],
@@ -144,10 +150,56 @@ export const publicationRouteSchemas = {
     agentPublicationCancel: {
         auth: { kind: "agentKey" }, tags: ["agent"],
         summary: "Cancel a publication this key drafted while Hub has not handed it to the platform: a draft or an"
-            + " approved one (needs write:publication_drafts). Later it is the owner's, in Hub: 409"
-            + " publication_handed_to_platform. A cancelled one answers as it is",
+            + " approved one (needs write:publication_drafts). Later it is 409 publication_handed_to_platform: a key"
+            + " with withdraw:publications takes it off the schedule (agentPublicationWithdraw). A cancelled one answers"
+            + " as it is",
         params: publicationIdParamsSchema,
         response: { 200: publicationSchema, ...agentErrors },
+    },
+    agentPublicationWithdraw: {
+        // An id path, so no declarative page scope: the service checks the grant.
+        auth: { kind: "agentKey" }, tags: ["agent"],
+        summary: "Take a Hub post of a granted page off the platform's schedule (needs withdraw:publications), any Hub"
+            + " post there, whoever drafted it: the owner's own withdrawal, with the same refusals (only a scheduled post,"
+            + " 15 minutes or more before its time, the page not stopped, one cancel per post). Fansly answers accepted"
+            + " and the result comes as the publication's status; OnlyFans answers its outcome",
+        params: publicationIdParamsSchema,
+        response: { 200: publicationWithdrawResponseSchema, ...agentErrors },
+    },
+    agentPostWithdraw: {
+        auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],
+        summary: "Take a post of a granted page off the platform's schedule by the platform's post id — one put there"
+            + " by hand too (needs withdraw:publications). Only a post Hub's own read of the page's schedule, an hour old"
+            + " at most, shows waiting, 15 minutes or more before its time, the page not stopped. A Hub post goes through"
+            + " its publication's withdrawal. One command per post: a repeat answers its state and sends nothing. Never a"
+            + " deletion",
+        params: agentPostParamsSchema,
+        response: { 200: agentPostCommandResponseSchema, ...agentErrors },
+    },
+    agentPostDelete: {
+        auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],
+        summary: "Delete a published post of a granted page by the platform's post id (needs delete:posts; only on the"
+            + " owner's «да» for that post). Only a post Hub has among the page's own posts, not in its schedule. A daily"
+            + " ceiling per key; the reason goes to the owner's audit. One command per post: a repeat answers its state"
+            + " and sends nothing; an unknown outcome is never sent again",
+        params: agentPostParamsSchema,
+        body: agentPostDeleteBodySchema,
+        response: { 200: agentPostCommandResponseSchema, ...agentErrors },
+    },
+    agentPublicationQueue: {
+        auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],
+        summary: "The latest read of the page's own schedule on the platform: Hub's posts in it, the ones put there by"
+            + " hand, when it was read and whether it was complete and fresh (needs write:publication_drafts or"
+            + " withdraw:publications)",
+        params: publicationPageParamsSchema,
+        response: { 200: publicationQueueSnapshotSchema, ...agentErrors },
+    },
+    agentPublicationQueueRefresh: {
+        auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],
+        summary: "Read the page's schedule again within a minute, as the owner's «Обновить» (needs"
+            + " write:publication_drafts or withdraw:publications). On OnlyFans it spends OnlyFansAPI credits",
+        params: publicationPageParamsSchema,
+        response: { 200: publicationQueueRefreshResponseSchema, ...agentErrors },
     },
     agentPublicationTargets: {
         auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],

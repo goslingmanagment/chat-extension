@@ -355,17 +355,6 @@ export function agentClassPlanes(claimClass) {
         fields,
     };
 }
-/** plane -> role within a given class. Used to build `capture.planes[]`. */
-export function agentPlaneRole(claimClass, plane) {
-    const { required, evidentiary } = agentClassPlanes(claimClass);
-    if (required.includes(plane)) {
-        return "required";
-    }
-    if (evidentiary.includes(plane)) {
-        return "evidentiary";
-    }
-    return "not_applicable";
-}
 /**
  * Boundary lookup: accepts an UNVALIDATED field name (it arrives from a request)
  * and resolves its class, or `undefined` when the field is unknown. The map

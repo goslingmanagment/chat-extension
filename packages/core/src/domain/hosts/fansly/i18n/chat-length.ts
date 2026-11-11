@@ -1,6 +1,10 @@
 // The words of the chat's length in Fansly's chat header (contracts deleted-fansly.ts, 2026-11-08): the badge's count
 // (or its short age when the hub has no count), what a screen reader hears, and the card under it in full. Whole
 // calendar units, as «Регистрация» counts them. No long dash in what a chatter reads.
+//
+// 2026-11-11 (the owner: «чтобы писалось, кто из чатеров сколько сообщений оставил»): the card's breakdown by author,
+// in the words of «кто написал» under the model's messages (message-authors.ts, changes/fansly-message-authors.md): a
+// hub login as it is, «без автора» for a message nobody is known for.
 import type { ChatLengthCopy } from '@cg/contracts/deleted-fansly';
 
 type Lang = 'ru' | 'en';
@@ -93,6 +97,12 @@ export const CHAT_LENGTH_TEXTS: Readonly<Record<Lang, ChatLengthCopy>> = {
       return `в среднем ${String(pace.n)} ${ru(pace.n, 'сообщение', 'сообщения', 'сообщений')} в ${pace.per === 'day' ? 'день' : 'неделю'}`;
     },
     unknown: 'Число сообщений Hub пока не знает: история чата ещё не дочитана',
+    authors: 'Кто сколько написал',
+    fan: 'Фан',
+    me: '(вы)',
+    unattributed: 'Без автора',
+    // The date never splits across lines (no-break spaces).
+    unattributedHint: 'Массовые рассылки, сообщения не из расширения и всё до 24\u00a0октября\u00a02026, когда Hub начал записывать авторов',
   },
   en: {
     age: chatAge('en'),
@@ -110,5 +120,10 @@ export const CHAT_LENGTH_TEXTS: Readonly<Record<Lang, ChatLengthCopy>> = {
       return `about ${String(pace.n)} ${en(pace.n, 'message', 'messages')} a ${pace.per}`;
     },
     unknown: 'Hub does not know the message count yet: the chat history is not read to its start',
+    authors: 'Who wrote how many',
+    fan: 'Fan',
+    me: '(you)',
+    unattributed: 'No author',
+    unattributedHint: 'Mass messages, sends from outside the extension, and everything before October\u00a024,\u00a02026, when Hub began to record authors',
   },
 };

@@ -1,18 +1,14 @@
 import { routeSchemas } from "./routes";
 /**
  * Operations without a plain request/JSON-response shape. The webhook is
- * HMAC-authenticated server intake; the two streams are SSE (dedicated
- * helpers); the read gateway is a wildcard proxy (passthrough helper); the
- * ledger CSV returns text/csv; the voice-note audio route returns binary
+ * HMAC-authenticated server intake; the AI gateway stream is SSE (dedicated
+ * helper); the ledger CSV returns text/csv; the voice-note audio route returns binary
  * audio/mpeg (dedicated `fetchVoiceNoteAudio` helper). All remain reachable via
  * `client.raw(...)`.
  */
 export const SDK_EXCLUDED_OPERATIONS = [
     "ofapiWebhookReceive",
-    "eventsStream",
-    "eventsV2Stream",
     "aiGatewayStream",
-    "ofapiReadGateway",
     "adminOfapiCreditsLedgerCsv",
     "voiceNoteAudio",
     // A page browser's screenshot is image/jpeg; its screen a passthrough of
@@ -146,24 +142,6 @@ function notifyAuthError(options, error) {
         options.onAuthError?.(error, null);
     }
 }
-/** The error envelope of a non-OK SSE handshake, parsed like the typed path
- * parses it: `body` is the JSON envelope when there is one (so a structured
- * `reason` — token_revoked / token_expired — reaches the
- * client's self-healing), the raw text otherwise, and `code` is its `error`. */
-async function sseHandshakeError(label, response) {
-    const text = await response.text().catch(() => "");
-    let body;
-    try {
-        body = text ? JSON.parse(text) : null;
-    }
-    catch {
-        body = text;
-    }
-    const envelope = (body ?? {});
-    return new KernelApiError(typeof envelope.message === "string"
-        ? envelope.message
-        : `${label} failed with ${response.status}`, response.status === 401 || response.status === 403 ? "auth" : "server", response.status, typeof envelope.error === "string" ? envelope.error : null, body);
-}
 export function createKernelClient(operations, options) {
     const excluded = new Set(SDK_EXCLUDED_OPERATIONS);
     async function call(key, input) {
@@ -203,7 +181,7 @@ export function createKernelClient(operations, options) {
     return client;
 }
 // --- Stream helpers ---
-import { aiFeatureStreamFrameSchema, aiGatewayStreamFrameSchema, domainEventFrameSchema, domainEventsSnapshotRequiredResponseSchema, syncEventSchema, syncSnapshotRequiredResponseSchema, } from "./routes";
+import { aiFeatureStreamFrameSchema, aiGatewayStreamFrameSchema, } from "./routes";
 async function* parseSseStream(body) {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -271,55 +249,6 @@ async function openSseResponse(input) {
     catch (error) {
         throw new KernelApiError(`Network error opening ${input.path}: ${error instanceof Error ? error.message : "unknown"}`, "network", null, "network_error", null);
     }
-}
-/**
- * Subscribe to the v1 sync-event stream (`GET /api/v1/events/stream`).
- * Single connection, no auto-reconnect: the server bounds stream lifetime
- * (~15 min) and v1 clients own their reconnect loop, resuming via
- * `lastEventId`. A 409 becomes `onSnapshotRequired` and ends the stream.
- */
-export function subscribeSyncEvents(options, input) {
-    const abort = new AbortController();
-    input.signal?.addEventListener("abort", () => abort.abort(), { once: true });
-    const done = (async () => {
-        const response = await openSseResponse({
-            options,
-            method: "GET",
-            path: "/api/v1/events/stream",
-            headers: input.lastEventId != null ? { "last-event-id": String(input.lastEventId) } : undefined,
-            signal: abort.signal,
-        });
-        if (response.status === 409) {
-            const body = await response.json();
-            const parsed = syncSnapshotRequiredResponseSchema.safeParse(body);
-            if (!parsed.success) {
-                throw new KernelApiError("events/stream 409 body failed contract validation", "contract", 409, "response_validation_failed", body);
-            }
-            input.onSnapshotRequired?.(parsed.data);
-            return;
-        }
-        if (!response.ok || !response.body) {
-            const error = await sseHandshakeError("events/stream", response);
-            notifyAuthError(options, error);
-            throw error;
-        }
-        for await (const frame of parseSseStream(response.body)) {
-            if (frame.event !== "sync" || frame.data === "") {
-                continue; // retry hints / heartbeats
-            }
-            const parsed = syncEventSchema.safeParse(JSON.parse(frame.data));
-            if (!parsed.success) {
-                throw new KernelApiError(`sync frame failed contract validation: ${parsed.error.message}`, "contract", 200, "frame_validation_failed", frame.data);
-            }
-            input.onFrame({ id: Number(frame.id), event: parsed.data });
-        }
-    })().catch((error) => {
-        if (abort.signal.aborted) {
-            return; // close() is not an error
-        }
-        throw error;
-    });
-    return { done, close: () => abort.abort() };
 }
 /**
  * What a client may advertise on the AI feature stream in the
@@ -457,20 +386,6 @@ export function streamAiGateway(options, input) {
     return { done, close: () => abort.abort() };
 }
 /**
- * Thin passthrough for the wildcard read gateway (`GET /api/v1/ofapi/read/*`):
- * upstream shapes are proxied verbatim, so no validation — the caller gets the
- * raw Response.
- */
-export async function ofapiRead(options, input) {
-    const cleanPath = input.path.replace(/^\/+/, "");
-    return executeKernelRequest({
-        def: { method: "GET", path: `/api/v1/ofapi/read/${cleanPath}` },
-        options,
-        query: input.query,
-        headers: input.headers,
-    });
-}
-/**
  * Fetch a completed voice-note's audio bytes (`GET
  * /api/v1/pages/:pageLabel/voice-notes/:id/audio`, Task 6). The response is
  * binary `audio/mpeg`, so there is no JSON shape to validate — the caller gets
@@ -493,57 +408,4 @@ export async function fetchVoiceNoteAudio(options, input) {
         notifyAuthError(options, new KernelApiError(`${def.method} ${def.path} failed with ${response.status}`, "auth", response.status, null, null));
     }
     return response;
-}
-/**
- * Subscribe to the v2 domain-event stream (`GET /api/v1/events/v2/stream`).
- * The cursor is OPAQUE — persist the last delivered one and hand it back on
- * reconnect. Single connection, no auto-reconnect (same contract as v1: the
- * server bounds stream lifetime; consumers own the loop).
- * A 409 becomes `onSnapshotRequired` with the per-account detail; recover via
- * `client.eventsV2Snapshot(...)` and resubscribe with the fresh cursor.
- * `platform` narrows the stream to one platform's granted accounts; pass the
- * same value to the snapshot and on every resume (its cursors are bound to it).
- */
-export function subscribeDomainEvents(options, input) {
-    const abort = new AbortController();
-    input.signal?.addEventListener("abort", () => abort.abort(), { once: true });
-    const done = (async () => {
-        const response = await openSseResponse({
-            options,
-            method: "GET",
-            path: `/api/v1/events/v2/stream${input.platform ? `?platform=${input.platform}` : ""}`,
-            headers: input.cursor ? { "last-event-id": input.cursor } : undefined,
-            signal: abort.signal,
-        });
-        if (response.status === 409) {
-            const body = await response.json();
-            const parsed = domainEventsSnapshotRequiredResponseSchema.safeParse(body);
-            if (!parsed.success) {
-                throw new KernelApiError("events/v2/stream 409 body failed contract validation", "contract", 409, "response_validation_failed", body);
-            }
-            input.onSnapshotRequired?.(parsed.data);
-            return;
-        }
-        if (!response.ok || !response.body) {
-            const error = await sseHandshakeError("events/v2/stream", response);
-            notifyAuthError(options, error);
-            throw error;
-        }
-        for await (const frame of parseSseStream(response.body)) {
-            if (frame.event !== "domain" || frame.data === "" || frame.id === null) {
-                continue;
-            }
-            const parsed = domainEventFrameSchema.safeParse(JSON.parse(frame.data));
-            if (!parsed.success) {
-                throw new KernelApiError(`domain frame failed contract validation: ${parsed.error.message}`, "contract", 200, "frame_validation_failed", frame.data);
-            }
-            input.onFrame({ cursor: frame.id, event: parsed.data });
-        }
-    })().catch((error) => {
-        if (abort.signal.aborted) {
-            return;
-        }
-        throw error;
-    });
-    return { done, close: () => abort.abort() };
 }

@@ -21,8 +21,14 @@ export const CHATTER_STATS_MAX_DAYS = 31;
 export const CHATTER_SALE_KINDS = ["ppv", "tip", "subscription", "post"];
 const byKindSchema = z.object({ ppv: mills, tip: mills, subscription: mills, post: mills });
 export const accountChatterStatsQuerySchema = z.object({
-    /** Whole Moscow days back from today, today included. */
+    /** Whole Moscow days back from the window's last day (`until`, default today), that day included. */
     days: z.coerce.number().int().min(1).max(CHATTER_STATS_MAX_DAYS).default(7),
+    /**
+     * The window's last Moscow day; default today. A past one shows that window
+     * (a calendar week of Workboard's «Мои смены»); a later one keeps today inside
+     * the window and lists the days to come empty — as `teamShiftSales`.
+     */
+    until: businessDate.optional(),
 });
 export const teamChatterStatsQuerySchema = accountChatterStatsQuerySchema.extend({
     /** The chatter to show; absent or not among `people` — the first of them. */
@@ -214,5 +220,25 @@ export const teamShiftSalesResponseSchema = z.object({
         overlapNetMills: mills,
         sales: count,
     })),
+    /**
+     * The window's sales no shift holds, outside the money above: `visits` — a look-in's, its person the last to write to
+     * the fan (as a visit's sales); `nobody` — the rest. By the Moscow day of the sale (one per day of the window, the
+     * oldest first) and by page (the most first), and each sale, the oldest first.
+     */
+    outside: z.object({
+        visitsNetMills: mills,
+        nobodyNetMills: mills,
+        daily: z.array(z.object({ date: businessDate, visitsNetMills: mills, nobodyNetMills: mills })),
+        pages: z.array(z.object({ pageLabel: z.string(), visitsNetMills: mills, nobodyNetMills: mills })),
+        sales: z.array(z.object({
+            at: isoTimestamp,
+            pageLabel: z.string(),
+            fanName: z.string().nullable(),
+            kind: z.enum(CHATTER_SALE_KINDS),
+            netMills: mills,
+            /** The look-in's person; null — nobody's. */
+            visitBy: z.string().nullable(),
+        })),
+    }),
     serverNow: isoTimestamp,
 });

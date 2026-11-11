@@ -1639,8 +1639,8 @@ export declare const publicationRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
-                        accepted: "accepted";
                         not_sent: "not_sent";
+                        accepted: "accepted";
                     }>;
                     reason: import("zod").ZodNullable<import("zod").ZodString>;
                     publication: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -1830,8 +1830,8 @@ export declare const publicationRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
-                        accepted: "accepted";
                         not_sent: "not_sent";
+                        accepted: "accepted";
                     }>;
                     reason: import("zod").ZodNullable<import("zod").ZodString>;
                     publication: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -2021,8 +2021,8 @@ export declare const publicationRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
-                        accepted: "accepted";
                         not_sent: "not_sent";
+                        accepted: "accepted";
                     }>;
                     reason: import("zod").ZodNullable<import("zod").ZodString>;
                     publication: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -3570,6 +3570,822 @@ export declare const publicationRouteSchemas: {
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly agentPublicationWithdraw: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            id: import("zod").ZodCoercedNumber<unknown>;
+        }, import("zod/v4/core").$strip>;
+        readonly response: {
+            readonly 429: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 503: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                results: import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    outcome: import("zod").ZodEnum<{
+                        unknown: "unknown";
+                        rejected: "rejected";
+                        withdrawn: "withdrawn";
+                        refused: "refused";
+                        not_sent: "not_sent";
+                        accepted: "accepted";
+                    }>;
+                    reason: import("zod").ZodNullable<import("zod").ZodString>;
+                    publication: import("zod").ZodNullable<import("zod").ZodObject<{
+                        id: import("zod").ZodNumber;
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        kind: import("zod").ZodEnum<{
+                            story: "story";
+                            fyp_post: "fyp_post";
+                            subscriber_post: "subscriber_post";
+                            paid_post: "paid_post";
+                            vault_album: "vault_album";
+                        }>;
+                        status: import("zod").ZodEnum<{
+                            unknown: "unknown";
+                            cancelled: "cancelled";
+                            scheduled: "scheduled";
+                            draft: "draft";
+                            approved: "approved";
+                            submitting: "submitting";
+                            processing: "processing";
+                            published: "published";
+                            not_published: "not_published";
+                            rejected: "rejected";
+                            missed: "missed";
+                            withdrawn: "withdrawn";
+                        }>;
+                        version: import("zod").ZodNumber;
+                        text: import("zod").ZodString;
+                        publishAt: import("zod").ZodString;
+                        expiresAt: import("zod").ZodNullable<import("zod").ZodString>;
+                        wallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        repost: import("zod").ZodBoolean;
+                        pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                        extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                            attachment: import("zod").ZodNumber;
+                            access: import("zod").ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                            priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            subscribersOnly: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>>;
+                        media: import("zod").ZodArray<import("zod").ZodObject<{
+                            role: import("zod").ZodEnum<{
+                                media: "media";
+                                preview: "preview";
+                            }>;
+                            position: import("zod").ZodNumber;
+                            source: import("zod").ZodEnum<{
+                                file: "file";
+                                vault: "vault";
+                            }>;
+                            mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            attachment: import("zod").ZodNumber;
+                            name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                        }, import("zod/v4/core").$strip>>;
+                        findings: import("zod").ZodArray<import("zod").ZodObject<{
+                            code: import("zod").ZodEnum<{
+                                publish_time_past: "publish_time_past";
+                                file_of_another_model: "file_of_another_model";
+                                file_deleted: "file_deleted";
+                                media_not_on_page: "media_not_on_page";
+                                repost_within_threshold: "repost_within_threshold";
+                                posted_before: "posted_before";
+                                price_range_not_set: "price_range_not_set";
+                                price_out_of_range: "price_out_of_range";
+                                paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                                volume_high: "volume_high";
+                                daily_limit_exceeded: "daily_limit_exceeded";
+                                wall_not_on_page: "wall_not_on_page";
+                                wall_default_unknown: "wall_default_unknown";
+                                tier_not_on_page: "tier_not_on_page";
+                                onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                                onlyfans_file_too_large: "onlyfans_file_too_large";
+                                fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
+                            }>;
+                            severity: import("zod").ZodEnum<{
+                                info: "info";
+                                blocking: "blocking";
+                                warning: "warning";
+                            }>;
+                            mediaKey: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                            at: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                            postRef: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                            publicationId: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                            detail: import("zod").ZodDefault<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnion<readonly [import("zod").ZodNumber, import("zod").ZodString, import("zod").ZodNull]>>>;
+                        }, import("zod/v4/core").$strip>>;
+                        blocked: import("zod").ZodBoolean;
+                        author: import("zod").ZodObject<{
+                            kind: import("zod").ZodEnum<{
+                                human: "human";
+                                agent: "agent";
+                            }>;
+                            userId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            agentKeyId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        }, import("zod/v4/core").$strip>;
+                        approvedRevisionId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        platformPostRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        vaultAlbumRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        statusReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                            state: import("zod").ZodString;
+                            errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                            at: import("zod").ZodString;
+                        }, import("zod/v4/core").$strip>>;
+                        deletion: import("zod").ZodNullable<import("zod").ZodObject<{
+                            state: import("zod").ZodString;
+                            errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                            at: import("zod").ZodString;
+                        }, import("zod/v4/core").$strip>>;
+                        createdAt: import("zod").ZodString;
+                        updatedAt: import("zod").ZodString;
+                        statusChangedAt: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly agentPostWithdraw: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            pageLabel: import("zod").ZodString;
+            postRef: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+        readonly response: {
+            readonly 429: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 503: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                pageLabel: import("zod").ZodString;
+                platform: import("zod").ZodEnum<{
+                    fansly: "fansly";
+                    onlyfans: "onlyfans";
+                }>;
+                postRef: import("zod").ZodString;
+                action: import("zod").ZodEnum<{
+                    withdraw: "withdraw";
+                    delete: "delete";
+                }>;
+                outcome: import("zod").ZodEnum<{
+                    unknown: "unknown";
+                    rejected: "rejected";
+                    withdrawn: "withdrawn";
+                    refused: "refused";
+                    deleted: "deleted";
+                    not_sent: "not_sent";
+                    accepted: "accepted";
+                }>;
+                reason: import("zod").ZodNullable<import("zod").ZodString>;
+                repeat: import("zod").ZodBoolean;
+                publicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                publication: import("zod").ZodNullable<import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    pageLabel: import("zod").ZodString;
+                    platform: import("zod").ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                        telegram: "telegram";
+                    }>;
+                    kind: import("zod").ZodEnum<{
+                        story: "story";
+                        fyp_post: "fyp_post";
+                        subscriber_post: "subscriber_post";
+                        paid_post: "paid_post";
+                        vault_album: "vault_album";
+                    }>;
+                    status: import("zod").ZodEnum<{
+                        unknown: "unknown";
+                        cancelled: "cancelled";
+                        scheduled: "scheduled";
+                        draft: "draft";
+                        approved: "approved";
+                        submitting: "submitting";
+                        processing: "processing";
+                        published: "published";
+                        not_published: "not_published";
+                        rejected: "rejected";
+                        missed: "missed";
+                        withdrawn: "withdrawn";
+                    }>;
+                    version: import("zod").ZodNumber;
+                    text: import("zod").ZodString;
+                    publishAt: import("zod").ZodString;
+                    expiresAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    wallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    repost: import("zod").ZodBoolean;
+                    pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                    extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                        attachment: import("zod").ZodNumber;
+                        access: import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    media: import("zod").ZodArray<import("zod").ZodObject<{
+                        role: import("zod").ZodEnum<{
+                            media: "media";
+                            preview: "preview";
+                        }>;
+                        position: import("zod").ZodNumber;
+                        source: import("zod").ZodEnum<{
+                            file: "file";
+                            vault: "vault";
+                        }>;
+                        mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        attachment: import("zod").ZodNumber;
+                        name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                    }, import("zod/v4/core").$strip>>;
+                    findings: import("zod").ZodArray<import("zod").ZodObject<{
+                        code: import("zod").ZodEnum<{
+                            publish_time_past: "publish_time_past";
+                            file_of_another_model: "file_of_another_model";
+                            file_deleted: "file_deleted";
+                            media_not_on_page: "media_not_on_page";
+                            repost_within_threshold: "repost_within_threshold";
+                            posted_before: "posted_before";
+                            price_range_not_set: "price_range_not_set";
+                            price_out_of_range: "price_out_of_range";
+                            paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                            volume_high: "volume_high";
+                            daily_limit_exceeded: "daily_limit_exceeded";
+                            wall_not_on_page: "wall_not_on_page";
+                            wall_default_unknown: "wall_default_unknown";
+                            tier_not_on_page: "tier_not_on_page";
+                            onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                            onlyfans_file_too_large: "onlyfans_file_too_large";
+                            fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
+                        }>;
+                        severity: import("zod").ZodEnum<{
+                            info: "info";
+                            blocking: "blocking";
+                            warning: "warning";
+                        }>;
+                        mediaKey: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                        at: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                        postRef: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                        publicationId: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                        detail: import("zod").ZodDefault<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnion<readonly [import("zod").ZodNumber, import("zod").ZodString, import("zod").ZodNull]>>>;
+                    }, import("zod/v4/core").$strip>>;
+                    blocked: import("zod").ZodBoolean;
+                    author: import("zod").ZodObject<{
+                        kind: import("zod").ZodEnum<{
+                            human: "human";
+                            agent: "agent";
+                        }>;
+                        userId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        agentKeyId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    }, import("zod/v4/core").$strip>;
+                    approvedRevisionId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    platformPostRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    vaultAlbumRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    statusReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    deletion: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    createdAt: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
+                    statusChangedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                command: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    stateReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    createdAt: import("zod").ZodString;
+                    settledAt: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                check: import("zod").ZodNullable<import("zod").ZodString>;
+                dailyLimit: import("zod").ZodNullable<import("zod").ZodObject<{
+                    limit: import("zod").ZodNumber;
+                    used: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly agentPostDelete: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            pageLabel: import("zod").ZodString;
+            postRef: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+        readonly body: import("zod").ZodObject<{
+            reason: import("zod").ZodString;
+        }, import("zod/v4/core").$strict>;
+        readonly response: {
+            readonly 429: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 503: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                pageLabel: import("zod").ZodString;
+                platform: import("zod").ZodEnum<{
+                    fansly: "fansly";
+                    onlyfans: "onlyfans";
+                }>;
+                postRef: import("zod").ZodString;
+                action: import("zod").ZodEnum<{
+                    withdraw: "withdraw";
+                    delete: "delete";
+                }>;
+                outcome: import("zod").ZodEnum<{
+                    unknown: "unknown";
+                    rejected: "rejected";
+                    withdrawn: "withdrawn";
+                    refused: "refused";
+                    deleted: "deleted";
+                    not_sent: "not_sent";
+                    accepted: "accepted";
+                }>;
+                reason: import("zod").ZodNullable<import("zod").ZodString>;
+                repeat: import("zod").ZodBoolean;
+                publicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                publication: import("zod").ZodNullable<import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    pageLabel: import("zod").ZodString;
+                    platform: import("zod").ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                        telegram: "telegram";
+                    }>;
+                    kind: import("zod").ZodEnum<{
+                        story: "story";
+                        fyp_post: "fyp_post";
+                        subscriber_post: "subscriber_post";
+                        paid_post: "paid_post";
+                        vault_album: "vault_album";
+                    }>;
+                    status: import("zod").ZodEnum<{
+                        unknown: "unknown";
+                        cancelled: "cancelled";
+                        scheduled: "scheduled";
+                        draft: "draft";
+                        approved: "approved";
+                        submitting: "submitting";
+                        processing: "processing";
+                        published: "published";
+                        not_published: "not_published";
+                        rejected: "rejected";
+                        missed: "missed";
+                        withdrawn: "withdrawn";
+                    }>;
+                    version: import("zod").ZodNumber;
+                    text: import("zod").ZodString;
+                    publishAt: import("zod").ZodString;
+                    expiresAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    wallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    repost: import("zod").ZodBoolean;
+                    pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                    extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                        attachment: import("zod").ZodNumber;
+                        access: import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    media: import("zod").ZodArray<import("zod").ZodObject<{
+                        role: import("zod").ZodEnum<{
+                            media: "media";
+                            preview: "preview";
+                        }>;
+                        position: import("zod").ZodNumber;
+                        source: import("zod").ZodEnum<{
+                            file: "file";
+                            vault: "vault";
+                        }>;
+                        mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        attachment: import("zod").ZodNumber;
+                        name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                    }, import("zod/v4/core").$strip>>;
+                    findings: import("zod").ZodArray<import("zod").ZodObject<{
+                        code: import("zod").ZodEnum<{
+                            publish_time_past: "publish_time_past";
+                            file_of_another_model: "file_of_another_model";
+                            file_deleted: "file_deleted";
+                            media_not_on_page: "media_not_on_page";
+                            repost_within_threshold: "repost_within_threshold";
+                            posted_before: "posted_before";
+                            price_range_not_set: "price_range_not_set";
+                            price_out_of_range: "price_out_of_range";
+                            paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                            volume_high: "volume_high";
+                            daily_limit_exceeded: "daily_limit_exceeded";
+                            wall_not_on_page: "wall_not_on_page";
+                            wall_default_unknown: "wall_default_unknown";
+                            tier_not_on_page: "tier_not_on_page";
+                            onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                            onlyfans_file_too_large: "onlyfans_file_too_large";
+                            fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
+                        }>;
+                        severity: import("zod").ZodEnum<{
+                            info: "info";
+                            blocking: "blocking";
+                            warning: "warning";
+                        }>;
+                        mediaKey: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                        at: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                        postRef: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                        publicationId: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                        detail: import("zod").ZodDefault<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnion<readonly [import("zod").ZodNumber, import("zod").ZodString, import("zod").ZodNull]>>>;
+                    }, import("zod/v4/core").$strip>>;
+                    blocked: import("zod").ZodBoolean;
+                    author: import("zod").ZodObject<{
+                        kind: import("zod").ZodEnum<{
+                            human: "human";
+                            agent: "agent";
+                        }>;
+                        userId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        agentKeyId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    }, import("zod/v4/core").$strip>;
+                    approvedRevisionId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    platformPostRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    vaultAlbumRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    statusReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    deletion: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    createdAt: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
+                    statusChangedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                command: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    stateReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    createdAt: import("zod").ZodString;
+                    settledAt: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                check: import("zod").ZodNullable<import("zod").ZodString>;
+                dailyLimit: import("zod").ZodNullable<import("zod").ZodObject<{
+                    limit: import("zod").ZodNumber;
+                    used: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly agentPublicationQueue: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            pageLabel: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+        readonly response: {
+            readonly 429: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 503: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                pageLabel: import("zod").ZodString;
+                platform: import("zod").ZodEnum<{
+                    fansly: "fansly";
+                    onlyfans: "onlyfans";
+                }>;
+                readAt: import("zod").ZodNullable<import("zod").ZodString>;
+                windowFrom: import("zod").ZodNullable<import("zod").ZodString>;
+                windowTo: import("zod").ZodNullable<import("zod").ZodString>;
+                complete: import("zod").ZodBoolean;
+                incompleteReasons: import("zod").ZodArray<import("zod").ZodString>;
+                stale: import("zod").ZodBoolean;
+                postsPerDay: import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodNumber>;
+                refreshRequestedAt: import("zod").ZodNullable<import("zod").ZodString>;
+                lastFailure: import("zod").ZodNullable<import("zod").ZodString>;
+                lastFailedAt: import("zod").ZodNullable<import("zod").ZodString>;
+                entries: import("zod").ZodArray<import("zod").ZodObject<{
+                    queueId: import("zod").ZodString;
+                    postRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    publishAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    text: import("zod").ZodString;
+                    mediaCount: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    publicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly agentPublicationQueueRefresh: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            pageLabel: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+        readonly response: {
+            readonly 429: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 503: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                requestedAt: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };
     };

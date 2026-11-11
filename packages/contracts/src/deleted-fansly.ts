@@ -56,6 +56,27 @@ export interface DeletedMessagesCopy {
 // ── the chat's length (2026-11-08) ────────────────────────────────────────────
 // The owner: «хочу еще видеть сколько было месаг с челом… чтобы чаттеры видели как давно общение», «без лишних запросов и
 // точно». A badge in the same header, from the same read as «Удалил» (hub `clientDeletedMessages` with the group).
+// 2026-11-11, the owner: «Хочу видеть здесь разбивку еще, чтобы писалось, кто из чатеров сколько сообщений оставил»:
+// its card also says who wrote how many.
+
+/** One chatter's messages in the chat, as the hub recorded their sends. */
+export interface ChatAuthorView {
+  /** The chatter's hub login. */
+  readonly name: string;
+  /** The person in this tab. */
+  readonly isMe: boolean;
+  readonly messages: number;
+}
+
+/** Who wrote the chat's messages; something to show in each (a fan's count or a chatter). */
+export interface ChatAuthorsView {
+  /** The most messages first, as the hub ordered them. */
+  readonly chatters: readonly ChatAuthorView[];
+  /** The fan's messages; null — the hub cannot say (no count of the chat). */
+  readonly fan: number | null;
+  /** The page's messages with no known author (mass messages, sends from elsewhere, before 2026-10-24); null with `fan`. */
+  readonly unattributed: number | null;
+}
 
 /** The open chat's length as the header's badge shows it. */
 export interface ChatLengthView {
@@ -63,6 +84,8 @@ export interface ChatLengthView {
   readonly messages: number | null;
   /** When the chat began, epoch ms: its first message, or the moment Fansly made the chat when the hub cannot say. */
   readonly since: number;
+  /** Who wrote them; null — nothing to break down (a hub before 2026-11-11, or neither a fan's count nor a chatter). */
+  readonly authors: ChatAuthorsView | null;
 }
 
 export interface ChatLengthClient {
@@ -87,4 +110,14 @@ export interface ChatLengthCopy {
   pace(messages: number, since: number, now: number): string | null;
   /** The card with no count: why there is none. */
   readonly unknown: string;
+  /** The card's breakdown for a screen reader: «Кто сколько написал». */
+  readonly authors: string;
+  /** Its row of the fan: «Фан». */
+  readonly fan: string;
+  /** After the person's own login: «(вы)». */
+  readonly me: string;
+  /** Its row of the messages nobody is known for: «Без автора». */
+  readonly unattributed: string;
+  /** Under that row: what those are. */
+  readonly unattributedHint: string;
 }

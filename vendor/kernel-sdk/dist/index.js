@@ -6,10 +6,10 @@ export { KernelApiError, SDK_EXCLUDED_OPERATIONS, createKernelClient, } from "./
 // cannot reach @agency_hub_core/contracts the way the dashboard does).
 export { 
 // The tokens streamAiFeature may advertise (`capabilities` option).
-AI_STREAM_CAPABILITIES, decodeDomainEventCursor, fetchVoiceNoteAudio, 
+AI_STREAM_CAPABILITIES, fetchVoiceNoteAudio, 
 // Shared client-side predicate (coach-chat spec §8): apply to a terminal
 // stop reason before committing a coach answer / attaching a recap.
-isOutputExhausted, ofapiRead, routeSchemas, streamAiFeature, streamAiGateway, subscribeDomainEvents, subscribeSyncEvents, } from "./contracts/index";
+isOutputExhausted, routeSchemas, streamAiFeature, streamAiGateway, } from "./contracts/index";
 export { kernelOperations } from "./operations";
 export { KERNEL_CONTRACT_HASH, KERNEL_SDK_VERSION } from "./meta";
 // The chat extension's known values (routes-client.ts). On the wire these

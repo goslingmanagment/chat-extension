@@ -12,9 +12,6 @@ export const SPENDER_RETENTION_INACTIVE_DAYS = 45;
 // Lifetime creator-net spend (in mills) at which an inactive supporter is flagged as needing reactivation.
 // $100 — matches the existing VIP tier threshold used by the row badge.
 export const SPENDER_RETENTION_NEEDS_REACTIVATION_LIFETIME_NET_MILLS = 100_000;
-export function isSpenderRetentionStatus(value) {
-    return SPENDER_RETENTION_STATUSES.includes(value);
-}
 export function classifyRetention(input) {
     const last = input.lifetimeLastTransactionAt
         ? new Date(input.lifetimeLastTransactionAt).getTime()

@@ -25,8 +25,6 @@ export interface BusinessDateRange {
 }
 export declare function isPeriod(value: string): value is Period;
 export declare function parsePeriod(value: string): Period;
-export declare function isSpenderPeriod(value: string): value is SpenderPeriod;
-export declare function parseSpenderPeriod(value: string): SpenderPeriod;
 export declare function zonedDateTimeToUtc(parts: Pick<DateParts, "year" | "month" | "day"> & Partial<Pick<DateParts, "hour" | "minute" | "second">>, timeZone: string): Date;
 export declare function startOfBusinessDay(date: Date, timeZone?: string): Date;
 export declare function addUtcDays(date: Date, days: number): Date;
@@ -68,10 +66,6 @@ export declare function resolveRevenueBusinessDateRangeForPlatform(platform: Pla
     from: string;
     to: string;
 }): BusinessDateRange;
-export declare function resolveSpenderPeriodBoundsForPlatform(platform: Platform, period: SpenderPeriod, now?: Date, custom?: {
-    from: string;
-    to: string;
-}): PeriodBounds;
 export declare function resolveSpenderComparisonPeriodBoundsForPlatform(platform: Platform, period: SpenderPeriod, now?: Date, custom?: {
     from: string;
     to: string;

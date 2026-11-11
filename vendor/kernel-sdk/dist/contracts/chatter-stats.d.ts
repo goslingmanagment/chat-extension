@@ -9,9 +9,11 @@ export declare const CHATTER_SALE_KINDS: readonly ["ppv", "tip", "subscription",
 export type ChatterSaleKind = (typeof CHATTER_SALE_KINDS)[number];
 export declare const accountChatterStatsQuerySchema: z.ZodObject<{
     days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    until: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export declare const teamChatterStatsQuerySchema: z.ZodObject<{
     days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    until: z.ZodOptional<z.ZodString>;
     userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strip>;
 export declare const chatterStatsSchema: z.ZodObject<{
@@ -421,6 +423,33 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
         overlapNetMills: z.ZodNumber;
         sales: z.ZodNumber;
     }, z.core.$strip>>;
+    outside: z.ZodObject<{
+        visitsNetMills: z.ZodNumber;
+        nobodyNetMills: z.ZodNumber;
+        daily: z.ZodArray<z.ZodObject<{
+            date: z.ZodString;
+            visitsNetMills: z.ZodNumber;
+            nobodyNetMills: z.ZodNumber;
+        }, z.core.$strip>>;
+        pages: z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            visitsNetMills: z.ZodNumber;
+            nobodyNetMills: z.ZodNumber;
+        }, z.core.$strip>>;
+        sales: z.ZodArray<z.ZodObject<{
+            at: z.ZodString;
+            pageLabel: z.ZodString;
+            fanName: z.ZodNullable<z.ZodString>;
+            kind: z.ZodEnum<{
+                subscription: "subscription";
+                tip: "tip";
+                post: "post";
+                ppv: "ppv";
+            }>;
+            netMills: z.ZodNumber;
+            visitBy: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export type TeamShiftSalesQuery = z.infer<typeof teamShiftSalesQuerySchema>;

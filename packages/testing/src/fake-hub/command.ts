@@ -83,6 +83,28 @@ const isOnlineTemplates: FieldCheck = (value) =>
   (Array.isArray(value) &&
     value.every((item) => isObject(item) && Object.keys(item as Record<string, unknown>).every((key) => key === 'id' || key === 'group' || key === 'text') && ['id', 'group', 'text'].every((key) => isString((item as Record<string, unknown>)[key]))));
 
+const isWhole = (min: number): FieldCheck => (value) => typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+/** `chatLength.authors`: chatters (a login, a count ≥ 1, at most `isMe`), the fan's and the unattributed counts or null; nothing else. */
+const isChatAuthors: FieldCheck = (value) => {
+  if (!isObject(value)) return false;
+  const authors = value as Record<string, unknown>;
+  const chatters = authors['chatters'];
+  return (
+    Object.keys(authors).every((key) => key === 'chatters' || key === 'fan' || key === 'unattributed') &&
+    either(isWhole(0), oneOf(null))(authors['fan']) &&
+    either(isWhole(0), oneOf(null))(authors['unattributed']) &&
+    Array.isArray(chatters) &&
+    chatters.every(
+      (chatter) =>
+        isObject(chatter) &&
+        typeof (chatter as Record<string, unknown>)['name'] === 'string' &&
+        (chatter as Record<string, unknown>)['name'] !== '' &&
+        isWhole(1)((chatter as Record<string, unknown>)['messages']) &&
+        Object.entries(chatter as Record<string, unknown>).every(([key, field]) => key === 'name' || key === 'messages' || (key === 'isMe' && (field === undefined || isBoolean(field)))),
+    )
+  );
+};
+
 const MATCH = oneOf('exact', 'route');
 const UNSCRIPTED = oneOf('fail', 'model');
 const PAGE_FAN = { pageLabel: isString, fanRef: isString };
@@ -129,7 +151,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   spenderFans: { fans: isSpenderSeeds },
   otherPages: { fans: isObject },
   deletedMessage: { ...PAGE_FAN, messageId: (value) => typeof value === 'string' && /^[1-9]\d*$/.test(value), text: (value) => value === null || typeof value === 'string', deletedAt: (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)), sentAt: (value) => value === undefined || (typeof value === 'string' && Number.isFinite(Date.parse(value))), attachments: (value) => value === undefined || (typeof value === 'number' && Number.isInteger(value) && value >= 0), groupId: (value) => value === undefined || (typeof value === 'string' && /^[1-9]\d*$/.test(value)) },
-  chatLength: { ...PAGE_FAN, groupId: isNativeId, messages: (value) => value === null || (typeof value === 'number' && Number.isInteger(value) && value >= 0), firstMessageAt: (value) => value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value))) },
+  chatLength: { ...PAGE_FAN, groupId: isNativeId, messages: (value) => value === null || (typeof value === 'number' && Number.isInteger(value) && value >= 0), firstMessageAt: (value) => value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value))), authors: isChatAuthors },
   talking: { ...PAGE_FAN, conversationRef: isNativeId, name: isString, agoMs: isNumber },
   fanCard: { ...PAGE_FAN, card: isObject },
   messageAuthor: { ...PAGE_FAN, messageId: (value) => typeof value === 'string' && /^[1-9]\d*$/.test(value), login: (value) => typeof value === 'string' && value !== '', at: (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)), how: (value) => value === undefined || typeof value === 'string', edited: (value) => value === undefined || typeof value === 'boolean' },
