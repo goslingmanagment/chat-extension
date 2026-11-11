@@ -1542,13 +1542,6 @@ export declare const CLIENT_DELETED_MESSAGES_MAX = 50;
 export declare const clientDeletedMessagesQuerySchema: z.ZodObject<{
     conversationRef: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>;
-/**
- * The length of the fan's chat with the page, for the chat header: how many
- * messages it ever had and since when. Exact or nothing: both stay null until
- * Hub holds the chat from its very first message (the sync's chain proved
- * `complete`); then `messages` is the proven chain and what the page's socket
- * brought after its head, both sides, deleted ones included.
- */
 /** The most chatters `chat.authors` names, the most messages first. */
 export declare const CLIENT_CHAT_LENGTH_CHATTERS_MAX = 50;
 /**
@@ -1576,6 +1569,13 @@ export declare const clientChatAuthorsSchema: z.ZodObject<{
     fan: z.ZodNullable<z.ZodNumber>;
     unattributed: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
+/**
+ * The length of the fan's chat with the page, for the chat header: how many
+ * messages it ever had and since when. Exact or nothing: both stay null until
+ * Hub holds the chat from its very first message (the sync's chain proved
+ * `complete`); then `messages` is the proven chain and what the page's socket
+ * brought after its head, both sides, deleted ones included.
+ */
 export declare const clientChatLengthSchema: z.ZodObject<{
     conversationRef: z.ZodString;
     messages: z.ZodNullable<z.ZodNumber>;
