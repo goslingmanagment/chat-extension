@@ -7,13 +7,16 @@
 // read sees the new message. A read in flight for the same person, page, fan and chat is joined. The answer is bounded
 // to what a tab shows. With the open chat (`groupId`) the same read says how long that chat is (2026-11-08): the
 // header's badge, no read of its own. And who wrote it (2026-11-11, the owner: «чтобы писалось, кто из чатеров сколько
-// сообщений оставил»): each chatter's count, the fan's and the ones with no known author, for the badge's card.
+// сообщений оставил»): each chatter's count, the fan's and the ones with no known author, for the badge's card. How the
+// length is bounded is both sites' since that day (core domain/chat-length, ChatSpace's own read: the owner, «там же все
+// то же самое нужно»).
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { DeletedMessages } from '@cg/contracts/hub';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
-import { FANSLY_TAB_LIMITS, type FanslyChatAuthors, type FanslyChatLength, type FanslyDeletedMessages, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
+import { FANSLY_TAB_LIMITS, type FanslyDeletedMessages, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
+import { boundChatLength } from '@cg/core/domain/chat-length';
 import { admittedOn } from '@cg/core/domain/features';
 import { flagRefusal } from '@cg/core/domain/ops';
 
@@ -54,45 +57,6 @@ export function boundDeletedMessages(answer: DeletedMessages): FanslyDeletedMess
     if (messages.length === FANSLY_TAB_LIMITS.deletedMessagesMax) break;
   }
   return { total: Math.max(count(answer.total), messages.length), messages };
-}
-
-/** A count the hub may send: a whole number, zero or more; null — none, or one that does not read. */
-const exact = (value: number | null): number | null => (value !== null && Number.isSafeInteger(value) && value >= 0 ? value : null);
-
-type HubChatAuthors = NonNullable<NonNullable<DeletedMessages['chat']>['authors']>;
-
-/**
- * Who wrote the chat as a tab may take it: each chatter with a login and at least one message (others dropped), the
- * cap kept, logins cut; the fan's and the unattributed counts both or neither, and only beside the chat's own count.
- * null — the hub did not say, or its split does not read: no breakdown rather than a wrong one.
- */
-function boundChatAuthors(authors: HubChatAuthors | undefined, messages: number | null): FanslyChatAuthors | null {
-  if (authors === undefined) return null;
-  const chatters: FanslyChatAuthors['chatters'][number][] = [];
-  for (const chatter of authors.chatters) {
-    const name = cut(chatter.name.trim(), FANSLY_TAB_LIMITS.chatAuthorNameMaxChars);
-    const count = exact(chatter.messages);
-    if (name === '' || count === null || count < 1) continue;
-    chatters.push({ name, isMe: chatter.isMe, messages: count });
-    if (chatters.length === FANSLY_TAB_LIMITS.chatAuthorsMax) break;
-  }
-  if (authors.fan === null && authors.unattributed === null) return { chatters, fan: null, unattributed: null };
-  // The split needs the whole chat: both counts, beside the chat's own, or the answer does not read.
-  const fan = exact(authors.fan);
-  const unattributed = exact(authors.unattributed);
-  if (messages === null || fan === null || unattributed === null) return null;
-  return { chatters, fan, unattributed };
-}
-
-/** The chat's length as a tab may take it: a count that reads, a time that reads, who wrote it; undefined — the hub did not say. */
-export function boundChatLength(chat: DeletedMessages['chat']): FanslyChatLength | null | undefined {
-  if (chat === undefined || chat === null) return chat;
-  const messages = exact(chat.messages);
-  return {
-    messages,
-    firstMessageAt: isoOf(chat.firstMessageAt),
-    authors: boundChatAuthors(chat.authors, messages),
-  };
 }
 
 export interface DeletedMessagesReader {

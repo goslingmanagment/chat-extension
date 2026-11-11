@@ -27,6 +27,7 @@ import { startChatSpaceFeedPoll } from '@cg/core/application/hosts/chatspace/fee
 
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 
+import type * as ChatLengthChunk from '../../../../../lazy/chatspace/chat-length';
 import type * as NotesChunk from '../../../../../lazy/chatspace/notes';
 import { CHATSPACE_FEATURE_SLICE } from '../../../features/chatspace';
 import type { HostAppAdapter, SiteAppEnv } from '../../adapter';
@@ -58,8 +59,9 @@ export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | 
 }
 
 /**
- * ChatSpace's own surfaces (2026-10-28): «Заметки», whose chunk loads the first time a chat is open and is kept; it
- * says itself where its button and panel stand. A chunk that did not load is asked again on the next chat.
+ * ChatSpace's own surfaces (2026-10-28): «Заметки», and since 2026-11-11 the chat's length after it in the chat header
+ * (the owner: «и с хуя ли на чатспейсе его нет?»). Each chunk loads the first time a chat is open and is kept; each says
+ * itself where it stands. A chunk that did not load is asked again on the next chat.
  */
 export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () => void {
   // hub #955: the OnlyFans feed's light reads of ChatSpace, for the accounts of this tab whose page lends this tab its
@@ -76,13 +78,22 @@ export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () =
   });
   env.life.addEventListener('abort', stopPoll, { once: true });
   let notes: Promise<(() => void) | null> | null = null;
+  let chatLength: Promise<(() => void) | null> | null = null;
   const sync = (): void => {
-    if (env.life.aborted || notes !== null || env.host.current().route.chat === null) return;
-    notes = env.lazy<typeof NotesChunk>('notes').then(
+    if (env.life.aborted || env.host.current().route.chat === null) return;
+    notes ??= env.lazy<typeof NotesChunk>('notes').then(
       (chunk) => (env.life.aborted ? null : chunk.startChatSpaceNotes(env)),
       () => {
         notes = null;
         env.report({ kind: 'render', surface: 'notes' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'NotesChunk' });
+        return null;
+      },
+    );
+    chatLength ??= env.lazy<typeof ChatLengthChunk>('chat-length').then(
+      (chunk) => (env.life.aborted ? null : chunk.startChatSpaceChatLength(env)),
+      () => {
+        chatLength = null;
+        env.report({ kind: 'render', surface: 'header-slot' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'ChatLengthChunk' });
         return null;
       },
     );
@@ -94,6 +105,7 @@ export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () =
   return () => {
     off();
     void notes?.then((stop) => stop?.());
+    void chatLength?.then((stop) => stop?.());
   };
 }
 

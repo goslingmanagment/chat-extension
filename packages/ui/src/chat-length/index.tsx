@@ -5,19 +5,28 @@
 //
 // The card under it says it in full: how many, since when and how long that is, how often on average. It opens on
 // hover (after a short pause, kept while the pointer is over the badge or the card), on keyboard focus, and pinned by a
-// click (a second click, Esc or a press elsewhere puts it away). A manual popover like the marks' (FanMarks.tsx): the
-// top layer escapes the slot's `contain: layout` and the header's clipping; without popover support it stands
-// `position: fixed`.
+// click (a second click, Esc or a press elsewhere puts it away). A manual popover like the marks'
+// (hosts/fansly/FanMarks.tsx): the top layer escapes the slot's `contain: layout` and the header's clipping; without
+// popover support it stands `position: fixed`.
 //
 // 2026-11-11, the owner: «Хочу видеть здесь разбивку еще, чтобы писалось, кто из чатеров сколько сообщений оставил».
 // Under the pace, a list of «name … count»: the fan, then each chatter as the hub ordered them (the person's own row
 // «(вы)»), then «Без автора» with a line on what that is. None when the hub sent no breakdown or it has no row.
+//
+// The same day, of ChatSpace: «и с хуя ли на чатспейсе его нет? там же все то же самое нужно и по идее можно». One badge
+// and card for both sites (moved here from ui/hosts/fansly), each site mounting it with its own client and words: on
+// Fansly in its header's text row after a divider (`row`), on ChatSpace a pill among its header's own buttons, after
+// «Заметки» (`pill`, their look). Where the hub's numbers are what it has seen rather than proven from the chat's first
+// message (`approximate`, OnlyFans), the card ends with a line saying so; the badge shows the plain number.
 import type { JSX, TargetedKeyboardEvent } from 'preact';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
-import type { ChatAuthorsView, ChatLengthClient, ChatLengthCopy, ChatLengthView } from '@cg/contracts/deleted-fansly';
+import type { ChatAuthorsView, ChatLengthClient, ChatLengthCopy, ChatLengthView } from '@cg/contracts/chat-length';
 
-import { Icon, useI18n, useNowFn, type SurfaceDefinition } from '../../kit';
+import { Icon, useI18n, useNowFn, type SurfaceDefinition } from '../kit';
+
+/** How the badge stands in the site's header: Fansly's text row after a divider, or ChatSpace's pill. */
+export type ChatLengthLook = 'row' | 'pill';
 
 type PopoverElement = HTMLElement & { showPopover?: () => void; hidePopover?: () => void };
 
@@ -67,7 +76,8 @@ function Authors({ authors, copy }: { readonly authors: ChatAuthorsView | null; 
   );
 }
 
-export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Record<'ru' | 'en', ChatLengthCopy>>): SurfaceDefinition {
+/** The header slot's surface: `mountKitSurface('header-slot', slot.root, deps, chatLengthSurface(…))`. */
+export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Record<'ru' | 'en', ChatLengthCopy>>, look: ChatLengthLook = 'row'): SurfaceDefinition {
   function ChatLength(): JSX.Element | null {
     const copy = texts[useI18n().language];
     const now = useNowFn();
@@ -160,10 +170,17 @@ export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Reco
     const pace = view.messages === null ? null : copy.pace(view.messages, view.since, at);
 
     return (
-      <span class="cg-cl" ref={root} data-chat-length={view.messages === null ? 'unknown' : String(view.messages)}>
-        <span aria-hidden="true" class="cg-cl__divider">
-          |
-        </span>
+      <span
+        class={look === 'pill' ? 'cg-cl is-pill' : 'cg-cl'}
+        ref={root}
+        data-chat-length={view.messages === null ? 'unknown' : String(view.messages)}
+        data-chat-length-approximate={view.approximate ? 'true' : 'false'}
+      >
+        {look === 'pill' ? null : (
+          <span aria-hidden="true" class="cg-cl__divider">
+            |
+          </span>
+        )}
         <button
           type="button"
           ref={mark}
@@ -183,7 +200,7 @@ export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Reco
           }}
           onKeyDown={escape}
         >
-          <Icon name="bubble" size={13} />
+          <Icon name="bubble" size={look === 'pill' ? 14 : 13} />
           <span>{view.messages === null ? copy.age(view.since, at) : copy.count(view.messages)}</span>
         </button>
         {!shown ? null : (
@@ -208,6 +225,11 @@ export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Reco
             {pace === null ? null : <p class="cg-cl__pace cg-num">{pace}</p>}
             <Authors authors={view.authors} copy={copy} />
             {view.messages === null ? <p class="cg-cl__unknown">{copy.unknown}</p> : null}
+            {view.approximate ? (
+              <p class="cg-cl__approx" data-chat-length-approximate="">
+                {copy.approximate}
+              </p>
+            ) : null}
           </div>
         )}
       </span>
@@ -227,6 +249,9 @@ export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Reco
     .cg-cl__mark:hover, .cg-cl__mark[aria-expanded='true'] { color: var(--cg-accent); }
     .cg-cl__mark:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 1px; }
     .cg-cl__mark svg { flex: none; }
+    .cg-cl.is-pill { font-size: 13px; line-height: 16px; }
+    .cg-cl.is-pill .cg-cl__mark { height: 28px; padding: 0 10px; gap: 6px; box-sizing: border-box; border-radius: var(--cg-r-pill); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-strong); }
+    .cg-cl.is-pill .cg-cl__mark:hover, .cg-cl.is-pill .cg-cl__mark[aria-expanded='true'] { color: var(--cg-accent); box-shadow: inset 0 0 0 1px currentColor; }
     .cg-cl__card {
       position: fixed; z-index: 970; inset: auto; top: 0; left: 0; margin: 0; border: 0; box-sizing: border-box;
       width: max-content; min-width: 200px; max-width: min(300px, calc(100vw - 16px)); padding: 10px 12px;
@@ -239,7 +264,8 @@ export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Reco
     .cg-cl__head svg { flex: none; color: var(--cg-ink-muted); }
     .cg-cl__since { margin-top: 4px; color: var(--cg-ink-2); }
     .cg-cl__pace { margin-top: 2px; color: var(--cg-ink-muted); }
-    .cg-cl__unknown { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--cg-rule-2); color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 15px; }
+    .cg-cl__unknown, .cg-cl__approx { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--cg-rule-2); color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 15px; }
+    .cg-cl__unknown + .cg-cl__approx { margin-top: 4px; padding-top: 0; border-top: 0; }
     .cg-cl__authors { margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--cg-rule-2); list-style: none; }
     .cg-cl__author { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; margin: 0; padding: 0; }
     .cg-cl__author + .cg-cl__author { margin-top: 2px; }

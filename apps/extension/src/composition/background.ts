@@ -208,7 +208,7 @@ export const HOST_MODULE_SPECS = {
 /** The requests each site's module answers: the core checked the sender, its session and the payload, and routes them. */
 export const HOST_REQUESTS = {
   'fansly-web': [],
-  chatspace: ['send.begin', 'send.status', 'send.list', 'send.report', 'send.fuse', 'send.fuseState', 'send.fuseReset', 'newcomers.claim'],
+  chatspace: ['send.begin', 'send.status', 'send.list', 'send.report', 'send.fuse', 'send.fuseState', 'send.fuseReset', 'newcomers.claim', 'chat.length'],
   'telegram-web': [],
 } as const satisfies PerHost<readonly HostRequestType[]>;
 

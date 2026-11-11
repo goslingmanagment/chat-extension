@@ -55,7 +55,9 @@ own message, a portion done), `queues-chat` (the queue in the chat on both sites
 bar, a send from the chat counted, the next fan, a reload, another chat, the ×), `pages` (popup and settings), `ai-limit` (the person's own daily AI limit on the fake hub: «$2.90 / $3.50» in the dock with the 80 % toast, the popup's «ИИ сегодня», a Reply that spends it, the «исчерпан» toast and «Ещё раз» refused with CG-AI-LIMIT), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
 first), `log-download` (Hi on in a long chat, Ping off in a short one by its
 gate, pressed, then «Скачать лог» in the popup; the files land in
-the run's `downloads/`). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
+the run's `downloads/`), `chatspace-chat-length` (the chat's length after «Заметки» in ChatSpace's header: «428» from the
+fake hub and its card on hover, the fan, three chatters with «(вы)», «Без автора» and the line that Hub counts what it
+has seen; a chat the hub holds nothing of, no badge; both themes). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
 the hub's rows of Spenders: a found row and a row of «Ждут ответа» each open their fan's chat),
 `review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-notes` («Заметки» on one screen: a field edited in
 place, «+ Метка», «✨ Дополнить из чата» with the Goose's suggestions in their rows, the fan's words on hover, one ✓

@@ -1272,7 +1272,8 @@ export class DataModel {
    * As the hub's `clientDeletedMessages` (2026-11-03): the fan's deleted messages on the page, the latest deleted first,
    * at most 50; with `conversationRef` (2026-11-08) also `chat`, the seeded length of that chat of this fan, else null.
    * Its `authors` (2026-11-11) only when seeded: the chatters the most messages first, at most 50, the signed-in
-   * person's (`me`) by their id; the fan's and the unattributed counts null while the chat's count is.
+   * person's (`me`) by their id; the fan's and the unattributed counts null while the chat's count is. `approximate`
+   * (the same day, an OnlyFans page: the conversation is the fan) only when seeded.
    */
   deletedMessages(page: FakePage, fanRef: string, me: number, now: number, conversationRef?: string): DeletedMessages {
     const rows = [...this.deleted.values()]
@@ -1302,7 +1303,13 @@ export class DataModel {
             chat:
               length === undefined || length.fanRef !== fanRef
                 ? null
-                : { conversationRef, messages: length.messages, firstMessageAt: length.firstMessageAt, ...(length.authors === undefined ? {} : { authors: authors(length.authors, length.messages) }) },
+                : {
+                    conversationRef,
+                    messages: length.messages,
+                    firstMessageAt: length.firstMessageAt,
+                    ...(length.authors === undefined ? {} : { authors: authors(length.authors, length.messages) }),
+                    ...(length.approximate === undefined ? {} : { approximate: length.approximate }),
+                  },
           };
     return { pageLabel: page.pageLabel, fanRef, total: rows.length, messages, ...chat, serverNow: iso(now) };
   }
@@ -1797,6 +1804,8 @@ export interface FakeChatLength {
   readonly firstMessageAt: string | null;
   /** 2026-11-11: who wrote it; absent — the answer has none, like a hub before it. */
   readonly authors?: FakeChatAuthorsSeed | undefined;
+  /** 2026-11-11: the numbers are what the archive holds (an OnlyFans page); absent — not said, like a hub before it. */
+  readonly approximate?: boolean | undefined;
 }
 
 export interface FakeDeletedMessage {

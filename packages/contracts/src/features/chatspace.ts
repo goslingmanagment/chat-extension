@@ -103,6 +103,11 @@ const FEATURES = {
   // the questionnaire says who created it and who changed it last. No owner switch.
   'note-attribution': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-read-v1'] }, actions: {}, surfaces: [], source: 'page' },
   'note-authors': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-read-v1'] }, actions: {}, surfaces: [], source: 'page' },
+  // 2026-11-11 (the owner: «и с хуя ли на чатспейсе его нет? там же все то же самое нужно»): the open chat's length in the
+  // chat's header after «Заметки», the badge and card of Fansly's. From the hub alone (`clientDeletedMessages` with the
+  // fan as the conversation, `deleted-messages-v1`), once per opened chat; nothing asked of ChatSpace or OnlyFans. No
+  // owner switch, as on Fansly: a hub that does not serve it shows nothing.
+  'chat-length': { kind: 'panel', base: { flags: [], hostCapabilities: ['chatHeader'], clientNeeds: ['deleted-messages-v1'] }, actions: {}, surfaces: ['header-slot'], source: 'hub' },
   // 2026-11-01 (hub #953): the OnlyFans feed — what the page's ChatSpace already received (its socket's frames, the
   // answers of its own reads) passed on to the hub, which has no OnlyFansAPI any more. Heard by the tap (`wsTap`), the
   // owner's `ofFeed` per page; the hub must take it (`onlyfans-feed-v1`). No request of ours is ever made for it.

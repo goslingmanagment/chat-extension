@@ -5,6 +5,7 @@
 // own module (1.15.0: tab-messages-fansly.ts), never imported here.
 
 import * as z from 'zod/mini';
+import { ChatLengthSchema } from './chat-length';
 import { AccountAdvancedSchema, FreshnessDaySchema, LocalSpendReportSchema, NetworkSessionSnapshotSchema, PageDiagnosticsSchema } from './diagnostics';
 import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 
@@ -905,6 +906,14 @@ export const TAB_REQUESTS = {
    * `message-authors`; only ids, logins and how a text was written travel.
    */
   'messages.authors': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema }), res: MessagesAuthorsSchema, from: TAB },
+  /**
+   * 2026-11-11 (the owner: «и с хуя ли на чатспейсе его нет? там же все то же самое нужно»): how long the open OnlyFans
+   * chat is, for the badge in ChatSpace's conversation header — the hub's `clientDeletedMessages` with the fan as the
+   * conversation (on OnlyFans the chat is the fan), read by ChatSpace's background chunk once per opened chat, a read in
+   * flight joined. A page bound to the tab where the manifest admits `chat-length`. `chat` null — the hub holds no
+   * message of that chat. Nothing is asked of ChatSpace or OnlyFans.
+   */
+  'chat.length': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema }), res: z.strictObject({ chat: z.nullable(ChatLengthSchema) }), from: TAB, hosts: CHATSPACE },
   /**
    * A write of «Заметки» the site took, from a tab that writes its notes itself (ChatSpace's OnlyMonster notes): told to
    * the hub's record of who wrote each note. Fansly's background tells its own. `queued` — owed to the hub now.

@@ -501,7 +501,15 @@ export class FakeHub {
         return { ok: true, fans: Object.keys(command.fans).length };
       case 'chatLength':
         this.page(command.pageLabel);
-        s.data.seedChatLength({ pageLabel: command.pageLabel, fanRef: command.fanRef, groupId: command.groupId, messages: command.messages, firstMessageAt: command.firstMessageAt, authors: command.authors });
+        s.data.seedChatLength({
+          pageLabel: command.pageLabel,
+          fanRef: command.fanRef,
+          groupId: command.groupId ?? command.fanRef,
+          messages: command.messages,
+          firstMessageAt: command.firstMessageAt,
+          authors: command.authors,
+          approximate: command.approximate,
+        });
         return { ok: true };
       case 'deletedMessage':
         this.page(command.pageLabel);

@@ -8,14 +8,15 @@
 // - The slot is in the header only while the fan has a deleted message: no node of ours there otherwise, nothing while
 //   the read runs or after it failed.
 // - The same read, with the open chat's group, says how long the chat is (2026-11-08): a badge of its own after
-//   «Регистрация» (order 25), «428 · 3 мес», once the read answered; no read of its own.
+//   «Регистрация» (order 25), «428 · 3 мес», once the read answered; no read of its own. Since 2026-11-11 the badge and
+//   its card are both sites' (ui/chat-length; ChatSpace mounts it with a read of its own, hosts/chatspace/chat-length.ts).
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext } from '@cg/core/application/boards';
 import { createDeletedMessages } from '@cg/core/application/hosts/fansly/deleted';
 import { admittedOn } from '@cg/core/domain/features';
 import { CHAT_LENGTH_TEXTS, DELETED_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
-import { chatLengthSurface } from '@cg/ui/hosts/fansly/chat-length';
+import { chatLengthSurface } from '@cg/ui/chat-length';
 import { deletedMessagesSurface } from '@cg/ui/hosts/fansly/deleted';
 import { mountKitSurface, type KitMount } from '@cg/ui/kit';
 

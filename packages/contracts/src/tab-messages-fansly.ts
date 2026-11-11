@@ -43,12 +43,12 @@ import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { SEND_ATTRIBUTION_COMPOSED_WITH } from './hub/attribution';
-import { CHAT_AUTHORS_MAX } from './hub/deleted';
+import { ChatLengthSchema } from './chat-length';
 import { ChatKeySchema, GreetFromSchema, HumanCauseSchema } from './ids';
 import { ChatReadStateSchema, FanslyPhotoRefSchema, LiveTextMessageSchema } from './host';
 import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
-import { CountSchema, EpochMsSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
+import { CountSchema, EpochMsSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, UuidSchema, displayText } from './primitives';
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
 import { VAULT_TAB_ROUTES } from './vault-fansly';
 import { NOTE_LIMITS } from './notes';
@@ -131,9 +131,6 @@ export const FANSLY_TAB_LIMITS = {
   /** The fan's deleted messages of one answer (hub `CLIENT_DELETED_MESSAGES_MAX`) and one text, far above a real message. */
   deletedMessagesMax: 50,
   deletedMessageMaxChars: 5_000,
-  /** The chatters of the chat's length card (hub `CLIENT_CHAT_LENGTH_CHATTERS_MAX`) and one's login, far above a real one. */
-  chatAuthorsMax: CHAT_AUTHORS_MAX,
-  chatAuthorNameMaxChars: 120,
 } as const;
 
 /**
@@ -188,33 +185,6 @@ export const FanslyDeletedMessagesSchema = z.strictObject({
     .check(z.maxLength(FANSLY_TAB_LIMITS.deletedMessagesMax)),
 });
 export type FanslyDeletedMessages = z.infer<typeof FanslyDeletedMessagesSchema>;
-
-/**
- * Who wrote the chat's messages (2026-11-11, the owner: «кто из чатеров сколько сообщений оставил»): each chatter's
- * count as the hub recorded their sends (the most first; `isMe` — the person in this tab), the fan's, and the page's
- * messages with no known author. `fan` and `unattributed` are null while the chat's count is.
- */
-export const FanslyChatAuthorsSchema = z.strictObject({
-  chatters: z
-    .array(z.strictObject({ name: boundedText(FANSLY_TAB_LIMITS.chatAuthorNameMaxChars), isMe: z.boolean(), messages: z.int().check(z.gte(1)) }))
-    .check(z.maxLength(FANSLY_TAB_LIMITS.chatAuthorsMax)),
-  fan: z.nullable(CountSchema),
-  unattributed: z.nullable(CountSchema),
-});
-export type FanslyChatAuthors = z.infer<typeof FanslyChatAuthorsSchema>;
-
-/**
- * The open chat's length (2026-11-08, the owner: how many messages with the fan and since when, «без лишних запросов и
- * точно»), carried by the same read: `messages` and `firstMessageAt` only when the hub holds the chat from its first
- * message, else null; the whole object null when the hub has no such chat of this fan. `authors` (2026-11-11) null —
- * a hub before it, or an answer that did not read.
- */
-export const FanslyChatLengthSchema = z.strictObject({
-  messages: z.nullable(CountSchema),
-  firstMessageAt: z.nullable(IsoTimestampSchema),
-  authors: z.nullable(FanslyChatAuthorsSchema),
-});
-export type FanslyChatLength = z.infer<typeof FanslyChatLengthSchema>;
 
 /**
  * An item of Fansly's own «Copied …» list as a message takes it (the page's MediaService, `media_service_copied_media`
@@ -800,13 +770,14 @@ export const FANSLY_TAB_REQUESTS = {
   /**
    * «Фан удалил» in the open chat's header (hub `clientDeletedMessages`): when the chat opens, and again after the page
    * heard a deletion in it. Nothing kept by the background: a read in flight for the same page and fan is joined.
-   * `groupId` — the open chat: the same answer then also says how long the chat is (the header's badge, no read of its own).
+   * `groupId` — the open chat: the same answer then also says how long the chat is (the header's badge, no read of its own;
+   * 2026-11-08). Its shape is both sites' since 2026-11-11 (chat-length.ts): on Fansly `approximate` is false.
    */
   'fansly.deleted.read': {
     req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: z.optional(NativeIdSchema) }),
     res: z.discriminatedUnion('ok', [
       // `chat` — only for a request with `groupId`, from a hub that answers it (absent from an older one).
-      z.strictObject({ ok: z.literal(true), deleted: FanslyDeletedMessagesSchema, chat: z.optional(z.nullable(FanslyChatLengthSchema)) }),
+      z.strictObject({ ok: z.literal(true), deleted: FanslyDeletedMessagesSchema, chat: z.optional(z.nullable(ChatLengthSchema)) }),
       Failure,
     ]),
     from: TAB, hosts: FANSLY,
