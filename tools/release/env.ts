@@ -1,8 +1,10 @@
 // Where the release finds its keys. Whatever the environment already has wins;
-// what it lacks is read from the owner's env files, first that has it:
+// what it lacks is read from the owner's env file:
 //
-//   ~/.config/agency/secrets.env                 the agency-wide file, when it exists
-//   ~/code/1-platform/fansly-chat/.env.deploy    where the AMO keys live today
+//   ~/.config/agency/secrets.env    the agency-wide file, when it exists
+//
+// (Until 2026-11-11 the old fansly-chat checkout's `.env.deploy` was a second source; that
+// project is archived and the agency-wide file holds every key it had.)
 //
 // Only the release's own variables are taken (config.ts `ENV`); no value is
 // ever printed — `loadReleaseEnv` reports names and files only. The server
@@ -18,7 +20,7 @@ import { DEFAULT_REMOTE_DIR, DEFAULT_SSH, ENV } from './config.ts';
 /** The variables an env file may hand the release. */
 export const FILE_VARIABLES: readonly string[] = [ENV.amoKey, ENV.amoSecret, ENV.telegramToken, ENV.telegramChannel, ENV.telegramPreview, ENV.ssh, ENV.remoteDir];
 
-export const envFiles = (home: string): readonly string[] => [join(home, '.config/agency/secrets.env'), join(home, 'code/1-platform/fansly-chat/.env.deploy')];
+export const envFiles = (home: string): readonly string[] => [join(home, '.config/agency/secrets.env')];
 
 /** `KEY=value` and `export KEY=value` lines; quotes around a value are dropped; comments and anything else are skipped. */
 export function parseEnvFile(text: string): Map<string, string> {

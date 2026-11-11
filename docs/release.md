@@ -95,9 +95,8 @@ passes; the declaration may stay. The old extension gets no more releases after 
 
 ## 3. Keys
 
-The command takes variables from the environment and, for what is missing, from files — the
-first one that has a value: `~/.config/agency/secrets.env`, then
-`~/code/1-platform/fansly-chat/.env.deploy`. Only names are printed.
+The command takes variables from the environment and, for what is missing, from
+`~/.config/agency/secrets.env`. Only names are printed.
 
 | Variable | What it is |
 |---|---|
