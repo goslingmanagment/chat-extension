@@ -1049,7 +1049,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     } },
     hub: {
       // The facade is read at each call: it exists once the settings are read.
-      facade: { claim: (op, check) => hub().claim(op, check), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef), onlinePresence: (request) => hub().onlinePresence(request), fanMarks: (query) => hub().fanMarks(query), otherPages: (request) => hub().otherPages(request), deletedMessages: (query) => hub().deletedMessages(query) },
+      facade: { claim: (op, check) => hub().claim(op, check), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef), onlinePresence: (request) => hub().onlinePresence(request), fanBadges: (request) => hub().fanBadges(request), fanMarks: (query) => hub().fanMarks(query), otherPages: (request) => hub().otherPages(request), deletedMessages: (query) => hub().deletedMessages(query) },
       call: forCore,
       resolve,
       errorWire: wireOf,
