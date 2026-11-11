@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "d1c2f91205a45cc3d8501ad36c1f303755c16eb1d726a19d0b9bec2abc953086",
-    "sourceCommit": "968bbe6557bb24cac468d232937bcc8c547941c0",
-    "note": "Vendored on 2026-11-11 from hub main 968bbe65 (#1200) with scripts/vendor-sdk.mjs: clientDeletedMessages names who wrote the open chat's messages (`chat.authors`)."
+    "contractHash": "d6e74e1b3b155d5e98cab28e37f0577a681c086fe413e512943a29066cfdd12a",
+    "sourceCommit": "85e3bfe88d42a967dba96a62a0db5610ff1e7c8c",
+    "note": "Vendored on 2026-11-11 from hub main 85e3bfe8 (#1201) with scripts/vendor-sdk.mjs: clientDeletedMessages answers an OnlyFans chat's length too, marked `chat.approximate`."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

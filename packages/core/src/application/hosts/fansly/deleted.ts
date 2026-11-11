@@ -10,11 +10,14 @@
 // The same answer says how long the open chat is (2026-11-08, `chat`): the header's second badge reads it here, so it
 // costs no read of its own. Shown once the read answered, never before (no date that a count then pushes aside). And
 // who wrote it (2026-11-11, the owner: «кто из чатеров сколько сообщений оставил»): the card's breakdown, none when
-// there is nothing in it.
-import type { ChatAuthorsView, ChatLengthClient, ChatLengthView, DeletedMessageView, DeletedMessagesClient, DeletedMessagesView } from '@cg/contracts/deleted-fansly';
-import type { FanslyChatLength, FanslyDeletedMessages } from '@cg/contracts/tab-messages-fansly';
+// there is nothing in it. What the badge shows of an answer is both sites' since that day (application/chat-length,
+// the owner of ChatSpace: «там же все то же самое нужно»); Fansly's own is the chat's id for a start the hub cannot say.
+import type { ChatLength, ChatLengthClient, ChatLengthView } from '@cg/contracts/chat-length';
+import type { DeletedMessageView, DeletedMessagesClient, DeletedMessagesView } from '@cg/contracts/deleted-fansly';
+import type { FanslyDeletedMessages } from '@cg/contracts/tab-messages-fansly';
 
 import { fanslyIdTimestampMs } from '../../../domain/hosts/fansly/snowflake';
+import { chatLengthView as lengthView, sameChatLength } from '../../chat-length';
 
 export interface DeletedMessagesTarget {
   readonly pageId: number;
@@ -25,43 +28,17 @@ export interface DeletedMessagesTarget {
 }
 
 export type DeletedMessagesAnswer =
-  | { readonly ok: true; readonly deleted: FanslyDeletedMessages; readonly chat?: FanslyChatLength | null | undefined }
+  | { readonly ok: true; readonly deleted: FanslyDeletedMessages; readonly chat?: ChatLength | null | undefined }
   | { readonly ok: false };
-
-/** The card's breakdown of an answer: null when it has neither the fan's count nor a chatter. */
-function chatAuthorsView(authors: FanslyChatLength['authors'] | undefined): ChatAuthorsView | null {
-  if (authors === null || authors === undefined || (authors.fan === null && authors.chatters.length === 0)) return null;
-  return { chatters: authors.chatters.map(({ name, isMe, messages }) => ({ name, isMe, messages })), fan: authors.fan, unattributed: authors.unattributed };
-}
 
 /**
  * What the badge shows of an answer: the hub's count and first message when it has them; otherwise no count and the
  * moment Fansly made the chat, which its id carries (a snowflake, like an account's: on prod the first message follows
  * within a day in 99% of chats). null — neither reads.
  */
-export function chatLengthView(chat: FanslyChatLength | null | undefined, groupId: string, now: number): ChatLengthView | null {
-  const firstAt = chat?.firstMessageAt ?? null;
-  const first = firstAt === null ? Number.NaN : Date.parse(firstAt);
-  const since = Number.isFinite(first) ? first : fanslyIdTimestampMs(groupId, now);
-  if (since === null) return null;
-  return { messages: chat?.messages ?? null, since, authors: chatAuthorsView(chat?.authors) };
+export function chatLengthView(chat: ChatLength | null | undefined, groupId: string, now: number): ChatLengthView | null {
+  return lengthView(chat, fanslyIdTimestampMs(groupId, now));
 }
-
-const sameAuthors = (a: ChatAuthorsView | null, b: ChatAuthorsView | null): boolean =>
-  a === b ||
-  (a !== null &&
-    b !== null &&
-    a.fan === b.fan &&
-    a.unattributed === b.unattributed &&
-    a.chatters.length === b.chatters.length &&
-    a.chatters.every((chatter, index) => {
-      const other = b.chatters[index];
-      return other !== undefined && chatter.name === other.name && chatter.isMe === other.isMe && chatter.messages === other.messages;
-    }));
-
-/** The same badge and card: a read that says nothing new draws nothing. */
-const sameChatLength = (a: ChatLengthView | null, b: ChatLengthView | null): boolean =>
-  a === b || (a !== null && b !== null && a.messages === b.messages && a.since === b.since && sameAuthors(a.authors, b.authors));
 
 export const DELETED_NONE: DeletedMessagesView = { total: 0, messages: [], fresh: 0 };
 /** How recent a deletion is fresh. */
@@ -111,7 +88,7 @@ export function createDeletedMessages(deps: {
   /** Each read's turn: an answer of an older turn than the visit's last shown one is dropped. */
   let turn = 0;
   let shownTurn = 0;
-  const kept = new Map<string, { readonly deleted: FanslyDeletedMessages; readonly chat: FanslyChatLength | null | undefined }>();
+  const kept = new Map<string, { readonly deleted: FanslyDeletedMessages; readonly chat: ChatLength | null | undefined }>();
   /** The newest deletion each fan's card showed when it was last opened in this tab. */
   const seenUpTo = new Map<string, number>();
   const timers = new Set<unknown>();
@@ -128,7 +105,7 @@ export function createDeletedMessages(deps: {
     chatView = next;
     for (const listener of [...chatListeners]) listener(chatView);
   };
-  const keep = (key: string, value: { readonly deleted: FanslyDeletedMessages; readonly chat: FanslyChatLength | null | undefined }): void => {
+  const keep = (key: string, value: { readonly deleted: FanslyDeletedMessages; readonly chat: ChatLength | null | undefined }): void => {
     kept.delete(key);
     kept.set(key, value);
     while (kept.size > KEPT) kept.delete(kept.keys().next().value as string);

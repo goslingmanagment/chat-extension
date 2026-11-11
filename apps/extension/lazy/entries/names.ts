@@ -46,6 +46,9 @@ export const LAZY_ENTRIES = {
   'preview-send': 'entries/preview-send.ts',
   // 2026-10-28: «Заметки» (OnlyMonster's fan notes), with the first open chat; Fansly's build has its own `notes`.
   notes: 'chatspace/notes.ts',
+  // 2026-11-11: the chat's length after «Заметки» in the chat header, with the first open chat (Fansly's rides in its
+  // `registration`).
+  'chat-length': 'chatspace/chat-length.ts',
 } as const;
 
 /**

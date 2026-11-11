@@ -10,7 +10,9 @@
 // - the X8 custody (architecture.md §6.7): the send coordinator, its attempt
 //   journal `send.journal` and the browser's fuse (decision X25) — the
 //   requests `send.*`;
-// - the greeting leases of «Новые» (H-7) — `newcomers.claim`.
+// - the greeting leases of «Новые» (H-7) — `newcomers.claim`;
+// - the open chat's length for the chat header (2026-11-11, the owner: «и с хуя ли на чатспейсе его нет?») —
+//   `chat.length`, the hub's read of it (bg/chatspace/chat-length.ts), admitted by ChatSpace's slice of the manifest.
 // What it does not own: the hub layer, the settings, telemetry, the logs, the
 // operations, the action tokens, the registration of a human send with its
 // journal of debts (`registerNativeSend`, both sites need it) and the record
@@ -26,22 +28,29 @@
 // that cannot be read refuses every send by itself.
 
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
+import { CHATSPACE_FEATURES } from '@cg/contracts/features/chatspace';
+import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { narrowPlatform } from '@cg/contracts/ids';
 import { sendLockKey } from '@cg/contracts/send';
+import { featureSlice } from '@cg/core/domain/features';
 import { composedWithOfFeature } from '@cg/core/domain/send';
 import { READINESS_STEP_TIMEOUT_MS } from '@cg/core/services';
 import { GreetingLeases, SendCoordinator, SendFuseKeeper, createSendJournal } from '@cg/core/services/custody';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostModuleEvent, VerifiedTabMessage } from '../src/composition/background/host-module';
+import { createChatLengthReader } from './chatspace/chat-length';
 import { sendJournalStoreOver } from './chatspace/send-journal-store';
 
 /** The requests of the tab protocol this module answers (the core routes them here: composition/background.ts HOST_REQUESTS). */
-const OWN_REQUESTS = ['send.begin', 'send.status', 'send.list', 'send.report', 'send.fuse', 'send.fuseState', 'send.fuseReset', 'newcomers.claim'] as const;
+const OWN_REQUESTS = ['send.begin', 'send.status', 'send.list', 'send.report', 'send.fuse', 'send.fuseState', 'send.fuseReset', 'newcomers.claim', 'chat.length'] as const;
 type OwnRequest = (typeof OWN_REQUESTS)[number];
 const isOwn = (message: VerifiedTabMessage): message is VerifiedTabMessage<OwnRequest> => (OWN_REQUESTS as readonly string[]).includes(message.type);
 
 const ok = (payload: unknown): HostAnswer => ({ ok: true, payload });
 const fail = (code: CgCode, detail?: string): HostAnswer => ({ ok: false, error: (detail === undefined ? { code } : { code, detail }) satisfies CgErrorWire });
+
+/** ChatSpace's slice of the feature manifest, as its tab holds it: the common part and ChatSpace's own file. */
+const CHATSPACE_SLICE = featureSlice(FEATURES_COMMON, CHATSPACE_FEATURES);
 
 async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const { hub, storage, clock, ids, log, telemetry, router, ops, tokens, install } = kit;
@@ -95,6 +104,9 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
     store: storage.sessionKeys,
     log: log.sink,
   });
+
+  // ── the chat's length in the chat header: the hub's read, nothing kept ─────
+  const chatLength = createChatLengthReader(kit, CHATSPACE_SLICE);
 
   // ── start ──────────────────────────────────────────────────────────────────
   async function step(name: string, run: () => Promise<unknown>): Promise<void> {
@@ -166,6 +178,8 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
           return { ok: false, error: hub.errorWire(error) };
         }
       }
+      case 'chat.length':
+        return chatLength.read(message.payload, sender);
     }
   }
 
@@ -177,7 +191,10 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
         return;
       case 'session':
         // §9.4: the lease tokens were the previous person's; at sign-out what is finished goes, open X8 records stay.
-        if (event.ownerChanged) leases.forgetAll();
+        if (event.ownerChanged) {
+          leases.forgetAll();
+          chatLength.clear();
+        }
         if (event.signedOut) await sendJournal.removeFinished();
         return;
       case 'clear-finished':

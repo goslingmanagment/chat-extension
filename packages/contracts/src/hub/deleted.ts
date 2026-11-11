@@ -7,6 +7,10 @@
 //
 // 2026-11-11 (the owner: «чтобы писалось, кто из чатеров сколько сообщений оставил»): the chat's length also says who
 // wrote its messages (`chat.authors`), for the same card in the header.
+//
+// 2026-11-11, the owner of ChatSpace: «и с хуя ли на чатспейсе его нет? там же все то же самое нужно»: the same read
+// for an OnlyFans page, with the fan as the conversation (the chat is the fan there). The hub then says its numbers are
+// what its archive holds (`chat.approximate`).
 
 import * as z from 'zod/mini';
 
@@ -19,8 +23,9 @@ export const DELETED_MESSAGES_MAX = 50;
 export const CHAT_AUTHORS_MAX = 50;
 
 /**
- * Path `pageLabel` and `fanRef` (the fan's Fansly account id); `conversationRef` — the open chat's group id, so the
- * answer also says how long that chat is (`chat`; 2026-11-08). A hub before it ignores the query string.
+ * Path `pageLabel` and `fanRef` (the fan's account id on the platform); `conversationRef` — the open chat: Fansly's group
+ * id, on an OnlyFans page the fan's own id; the answer then also says how long that chat is (`chat`; 2026-11-08). A hub
+ * before it ignores the query string.
  */
 export const DeletedMessagesQuerySchema = z.strictObject({ pageLabel: PageLabelSchema, fanRef: NativeIdSchema, conversationRef: z.optional(NativeIdSchema) });
 export type DeletedMessagesQuery = z.infer<typeof DeletedMessagesQuerySchema>;
@@ -67,6 +72,12 @@ export const DeletedMessagesSchema = z.object({
             unattributed: z.nullable(z.number()),
           }),
         ),
+        /**
+         * 2026-11-11: true on an OnlyFans page: the hub has no proof of the chat's first message there, so `messages`,
+         * `firstMessageAt` and the split are what its archive holds (in practice everything since it began to capture
+         * the page; the oldest messages may be missing). Absent or false: exact, as above.
+         */
+        approximate: z.optional(z.boolean()),
       }),
     ),
   ),

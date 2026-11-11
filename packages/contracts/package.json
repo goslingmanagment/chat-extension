@@ -8,6 +8,7 @@
     "./registration-fansly": "./src/registration-fansly.ts",
     "./fan-marks-fansly": "./src/fan-marks-fansly.ts",
     "./deleted-fansly": "./src/deleted-fansly.ts",
+    "./chat-length": "./src/chat-length.ts",
     "./notes": "./src/notes.ts",
     "./notes-fill": "./src/notes-fill.ts",
     "./fan-badges": "./src/fan-badges.ts",

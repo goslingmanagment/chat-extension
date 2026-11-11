@@ -42,7 +42,7 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
 
   it('[EX-015] X8, the hub’s «Новые» and «Онлайн»’s word from ChatSpace are ChatSpace’s: a fansly.com tab is refused them, a page is not affected', () => {
     const hosted = C.TAB_REQUEST_TYPES.filter((type) => (C.TAB_REQUESTS[type] as C.TabRequestSpec).hosts !== undefined);
-    expect(hosted.sort()).toEqual(['newcomers.claim', 'newcomers.list', 'online.presence', 'online.probe', 'send.begin', 'send.fuse', 'send.fuseState', 'send.list', 'send.report', 'send.status']);
+    expect(hosted.sort()).toEqual(['chat.length', 'newcomers.claim', 'newcomers.list', 'online.presence', 'online.probe', 'send.begin', 'send.fuse', 'send.fuseState', 'send.list', 'send.report', 'send.status']);
     for (const type of hosted) {
       expect((C.TAB_REQUESTS[type] as C.TabRequestSpec).hosts, type).toEqual(['chatspace']);
       expect(C.mayRequest(type, 'tab', null, 'chatspace'), type).toBe(true);

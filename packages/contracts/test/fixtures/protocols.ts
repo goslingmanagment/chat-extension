@@ -682,6 +682,17 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
       invalid: [{ ok: true, messages: [{ messageId: 'x', name: 'kate', me: false, how: null, edited: null }] }, { ok: true }],
     },
   },
+  'chat.length': {
+    req: { valid: [{ pageId: 3, fanRef: '74001001' }], invalid: [{ pageId: 3 }, { pageId: 3, fanRef: 'x' }, { pageId: 3, fanRef: '74001001', conversationRef: '74001001' }] },
+    res: {
+      valid: [
+        { chat: { messages: 428, firstMessageAt: '2026-08-04T10:00:00.000Z', authors: { chatters: [{ name: 'kate', isMe: true, messages: 120 }], fan: 214, unattributed: 94 }, approximate: true } },
+        { chat: { messages: null, firstMessageAt: null, authors: null, approximate: true } },
+        { chat: null },
+      ],
+      invalid: [{}, { chat: { messages: 428, firstMessageAt: null, authors: null } }, { chat: { messages: -1, firstMessageAt: null, authors: null, approximate: false } }],
+    },
+  },
   'notes.written': {
     req: { valid: [{ pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'created', origin: 'field', fields: ['Имя'] }, { pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'deleted' }], invalid: [{ pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'moved' }] },
     res: { valid: [{ queued: true }, { queued: false }], invalid: [{}] },

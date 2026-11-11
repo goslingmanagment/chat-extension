@@ -47,7 +47,7 @@ import { overlayRoot } from '../../surfaces';
 
 /** Above OnlyMonster's own wait (the host port's) and the background's. */
 export const NOTES_REQUEST_TIMEOUT_MS = 45_000;
-/** The header slot's order: ours is the only one on ChatSpace. */
+/** The header slot's order: ours first; the chat's length stands after it (20, chat-length.ts, since 2026-11-11). */
 const NOTES_ORDER = 10;
 /** The panel's typing: never a line of the chatter's log. */
 const TYPING: ReadonlySet<NotesAction['type']> = new Set(['input', 'field-input', 'quick-input', 'name-input']);

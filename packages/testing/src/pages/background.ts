@@ -500,6 +500,7 @@ export class FakePageBackground implements PageRpc {
       case 'notes.fill.cancel':
       case 'notes.authors':
       case 'messages.authors':
+      case 'chat.length':
       case 'notes.written':
         return refuse('CG-UNKNOWN', `${type} is not scripted`);
     }
