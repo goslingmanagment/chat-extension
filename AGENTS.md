@@ -102,7 +102,7 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
 ## What the chatter gets
 
 - Since 2026-10-24 this extension is the team's one client on both sites: it replaces the old ones
-  (`~/code/1-platform/fansly-chat`, `~/code/1-platform/onlyfans-chat`), which get nothing new. New features, Hub's
+  (`~/code/9-archive/fansly-chat`, `~/code/9-archive/onlyfans-chat`), which get nothing new. New features, Hub's
   Chat Memory included, go here only. The old clients stay the UX reference: when in doubt, do what they did.
 - A new block for the chatter (a disabled button, a refusal, a forced wait or confirmation) only with the owner's «да».
   By default it is a warning the chatter can pass. The red lines above stay blocks.
