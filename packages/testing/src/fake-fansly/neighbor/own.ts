@@ -3,7 +3,8 @@
 // recorded from the page's requests REPLAYED (possibly stale); most addresses
 // carry `ngsw-bypass=true`, not all. Its own `/account/me` gates its DOM work
 // (a creator only); `/message/unread` every 10 s, then two `document.title`
-// writes and a favicon swap; its fan profile saves a 12000 note «FBuddy Notes».
+// writes (its unread counter «(25) » in front) and a favicon swap; its fan
+// profile saves a 12000 note «FBuddy Notes».
 // A content script of an MV3 neighbour looks to the server and to our
 // `webRequest` exactly like the page (P3a), so on the stand it asks with a
 // token ISSUED TO IT (`session.issue`, fake-fansly/state.ts): the fake Fansly's
@@ -128,7 +129,12 @@ export class OwnRequests {
 export const unreadIcon = (count: number): string =>
   `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="16" fill="#e5484d"/><text x="16" y="21" font-size="14" text-anchor="middle" fill="#fff">${count}</text></svg>`)}`;
 
-/** F. The 10-s refresh after the poll: `document.title` twice (« FB» on, then off) and the favicon's `href`. */
+/**
+ * F. The 10-s refresh after the poll: `document.title` twice (« FB» on, then off) and the favicon's `href`. With unread
+ * messages the title gets its counter in front, «(25) Fansly» («(99+) » from 99), and the old counter comes off the
+ * START of the title only: `updateFaviconAndTitle` of 2026.927.830, as it is. Anything put ahead of the counter hides
+ * it from this strip (the tab label, 2026-11-12).
+ */
 export class TitleRefresh {
   writes = 0;
   favicons = 0;
@@ -137,9 +143,10 @@ export class TitleRefresh {
   constructor(private readonly doc: Document) {}
 
   run(unread: number): void {
-    const base = this.doc.title.replace(/ FB$/, '');
-    this.doc.title = `${base} FB`;
-    this.doc.title = base;
+    const base = this.doc.title.replace(/^\(\d+\+?\)\s*/, '');
+    const counted = unread > 0 ? `(${unread >= 99 ? '99+' : String(unread)}) ${base}` : base;
+    this.doc.title = `${counted} FB`;
+    this.doc.title = counted;
     this.writes += 2;
     const link = this.doc.querySelector<HTMLLinkElement>('link[rel~="icon"]');
     if (link === null) return;
