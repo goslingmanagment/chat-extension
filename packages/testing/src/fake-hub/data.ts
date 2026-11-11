@@ -95,7 +95,7 @@ import { OutreachModel } from './outreach';
 import { FakeOnlyfansFeed, type FakeFeedRecord, type FakeFeedTransaction, type FeedArchiveMessage } from './onlyfans-feed';
 import { ONLINE_RULES, ONLINE_SEEN_SOURCES, OnlineModel, standOtherPages, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
-import { type CoachDepthKnob, type FakeFanQueueDone, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type FakeOnlineProbe, type SpenderSeed } from './types';
+import { type CoachDepthKnob, type FakeChatAuthorsSeed, type FakeFanQueueDone, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type FakeOnlineProbe, type SpenderSeed } from './types';
 
 export interface Refusal {
   readonly error: HubErrorCode | (string & {});
@@ -1271,8 +1271,10 @@ export class DataModel {
   /**
    * As the hub's `clientDeletedMessages` (2026-11-03): the fan's deleted messages on the page, the latest deleted first,
    * at most 50; with `conversationRef` (2026-11-08) also `chat`, the seeded length of that chat of this fan, else null.
+   * Its `authors` (2026-11-11) only when seeded: the chatters the most messages first, at most 50, the signed-in
+   * person's (`me`) by their id; the fan's and the unattributed counts null while the chat's count is.
    */
-  deletedMessages(page: FakePage, fanRef: string, now: number, conversationRef?: string): DeletedMessages {
+  deletedMessages(page: FakePage, fanRef: string, me: number, now: number, conversationRef?: string): DeletedMessages {
     const rows = [...this.deleted.values()]
       .filter((row) => row.pageLabel === page.pageLabel && row.fanRef === fanRef)
       .sort((a, b) => Date.parse(b.deletedAt) - Date.parse(a.deletedAt) || (b.messageId > a.messageId ? 1 : -1));
@@ -1285,7 +1287,23 @@ export class DataModel {
       deletedAt: row.deletedAt,
     }));
     const length = conversationRef === undefined ? undefined : this.chatLengths.get(`${page.pageLabel}|${conversationRef}`);
-    const chat = conversationRef === undefined ? {} : { chat: length === undefined || length.fanRef !== fanRef ? null : { conversationRef, messages: length.messages, firstMessageAt: length.firstMessageAt } };
+    const authors = (seed: FakeChatAuthorsSeed, messages: number | null): NonNullable<NonNullable<DeletedMessages['chat']>['authors']> => ({
+      chatters: seed.chatters
+        .map((chatter, index) => ({ userId: chatter.isMe === true ? me : 90_000 + index, name: chatter.name, isMe: chatter.isMe === true, messages: chatter.messages }))
+        .sort((a, b) => b.messages - a.messages)
+        .slice(0, 50),
+      fan: messages === null ? null : seed.fan,
+      unattributed: messages === null ? null : seed.unattributed,
+    });
+    const chat =
+      conversationRef === undefined
+        ? {}
+        : {
+            chat:
+              length === undefined || length.fanRef !== fanRef
+                ? null
+                : { conversationRef, messages: length.messages, firstMessageAt: length.firstMessageAt, ...(length.authors === undefined ? {} : { authors: authors(length.authors, length.messages) }) },
+          };
     return { pageLabel: page.pageLabel, fanRef, total: rows.length, messages, ...chat, serverNow: iso(now) };
   }
 
@@ -1777,6 +1795,8 @@ export interface FakeChatLength {
   readonly groupId: string;
   readonly messages: number | null;
   readonly firstMessageAt: string | null;
+  /** 2026-11-11: who wrote it; absent — the answer has none, like a hub before it. */
+  readonly authors?: FakeChatAuthorsSeed | undefined;
 }
 
 export interface FakeDeletedMessage {

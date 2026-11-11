@@ -501,7 +501,7 @@ export class FakeHub {
         return { ok: true, fans: Object.keys(command.fans).length };
       case 'chatLength':
         this.page(command.pageLabel);
-        s.data.seedChatLength({ pageLabel: command.pageLabel, fanRef: command.fanRef, groupId: command.groupId, messages: command.messages, firstMessageAt: command.firstMessageAt });
+        s.data.seedChatLength({ pageLabel: command.pageLabel, fanRef: command.fanRef, groupId: command.groupId, messages: command.messages, firstMessageAt: command.firstMessageAt, authors: command.authors });
         return { ok: true };
       case 'deletedMessage':
         this.page(command.pageLabel);
@@ -1282,7 +1282,7 @@ export class FakeHub {
       case 'clientFanMarks':
         return { kind: 'json', status: 200, body: fakeFanMarks(need(page), request as FanMarksQuery, now) };
       case 'clientDeletedMessages':
-        return { kind: 'json', status: 200, body: s.data.deletedMessages(need(page), (request as DeletedMessagesQuery).fanRef, now, (request as DeletedMessagesQuery).conversationRef) };
+        return { kind: 'json', status: 200, body: s.data.deletedMessages(need(page), (request as DeletedMessagesQuery).fanRef, need(principal).user.userId, now, (request as DeletedMessagesQuery).conversationRef) };
       case 'clientOtherPages':
         return { kind: 'json', status: 200, body: s.data.otherPagesOf(need(page), (request as OtherPagesRequest).fanRefs) };
       case 'clientFanLinkDecide':

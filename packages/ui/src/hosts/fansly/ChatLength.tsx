@@ -8,10 +8,14 @@
 // click (a second click, Esc or a press elsewhere puts it away). A manual popover like the marks' (FanMarks.tsx): the
 // top layer escapes the slot's `contain: layout` and the header's clipping; without popover support it stands
 // `position: fixed`.
+//
+// 2026-11-11, the owner: «Хочу видеть здесь разбивку еще, чтобы писалось, кто из чатеров сколько сообщений оставил».
+// Under the pace, a list of «name … count»: the fan, then each chatter as the hub ordered them (the person's own row
+// «(вы)»), then «Без автора» with a line on what that is. None when the hub sent no breakdown or it has no row.
 import type { JSX, TargetedKeyboardEvent } from 'preact';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
-import type { ChatLengthClient, ChatLengthCopy, ChatLengthView } from '@cg/contracts/deleted-fansly';
+import type { ChatAuthorsView, ChatLengthClient, ChatLengthCopy, ChatLengthView } from '@cg/contracts/deleted-fansly';
 
 import { Icon, useI18n, useNowFn, type SurfaceDefinition } from '../../kit';
 
@@ -29,6 +33,38 @@ function useView(client: ChatLengthClient): ChatLengthView | null {
     return client.subscribe(setView);
   }, [client]);
   return view;
+}
+
+/** Who wrote the chat, a row each; nothing without a breakdown (the view has one only with a row to show). */
+function Authors({ authors, copy }: { readonly authors: ChatAuthorsView | null; readonly copy: ChatLengthCopy }): JSX.Element | null {
+  if (authors === null) return null;
+  const none = authors.unattributed ?? 0;
+  return (
+    <ul class="cg-cl__authors" aria-label={copy.authors} data-chat-authors="">
+      {authors.fan === null ? null : (
+        <li class="cg-cl__author" data-chat-author="fan">
+          <span class="cg-cl__who">{copy.fan}</span>
+          <span class="cg-cl__n cg-num">{copy.count(authors.fan)}</span>
+        </li>
+      )}
+      {authors.chatters.map((chatter, index) => (
+        <li key={`${String(index)}|${chatter.name}`} class="cg-cl__author" data-chat-author={chatter.isMe ? 'me' : 'chatter'}>
+          <span class="cg-cl__who">
+            <span class="cg-cl__name">{chatter.name}</span>
+            {chatter.isMe ? <span class="cg-cl__me"> {copy.me}</span> : null}
+          </span>
+          <span class="cg-cl__n cg-num">{copy.count(chatter.messages)}</span>
+        </li>
+      ))}
+      {none > 0 ? (
+        <li class="cg-cl__author cg-cl__author--none" data-chat-author="none">
+          <span class="cg-cl__who">{copy.unattributed}</span>
+          <span class="cg-cl__n cg-num">{copy.count(none)}</span>
+          <span class="cg-cl__hint">{copy.unattributedHint}</span>
+        </li>
+      ) : null}
+    </ul>
+  );
 }
 
 export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Record<'ru' | 'en', ChatLengthCopy>>): SurfaceDefinition {
@@ -170,6 +206,7 @@ export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Reco
             </p>
             <p class="cg-cl__since cg-num">{copy.since(view.since, at)}</p>
             {pace === null ? null : <p class="cg-cl__pace cg-num">{pace}</p>}
+            <Authors authors={view.authors} copy={copy} />
             {view.messages === null ? <p class="cg-cl__unknown">{copy.unknown}</p> : null}
           </div>
         )}
@@ -203,6 +240,15 @@ export function chatLengthSurface(client: ChatLengthClient, texts: Readonly<Reco
     .cg-cl__since { margin-top: 4px; color: var(--cg-ink-2); }
     .cg-cl__pace { margin-top: 2px; color: var(--cg-ink-muted); }
     .cg-cl__unknown { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--cg-rule-2); color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 15px; }
+    .cg-cl__authors { margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--cg-rule-2); list-style: none; }
+    .cg-cl__author { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; margin: 0; padding: 0; }
+    .cg-cl__author + .cg-cl__author { margin-top: 2px; }
+    .cg-cl__who { display: flex; flex: 1 1 0; min-width: 0; color: var(--cg-ink-2); }
+    .cg-cl__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cg-cl__me { flex: none; color: var(--cg-ink-muted); white-space: pre; }
+    .cg-cl__n { flex: none; color: var(--cg-ink); font-weight: 500; text-align: right; }
+    .cg-cl__author--none .cg-cl__who, .cg-cl__author--none .cg-cl__n { color: var(--cg-ink-muted); }
+    .cg-cl__hint { flex: 1 0 100%; margin-top: 1px; color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 15px; }
   `,
       },
     ],

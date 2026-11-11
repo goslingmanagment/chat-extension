@@ -4,6 +4,9 @@
 // is the one that serves it. The conversation feed and the AI still read a deleted message as an empty row.
 //
 // The request mirrors the hub's strict path; the answer is open like every hub answer.
+//
+// 2026-11-11 (the owner: «чтобы писалось, кто из чатеров сколько сообщений оставил»): the chat's length also says who
+// wrote its messages (`chat.authors`), for the same card in the header.
 
 import * as z from 'zod/mini';
 
@@ -12,6 +15,8 @@ import { PageLabelSchema } from './wire';
 
 /** The most deleted messages of one fan the hub answers (hub CLIENT_DELETED_MESSAGES_MAX), the latest deleted first. */
 export const DELETED_MESSAGES_MAX = 50;
+/** The most chatters `chat.authors` names (hub CLIENT_CHAT_LENGTH_CHATTERS_MAX), the most messages first. */
+export const CHAT_AUTHORS_MAX = 50;
 
 /**
  * Path `pageLabel` and `fanRef` (the fan's Fansly account id); `conversationRef` — the open chat's group id, so the
@@ -48,6 +53,20 @@ export const DeletedMessagesSchema = z.object({
         conversationRef: z.string(),
         messages: z.nullable(z.number()),
         firstMessageAt: z.nullable(z.string()),
+        /**
+         * Who wrote them (2026-11-11). `chatters`: the page's messages by the person who sent them, recorded since
+         * 2026-10-24 for sends made through the extension, exact even while `messages` is null; the most first.
+         * `fan` and `unattributed` (the page's messages with no known author: mass messages, sends from elsewhere,
+         * anything before authors were recorded) are null while `messages` is; then all of them add up to `messages`.
+         * Absent — a hub before 2026-11-11.
+         */
+        authors: z.optional(
+          z.object({
+            chatters: z.array(z.object({ userId: z.number(), name: z.string(), isMe: z.boolean(), messages: z.number() })),
+            fan: z.nullable(z.number()),
+            unattributed: z.nullable(z.number()),
+          }),
+        ),
       }),
     ),
   ),

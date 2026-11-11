@@ -8,8 +8,10 @@
 // while a message is fresh; opening the card (`seen`) makes everything it shows seen.
 //
 // The same answer says how long the open chat is (2026-11-08, `chat`): the header's second badge reads it here, so it
-// costs no read of its own. Shown once the read answered, never before (no date that a count then pushes aside).
-import type { ChatLengthClient, ChatLengthView, DeletedMessageView, DeletedMessagesClient, DeletedMessagesView } from '@cg/contracts/deleted-fansly';
+// costs no read of its own. Shown once the read answered, never before (no date that a count then pushes aside). And
+// who wrote it (2026-11-11, the owner: «кто из чатеров сколько сообщений оставил»): the card's breakdown, none when
+// there is nothing in it.
+import type { ChatAuthorsView, ChatLengthClient, ChatLengthView, DeletedMessageView, DeletedMessagesClient, DeletedMessagesView } from '@cg/contracts/deleted-fansly';
 import type { FanslyChatLength, FanslyDeletedMessages } from '@cg/contracts/tab-messages-fansly';
 
 import { fanslyIdTimestampMs } from '../../../domain/hosts/fansly/snowflake';
@@ -26,6 +28,12 @@ export type DeletedMessagesAnswer =
   | { readonly ok: true; readonly deleted: FanslyDeletedMessages; readonly chat?: FanslyChatLength | null | undefined }
   | { readonly ok: false };
 
+/** The card's breakdown of an answer: null when it has neither the fan's count nor a chatter. */
+function chatAuthorsView(authors: FanslyChatLength['authors'] | undefined): ChatAuthorsView | null {
+  if (authors === null || authors === undefined || (authors.fan === null && authors.chatters.length === 0)) return null;
+  return { chatters: authors.chatters.map(({ name, isMe, messages }) => ({ name, isMe, messages })), fan: authors.fan, unattributed: authors.unattributed };
+}
+
 /**
  * What the badge shows of an answer: the hub's count and first message when it has them; otherwise no count and the
  * moment Fansly made the chat, which its id carries (a snowflake, like an account's: on prod the first message follows
@@ -36,8 +44,24 @@ export function chatLengthView(chat: FanslyChatLength | null | undefined, groupI
   const first = firstAt === null ? Number.NaN : Date.parse(firstAt);
   const since = Number.isFinite(first) ? first : fanslyIdTimestampMs(groupId, now);
   if (since === null) return null;
-  return { messages: chat?.messages ?? null, since };
+  return { messages: chat?.messages ?? null, since, authors: chatAuthorsView(chat?.authors) };
 }
+
+const sameAuthors = (a: ChatAuthorsView | null, b: ChatAuthorsView | null): boolean =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.fan === b.fan &&
+    a.unattributed === b.unattributed &&
+    a.chatters.length === b.chatters.length &&
+    a.chatters.every((chatter, index) => {
+      const other = b.chatters[index];
+      return other !== undefined && chatter.name === other.name && chatter.isMe === other.isMe && chatter.messages === other.messages;
+    }));
+
+/** The same badge and card: a read that says nothing new draws nothing. */
+const sameChatLength = (a: ChatLengthView | null, b: ChatLengthView | null): boolean =>
+  a === b || (a !== null && b !== null && a.messages === b.messages && a.since === b.since && sameAuthors(a.authors, b.authors));
 
 export const DELETED_NONE: DeletedMessagesView = { total: 0, messages: [], fresh: 0 };
 /** How recent a deletion is fresh. */
@@ -100,7 +124,7 @@ export function createDeletedMessages(deps: {
     for (const listener of [...listeners]) listener(view);
   };
   const showChat = (next: ChatLengthView | null): void => {
-    if (next === chatView || (next !== null && chatView !== null && next.messages === chatView.messages && next.since === chatView.since)) return;
+    if (sameChatLength(next, chatView)) return;
     chatView = next;
     for (const listener of [...chatListeners]) listener(chatView);
   };
