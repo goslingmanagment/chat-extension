@@ -93,6 +93,12 @@ export interface FanCustomPaymentVM {
   readonly note: string | null;
 }
 
+/** A custom order's step as the hub names it, to show as it is, and since when (null: not said). */
+export interface FanCustomStepVM {
+  readonly label: string;
+  readonly at: IsoTimestamp | null;
+}
+
 /** Chat Memory week 4: a custom of the person. Buttons only on a page the person works, while it is open. */
 export interface FanCustomVM {
   readonly id: number;
@@ -107,6 +113,10 @@ export interface FanCustomVM {
   readonly deliveredAt: IsoTimestamp | null;
   readonly createdBy: string;
   readonly createdAt: IsoTimestamp;
+  /** The order's code, `K-123`; null from an older hub. */
+  readonly code: string | null;
+  /** The order's real step in the hub's words («У модели», «Снят») and since when; null from an older hub: the state's words instead. */
+  readonly step: FanCustomStepVM | null;
   /** «Оплачен»: a suggested tip each. */
   readonly payWith: readonly (FanCustomPaymentVM & { readonly action: UiAction })[];
   /** «Отдали»: «это он? 1 видео · вчера» — a suggested message each. */
@@ -186,6 +196,10 @@ export interface QueueCustomVM {
   readonly state: 'ordered' | 'paid' | null;
   readonly paidAt: IsoTimestamp | null;
   readonly createdAt: IsoTimestamp;
+  /** The order's code, `K-123`; null from an older hub. */
+  readonly code: string | null;
+  /** The order's real step; null from an older hub: the state's words instead. */
+  readonly step: FanCustomStepVM | null;
   /** The fan, when a row of the handoff names him; null — unknown here. */
   readonly name: string | null;
   readonly open: UiAction | null;

@@ -12,6 +12,7 @@ import { type CgErrorWire } from '@cg/contracts/errors';
 import { hasCapability, type Handoff, type QueuePage } from '@cg/contracts/hub';
 import { type ActionReceipt, type I18n, type QueueCustomVM, type QueueFanVM, type QueueTab, type QueueVM, type QueueWaitingVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
+import { customStep } from '../../domain/fanpanel/memory';
 import { queueName } from '../../domain/fanpanel/queue';
 import { POLL_OPEN_MS, nextPollDelay } from '../../domain/newcomers/poll';
 import { type PageContextPort, pageFlag } from '../boards/context';
@@ -185,6 +186,8 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
       state: custom.state === 'ordered' || custom.state === 'paid' ? custom.state : null,
       paidAt: custom.paidAt,
       createdAt: custom.createdAt,
+      code: custom.code ?? null,
+      step: customStep(custom),
       name: names.get(custom.fanRef) ?? null,
       open: openOf(custom.fanRef, custom.conversationRef),
     }));

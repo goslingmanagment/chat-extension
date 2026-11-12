@@ -32,6 +32,16 @@ export type FanCustomState = (typeof FAN_CUSTOM_STATES)[number];
 const MillsSchema = z.number();
 const TimeSchema = z.nullable(z.string());
 
+/**
+ * A custom order's real step beside its four states (hub `clientCustomStepShape`), all absent from an older hub: the
+ * order's code (`K-123`), its step in the hub board's words («У модели», «Снят»), shown as it is, and since when.
+ */
+export const FanCustomStepFields = {
+  code: z.optional(z.string()),
+  stepLabel: z.optional(z.string()),
+  stepAt: z.optional(z.string()),
+};
+
 export const FanCardPageSchema = z.object({
   pageLabel: z.string(),
   platform: z.string(),
@@ -99,6 +109,7 @@ export const FanCardCustomSchema = z.object({
   createdAt: z.string(),
   /** Media the page sent in the chat since the payment, the newest first: «это он?». */
   deliveryCandidates: z.array(z.object({ messageRef: z.string(), at: z.string(), mediaCount: z.number(), priceMills: z.nullable(MillsSchema) })),
+  ...FanCustomStepFields,
 });
 export type FanCardCustom = z.infer<typeof FanCardCustomSchema>;
 

@@ -5,14 +5,15 @@
 // - Facts by kind — «О себе», «Обещали», «Договорились» — each with its page and time; on a page the person works:
 //   «Открыть чат» (another account's chat in this tab), «Исправить» in place, «Удалить». An empty kind says «не знаю»:
 //   a deliberate exception to the panel's «what no source knows is not drawn» (the roadmap's rule for the facts).
-// - «Кастомы» (Chat Memory week 4): the open first, with how long since the payment; on a page the person works
+// - «Кастомы» (Chat Memory week 4): the open first, the order's code beside what it is, its step as the hub names it
+//   («У модели 2 д», «Снят 5 ч»; from an older hub: how long since the payment); on a page the person works
 //   «Оплачен» by a tip Hub suggests, «Отдали» by media the page sent since («это он? 1 медиа · вчера»), «Отменить»;
 //   «Записать кастом» — what, the price, and one of the suggested tips if it is the payment. Hub sets nothing itself.
 
 import { type JSX } from 'preact';
 import { useState } from 'preact/hooks';
 
-import { type FanCustomPaymentVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemoryVM, type I18n } from '@cg/contracts/vm';
+import { type FanCustomPaymentVM, type FanCustomStepVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemoryVM, type I18n } from '@cg/contracts/vm';
 
 import { chatClick, Button, ErrorCard, ViewState, useDispatch, useI18n } from '../kit';
 
@@ -100,8 +101,17 @@ function tipText(i18n: I18n, payment: FanCustomPaymentVM): string {
   return payment.note === null || payment.note === '' ? line : `${line} · «${payment.note}»`;
 }
 
-/** Where the custom is: waiting for its payment since it was written, paid since when, delivered when. */
+/** The order's real step as the hub names it, with how long it is on it («У модели 2 д»). */
+export function customStepText(i18n: I18n, step: FanCustomStepVM): string {
+  return step.at === null ? step.label : i18n.t('fanPanel.memory.custom.step', { step: step.label, age: i18n.formatAge(step.at) });
+}
+
+/**
+ * Where the custom is: the hub's step when it names one; else, from an older hub, the four states — waiting for its
+ * payment since it was written, paid since when, delivered when.
+ */
 function customState(i18n: I18n, custom: FanCustomVM): string {
+  if (custom.step !== null) return customStepText(i18n, custom.step);
   switch (custom.state) {
     case 'ordered':
       return i18n.t('fanPanel.memory.custom.ordered', { age: i18n.formatAge(custom.createdAt) });
@@ -124,7 +134,10 @@ function CustomRow({ custom }: { readonly custom: FanCustomVM }): JSX.Element {
   const busy = custom.busy ? i18n.t('common.loading') : null;
   return (
     <div class={`cg-mem__custom is-${custom.state ?? 'unknown'}`} data-cg-custom={custom.id} aria-busy={custom.busy ? 'true' : 'false'}>
-      <div class="cg-mem__text">{custom.description}</div>
+      <div class="cg-mem__text">
+        {custom.code === null ? null : <span class="cg-mem__code cg-num">{custom.code}</span>}
+        {custom.description}
+      </div>
       <div class="cg-mem__meta">{meta}</div>
       {custom.payWith.length === 0 ? null : (
         <div class="cg-mem__ask">
@@ -282,6 +295,7 @@ export const MEMORY_CSS = `
 .cg-mem__custom[aria-busy="true"] { opacity: 0.6; }
 .cg-mem__custom > .cg-fp__acts { margin-left: -6px; }
 .cg-mem__custom.is-delivered .cg-mem__text, .cg-mem__custom.is-cancelled .cg-mem__text { color: var(--cg-ink-2); }
+.cg-mem__code { margin-right: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-mem__ask { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
 .cg-mem__ask > span { margin-right: 2px; }
 .cg-mem__record { display: grid; gap: 6px; margin-top: 8px; }

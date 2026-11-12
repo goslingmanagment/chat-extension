@@ -1,12 +1,15 @@
-// «Кастомы» (Chat Memory week 4) on sample data: in «Память» the open customs first — paid two days ago with «Отдали —
-// это он?», ordered with «Это оплата?» — then a delivered one; «Записать кастом» with a suggested tip; and the page's
-// open customs in «Передача» of «Очередь».
+// «Кастомы» (Chat Memory week 4) on sample data: in «Память» the open customs first, each with its code and its step as
+// the hub names it — «У модели» (its payment written in the card, no sale linked) with «Отдали: это он?», «Снят»,
+// «Записан» with «Это оплата?» — then a given one; «Записать кастом» with a suggested tip; and the page's open customs
+// in «Передача» of «Дела».
 
 import { STAND_IDS } from '../../support/stand';
 import { STAND_PAGE, scenario } from '../kit';
 
 const ago = (hours: number): string => new Date(Date.now() - hours * 3_600_000).toISOString();
 const { a1, a2 } = STAND_IDS.fans;
+/** The hub's real step of an order: its code, the board's word, since how many hours. */
+const step = (id: number, label: string, hours: number) => ({ code: `K-${String(id)}`, stepLabel: label, stepAt: ago(hours) });
 const custom = (id: number, description: string, state: string, priceMills: number, paidHours: number | null, candidates: readonly { readonly ref: string; readonly hours: number; readonly media: number }[], extra: Record<string, unknown> = {}) => ({
   id,
   pageLabel: STAND_PAGE,
@@ -23,6 +26,14 @@ const custom = (id: number, description: string, state: string, priceMills: numb
   deliveryCandidates: candidates.map((candidate) => ({ messageRef: candidate.ref, at: ago(candidate.hours), mediaCount: candidate.media, priceMills: null })),
   ...extra,
 });
+
+// K-11 is at the model with its payment written in the card, no sale linked: the old wire said «ждёт оплаты» of it.
+const CUSTOMS = [
+  custom(11, 'Видео 5 минут в красном белье, с его именем', 'paid', 120_000, null, [{ ref: '9301', hours: 20, media: 1 }], { createdAt: ago(52), ...step(11, 'У модели', 46) }),
+  custom(13, 'Фото в душе, 8 штук', 'paid', 45_000, 80, [{ ref: '9302', hours: 4, media: 8 }], step(13, 'Снят', 5)),
+  custom(12, 'Фотосет в очках, 10 фото', 'ordered', 60_000, null, [], step(12, 'Записан', 22)),
+  custom(10, 'Голосовое с днём рождения', 'delivered', 30_000, 400, [], { deliveredMessageRef: '9201', deliveredAt: ago(380), ...step(10, 'Отдан фану', 380) }),
+];
 
 scenario(
   'customs',
@@ -45,7 +56,7 @@ scenario(
     await s.see('panel', 'Цена: число долларов', 10_000);
     await s.shot('customs-bad-price');
     await s.press(/^Отмена|^Cancel/, 'panel');
-    await s.press(/^Очередь/, 'panel');
+    await s.press(/^Дела/, 'panel');
     await s.press(/^Передача/, 'panel');
     await s.see('panel', 'Открытые кастомы', 20_000);
     await s.shot('customs-handoff');
@@ -66,11 +77,7 @@ scenario(
           pages: [{ pageLabel: STAND_PAGE, platform: 'onlyfans', modelName: 'Model One', fanRef: a1, granted: true, alias: '💵Alder/Canada/38', subscribed: true, subscribedSince: null, subscriptionEndsAt: null, spentMills: 1_248_000, last30Mills: { tip: 320_000 }, lastPurchaseAt: null }],
           suggestions: [],
           facts: [],
-          customs: [
-            custom(11, 'Видео 5 минут в красном белье, с его именем', 'paid', 120_000, 50, [{ ref: '9301', hours: 20, media: 1 }]),
-            custom(12, 'Фотосет в очках, 10 фото', 'ordered', 60_000, null, []),
-            custom(10, 'Голосовое с днём рождения', 'delivered', 30_000, 400, [], { deliveredMessageRef: '9201', deliveredAt: ago(380) }),
-          ],
+          customs: CUSTOMS,
           customPayments: [
             { paymentRef: '8101', amountMills: 60_000, at: ago(5), note: 'for the glasses set' },
             { paymentRef: '8102', amountMills: 15_000, at: ago(30), note: null },
@@ -87,8 +94,9 @@ scenario(
           waiting: { total: 0, head: [] },
           promises: [],
           customs: [
-            { fanRef: a1, conversationRef: a1, description: 'Видео 5 минут в красном белье, с его именем', state: 'paid', paidAt: ago(50), createdAt: ago(52) },
-            { fanRef: a2, conversationRef: a2, description: 'Кастом-видео в душе', state: 'ordered', paidAt: null, createdAt: ago(8) },
+            { fanRef: a1, conversationRef: a1, description: 'Видео 5 минут в красном белье, с его именем', state: 'paid', paidAt: null, createdAt: ago(52), ...step(11, 'У модели', 46) },
+            { fanRef: a1, conversationRef: a1, description: 'Фото в душе, 8 штук', state: 'paid', paidAt: ago(80), createdAt: ago(82), ...step(13, 'Снят', 5) },
+            { fanRef: a2, conversationRef: a2, description: 'Кастом-видео в душе', state: 'ordered', paidAt: null, createdAt: ago(8), ...step(14, 'Записан', 8) },
           ],
           serverNow: new Date().toISOString(),
         },

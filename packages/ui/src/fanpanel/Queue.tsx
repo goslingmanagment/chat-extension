@@ -11,6 +11,7 @@ import { type I18nKey } from '@cg/contracts/errors';
 import { type QueueFanVM, type QueueTab as QueueTabId, type QueueVM } from '@cg/contracts/vm';
 
 import { chatClick, Button, Money, Segmented, TalkingMark, ViewState, useDispatch, useI18n, useMinuteClock } from '../kit';
+import { customStepText } from './Memory';
 
 const TAB_KEYS: Readonly<Record<QueueTabId, I18nKey>> = { waiting: 'queue.tab.waiting', handoff: 'queue.tab.handoff' };
 
@@ -83,11 +84,14 @@ function Handoff({ queue }: { readonly queue: QueueVM }): JSX.Element | null {
                 <span>
                   {[
                     custom.name,
-                    custom.state === 'paid' && custom.paidAt !== null
-                      ? i18n.t('fanPanel.memory.custom.paid', { age: i18n.formatAge(custom.paidAt) })
-                      : custom.state === 'ordered'
-                        ? i18n.t('fanPanel.memory.custom.ordered', { age: i18n.formatAge(custom.createdAt) })
-                        : i18n.t('fanPanel.memory.custom.unknown'),
+                    custom.code,
+                    custom.step !== null
+                      ? customStepText(i18n, custom.step)
+                      : custom.state === 'paid' && custom.paidAt !== null
+                        ? i18n.t('fanPanel.memory.custom.paid', { age: i18n.formatAge(custom.paidAt) })
+                        : custom.state === 'ordered'
+                          ? i18n.t('fanPanel.memory.custom.ordered', { age: i18n.formatAge(custom.createdAt) })
+                          : i18n.t('fanPanel.memory.custom.unknown'),
                   ]
                     .filter((part) => part !== null)
                     .join(' · ')}
