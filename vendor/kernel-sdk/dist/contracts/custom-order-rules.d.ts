@@ -1,9 +1,11 @@
 import { type CustomOrderAction, type CustomOrderCard, type CustomOrderState } from "./custom-orders";
-/** The board's steps, and the reader's own: a delivery message, a revision fixed, another message of the order. */
-export type CustomStepName = CustomOrderAction | "delivery" | "revision_done" | "message";
+/** The board's steps, and the readers' own: a delivery message, a revision fixed, another message, a delivery taken back. */
+export type CustomStepName = CustomOrderAction | "delivery" | "revision_done" | "message" | "retract";
 export declare function isBoardAction(step: CustomStepName): step is CustomOrderAction;
 /** The states each step may be taken from. A step that moves the order names its new state in `STEP_TO`. */
 export declare const STEP_FROM: Readonly<Record<CustomStepName, readonly CustomOrderState[]>>;
+/** The states a delivery moves the order from (to «сдан частично», «снят» or back to «правка»). */
+export declare const DELIVERY_MOVES_FROM: readonly CustomOrderState[];
 export declare const STEP_TO: Partial<Readonly<Record<CustomOrderAction, CustomOrderState>>>;
 /**
  * Each state in people's words: the one table for every door that names an order's step — the board «Кастомы»

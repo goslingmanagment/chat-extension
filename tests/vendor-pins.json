@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "62a2f60b156fd2cf667efea78c520eda62391982cec9c6f4720a6fc5c2586058",
-    "sourceCommit": "669a52f9aadbd2fbb6ea1e9d84e82cbe4c9de8fa",
-    "note": "Vendored on 2026-11-12 from hub branch eco/review-fan-panel-step 669a52f9 (hub #1275, not merged yet) with scripts/vendor-sdk.mjs: a custom order's `code`, `stepLabel` and `stepAt` in the fan card's and the handoff's customs. Re-vendor from hub main once #1275 is merged, before a release."
+    "contractHash": "96a1afd61fa0e15453a1a8c4e74e71425654485d24affe638f2d6dac5a72c323",
+    "sourceCommit": "b06b2e0a9c68378ac383f16e05ef37767bf2507b",
+    "note": "Vendored on 2026-11-12 from hub branch eco/review-fan-panel-step b06b2e0a (hub #1275 on main 292830f6, not merged yet) with scripts/vendor-sdk.mjs: a custom order's `code`, `stepLabel` and `stepAt` in the fan card's and the handoff's customs. Re-vendor from hub main once #1275 is merged, before a release."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

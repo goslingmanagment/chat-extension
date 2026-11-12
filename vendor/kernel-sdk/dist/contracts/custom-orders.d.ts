@@ -152,9 +152,13 @@ export declare const customOrderSchema: z.ZodObject<{
 }, z.core.$strip>;
 export type CustomOrder = z.infer<typeof customOrderSchema>;
 export declare const CUSTOM_ORDER_MESSAGE_KINDS: readonly ["repost", "delivery", "revision", "confirmation", "note"];
-/** A significant message of the order in Telegram (the reader of the models' groups records them). */
+/**
+ * A significant message of the order: a Telegram message the reader of the models' groups records (known by its
+ * link and ordinal), or an event of a sender with its own id of it (ContentOps' delivery, known by `eventRef`).
+ */
 export declare const customOrderMessageSchema: z.ZodObject<{
-    telegramRef: z.ZodString;
+    telegramRef: z.ZodNullable<z.ZodString>;
+    eventRef: z.ZodNullable<z.ZodString>;
     ordinal: z.ZodNumber;
     kind: z.ZodEnum<{
         note: "note";
@@ -167,11 +171,19 @@ export declare const customOrderMessageSchema: z.ZodObject<{
         video: "video";
         photos: "photos";
     }>>;
+    complete: z.ZodNullable<z.ZodBoolean>;
     at: z.ZodNullable<z.ZodString>;
     author: z.ZodNullable<z.ZodString>;
     excerpt: z.ZodNullable<z.ZodString>;
     doneAt: z.ZodNullable<z.ZodString>;
+    retractedAt: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
+/**
+ * An event's own id, as its sender keeps it: `<sender>:<kind>:<id>` (`contentops:delivery:7d0c…`), unique per
+ * order. Never a Telegram link: a link is the event's evidence (`message.telegramRef`).
+ */
+export declare const CUSTOM_ORDER_EVENT_REF_PATTERN: RegExp;
+export declare const customOrderEventRefSchema: z.ZodString;
 /** A sale that looks like a custom with no order: a tier that includes one, or a tip whose note says so. */
 export declare const customLookalikeSaleSchema: z.ZodObject<{
     transactionRef: z.ZodString;
@@ -398,7 +410,8 @@ export declare const customOrderDetailResponseSchema: z.ZodObject<{
     cardText: z.ZodString;
     sourceText: z.ZodNullable<z.ZodString>;
     messages: z.ZodArray<z.ZodObject<{
-        telegramRef: z.ZodString;
+        telegramRef: z.ZodNullable<z.ZodString>;
+        eventRef: z.ZodNullable<z.ZodString>;
         ordinal: z.ZodNumber;
         kind: z.ZodEnum<{
             note: "note";
@@ -411,10 +424,12 @@ export declare const customOrderDetailResponseSchema: z.ZodObject<{
             video: "video";
             photos: "photos";
         }>>;
+        complete: z.ZodNullable<z.ZodBoolean>;
         at: z.ZodNullable<z.ZodString>;
         author: z.ZodNullable<z.ZodString>;
         excerpt: z.ZodNullable<z.ZodString>;
         doneAt: z.ZodNullable<z.ZodString>;
+        retractedAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
     payments: z.ZodArray<z.ZodObject<{
         transactionRef: z.ZodString;
@@ -639,7 +654,8 @@ export declare const agentCustomOrderSchema: z.ZodObject<{
     cardText: z.ZodString;
     sourceText: z.ZodNullable<z.ZodString>;
     messages: z.ZodArray<z.ZodObject<{
-        telegramRef: z.ZodString;
+        telegramRef: z.ZodNullable<z.ZodString>;
+        eventRef: z.ZodNullable<z.ZodString>;
         ordinal: z.ZodNumber;
         kind: z.ZodEnum<{
             note: "note";
@@ -652,10 +668,12 @@ export declare const agentCustomOrderSchema: z.ZodObject<{
             video: "video";
             photos: "photos";
         }>>;
+        complete: z.ZodNullable<z.ZodBoolean>;
         at: z.ZodNullable<z.ZodString>;
         author: z.ZodNullable<z.ZodString>;
         excerpt: z.ZodNullable<z.ZodString>;
         doneAt: z.ZodNullable<z.ZodString>;
+        retractedAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const agentCustomOrdersQuerySchema: z.ZodObject<{
@@ -745,7 +763,8 @@ export declare const agentCustomOrdersResponseSchema: z.ZodObject<{
         cardText: z.ZodString;
         sourceText: z.ZodNullable<z.ZodString>;
         messages: z.ZodArray<z.ZodObject<{
-            telegramRef: z.ZodString;
+            telegramRef: z.ZodNullable<z.ZodString>;
+            eventRef: z.ZodNullable<z.ZodString>;
             ordinal: z.ZodNumber;
             kind: z.ZodEnum<{
                 note: "note";
@@ -758,10 +777,12 @@ export declare const agentCustomOrdersResponseSchema: z.ZodObject<{
                 video: "video";
                 photos: "photos";
             }>>;
+            complete: z.ZodNullable<z.ZodBoolean>;
             at: z.ZodNullable<z.ZodString>;
             author: z.ZodNullable<z.ZodString>;
             excerpt: z.ZodNullable<z.ZodString>;
             doneAt: z.ZodNullable<z.ZodString>;
+            retractedAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
@@ -796,6 +817,7 @@ export declare const agentCustomOrderCreateBodySchema: z.ZodObject<{
     postedAt: z.ZodOptional<z.ZodISODateTime>;
     author: z.ZodOptional<z.ZodString>;
     sourceText: z.ZodOptional<z.ZodString>;
+    another: z.ZodOptional<z.ZodBoolean>;
     onBehalfOf: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>;
 /** Only the fields that changed: a value sets it, `null` empties it, an absent key stays as it is. */
@@ -815,8 +837,9 @@ export declare const agentCustomOrderUpdateBodySchema: z.ZodDiscriminatedUnion<[
     onBehalfOf: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"delivery">;
+    eventRef: z.ZodOptional<z.ZodString>;
     message: z.ZodObject<{
-        telegramRef: z.ZodString;
+        telegramRef: z.ZodOptional<z.ZodString>;
         at: z.ZodOptional<z.ZodISODateTime>;
         author: z.ZodOptional<z.ZodString>;
         excerpt: z.ZodOptional<z.ZodString>;
@@ -838,8 +861,9 @@ export declare const agentCustomOrderUpdateBodySchema: z.ZodDiscriminatedUnion<[
     onBehalfOf: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"revision">;
+    eventRef: z.ZodOptional<z.ZodString>;
     message: z.ZodObject<{
-        telegramRef: z.ZodString;
+        telegramRef: z.ZodOptional<z.ZodString>;
         at: z.ZodOptional<z.ZodISODateTime>;
         author: z.ZodOptional<z.ZodString>;
         excerpt: z.ZodOptional<z.ZodString>;
@@ -849,8 +873,21 @@ export declare const agentCustomOrderUpdateBodySchema: z.ZodDiscriminatedUnion<[
     onBehalfOf: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"revision_done">;
-    telegramRef: z.ZodString;
+    telegramRef: z.ZodOptional<z.ZodString>;
+    eventRef: z.ZodOptional<z.ZodString>;
     ordinal: z.ZodDefault<z.ZodNumber>;
+    onBehalfOf: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"retract">;
+    eventRef: z.ZodString;
+    retracts: z.ZodString;
+    reason: z.ZodString;
+    message: z.ZodOptional<z.ZodObject<{
+        telegramRef: z.ZodOptional<z.ZodString>;
+        at: z.ZodOptional<z.ZodISODateTime>;
+        author: z.ZodOptional<z.ZodString>;
+        excerpt: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
     onBehalfOf: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"refused">;
@@ -868,8 +905,9 @@ export declare const agentCustomOrderUpdateBodySchema: z.ZodDiscriminatedUnion<[
         repost: "repost";
         confirmation: "confirmation";
     }>;
+    eventRef: z.ZodOptional<z.ZodString>;
     message: z.ZodObject<{
-        telegramRef: z.ZodString;
+        telegramRef: z.ZodOptional<z.ZodString>;
         at: z.ZodOptional<z.ZodISODateTime>;
         author: z.ZodOptional<z.ZodString>;
         excerpt: z.ZodOptional<z.ZodString>;
@@ -880,6 +918,14 @@ export declare const agentCustomOrderUpdateBodySchema: z.ZodDiscriminatedUnion<[
     telegramRef: z.ZodString;
     onBehalfOf: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>], "action">;
+/** The event a message step names, and what the hub did with it. */
+export declare const agentCustomOrderEventSchema: z.ZodObject<{
+    ref: z.ZodString;
+    result: z.ZodEnum<{
+        stored: "stored";
+        already: "already";
+    }>;
+}, z.core.$strip>;
 export declare const agentCustomOrderResponseSchema: z.ZodObject<{
     order: z.ZodObject<{
         id: z.ZodNumber;
@@ -958,7 +1004,8 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
         cardText: z.ZodString;
         sourceText: z.ZodNullable<z.ZodString>;
         messages: z.ZodArray<z.ZodObject<{
-            telegramRef: z.ZodString;
+            telegramRef: z.ZodNullable<z.ZodString>;
+            eventRef: z.ZodNullable<z.ZodString>;
             ordinal: z.ZodNumber;
             kind: z.ZodEnum<{
                 note: "note";
@@ -971,10 +1018,12 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
                 video: "video";
                 photos: "photos";
             }>>;
+            complete: z.ZodNullable<z.ZodBoolean>;
             at: z.ZodNullable<z.ZodString>;
             author: z.ZodNullable<z.ZodString>;
             excerpt: z.ZodNullable<z.ZodString>;
             doneAt: z.ZodNullable<z.ZodString>;
+            retractedAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
     }, z.core.$strip>;
     outcome: z.ZodEnum<{
@@ -982,6 +1031,13 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
         created: "created";
         unchanged: "unchanged";
     }>;
+    event: z.ZodNullable<z.ZodObject<{
+        ref: z.ZodString;
+        result: z.ZodEnum<{
+            stored: "stored";
+            already: "already";
+        }>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 /** The reader of the models' groups: the cards it found that no order has, for the lead. */
 export declare const agentCustomCardsBodySchema: z.ZodObject<{
