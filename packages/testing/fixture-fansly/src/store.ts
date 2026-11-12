@@ -239,12 +239,26 @@ export class GroupService {
   /** A message the socket brings (5/1): into the loaded list, then to the group's listeners. One the page has already is not taken twice. */
   receive(message: Message): void {
     const group = this.cache.get(message.groupId);
-    if (group === undefined) return;
+    if (group === undefined) {
+      // A chat the page has not loaded yet (beyond the list's pages): read, then on top of the list with its message.
+      this.backend.group(message.groupId, (detail) => {
+        if (detail === null || this.cache.has(detail.id)) return;
+        this.upsert(detail);
+        this.receive(message);
+      });
+      return;
+    }
     if (group.messages.some((known) => known.id === message.id)) return;
     const item: PageMessage = { ...message, queued: false };
     if (group.latestLoaded) group.messages = merged(group.messages, [item]);
     group.lastMessage = message;
     if (group.id !== this.activeGroupId && message.senderId !== this.creator.id) group.unread += 1;
+    // The list is sorted by the newest message (live): the chat goes on top.
+    const at = this.inboxIds.indexOf(group.id);
+    if (at !== 0) {
+      if (at > 0) this.inboxIds.splice(at, 1);
+      this.inboxIds.unshift(group.id);
+    }
     for (const listener of [...(this.messageListeners.get(group.id) ?? [])]) listener(item);
     this.emitGroupsChange();
   }
