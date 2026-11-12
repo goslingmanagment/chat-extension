@@ -18,6 +18,6 @@
  * owner or team-lead route, the hand-off's own mint (a narrow session never
  * travels to another name).
  */
-export declare const NARROW_WEB_SESSION_OPERATIONS: readonly ["me", "accountChatterStats", "accountReports"];
+export declare const NARROW_WEB_SESSION_OPERATIONS: readonly ["me", "accountChatterStats", "accountReports", "mattersList", "shiftReport", "shiftReportsList", "shiftReportClaimable", "shiftReportLineSet", "shiftReportCommentSet", "shiftReportOffPlatformAdd", "shiftReportOffPlatformWithdraw", "shiftReportSubmit", "accountPay"];
 /** Whether a narrow web session may call the route with this key. */
 export declare function narrowWebSessionAllows(operationKey: string): boolean;

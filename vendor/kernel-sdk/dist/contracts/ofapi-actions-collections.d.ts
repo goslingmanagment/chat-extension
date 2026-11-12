@@ -34,6 +34,25 @@ export declare const ofapiCollectionActionOptions: readonly [z.ZodObject<{
     listId: z.ZodString;
     userId: z.ZodString;
 }, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_lists_list">;
+    pageId: z.ZodNumber;
+    limit: z.ZodNumber;
+    offset: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_list_get">;
+    pageId: z.ZodNumber;
+    listId: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_media_list">;
+    pageId: z.ZodNumber;
+    listId: z.ZodString;
+    limit: z.ZodNumber;
+    offset: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_media_get">;
+    pageId: z.ZodNumber;
+    mediaId: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"vault_list_create">;
     pageId: z.ZodNumber;
     name: z.ZodString;
@@ -124,6 +143,25 @@ export declare const ofapiCollectionActionSchema: z.ZodUnion<readonly [z.ZodObje
     pageId: z.ZodNumber;
     listId: z.ZodString;
     userId: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_lists_list">;
+    pageId: z.ZodNumber;
+    limit: z.ZodNumber;
+    offset: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_list_get">;
+    pageId: z.ZodNumber;
+    listId: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_media_list">;
+    pageId: z.ZodNumber;
+    listId: z.ZodString;
+    limit: z.ZodNumber;
+    offset: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"vault_media_get">;
+    pageId: z.ZodNumber;
+    mediaId: z.ZodString;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"vault_list_create">;
     pageId: z.ZodNumber;

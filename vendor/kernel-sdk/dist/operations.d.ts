@@ -3,9 +3,21 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/account/stats";
     };
+    readonly accountPay: {
+        readonly method: "GET";
+        readonly path: "/api/v1/account/pay";
+    };
+    readonly accountPayoutDetailsSet: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/account/payout-details";
+    };
     readonly accountReports: {
         readonly method: "GET";
         readonly path: "/api/v1/account/reports";
+    };
+    readonly accountStart: {
+        readonly method: "GET";
+        readonly path: "/api/v1/account/start";
     };
     readonly adminAiAccountUpdate: {
         readonly method: "PATCH";
@@ -323,6 +335,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/people";
     };
+    readonly adminPersonImportNoteSettle: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/people/:code/import-notes/settle";
+    };
     readonly adminPersonPayTermSet: {
         readonly method: "PUT";
         readonly path: "/api/v1/admin/people/:code/pay-terms";
@@ -499,6 +515,22 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/pages/:pageLabel/cross-spenders";
     };
+    readonly agentCustomCards: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/custom-orders/cards";
+    };
+    readonly agentCustomOrderCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/custom-orders";
+    };
+    readonly agentCustomOrderUpdate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/custom-orders/:code";
+    };
+    readonly agentCustomOrders: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/custom-orders";
+    };
     readonly agentDatasetQuery: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/datasets/:dataset/query";
@@ -526,6 +558,10 @@ export declare const kernelOperations: {
     readonly agentFanQueueUpdate: {
         readonly method: "PATCH";
         readonly path: "/api/v1/agent/fan-queues/:queueId";
+    };
+    readonly agentFanWatch: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/team/fan-watch";
     };
     readonly agentHistoryRequestCancel: {
         readonly method: "POST";
@@ -562,6 +598,10 @@ export declare const kernelOperations: {
     readonly agentKeyCreate: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/keys";
+    };
+    readonly agentKeyIntrospect: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/keys/introspect";
     };
     readonly agentKeyList: {
         readonly method: "GET";
@@ -699,9 +739,45 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/resolve";
     };
+    readonly agentSaleContext: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/team/sale-context";
+    };
     readonly agentSearchMessages: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/search/messages";
+    };
+    readonly agentShiftReport: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/shift-reports/draft";
+    };
+    readonly agentShiftReportClaimable: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/shift-reports/claimable";
+    };
+    readonly agentShiftReportCommentSet: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/shift-reports/comment";
+    };
+    readonly agentShiftReportLineSet: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/shift-reports/line";
+    };
+    readonly agentShiftReportOffPlatformAdd: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/shift-reports/off-platform";
+    };
+    readonly agentShiftReportSubmit: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/shift-reports/submit";
+    };
+    readonly agentShiftReportsFeed: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/shift-reports";
+    };
+    readonly agentShiftReview: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/team/shift-review";
     };
     readonly agentSyncStatus: {
         readonly method: "GET";
@@ -710,6 +786,14 @@ export declare const kernelOperations: {
     readonly agentSyncWhy: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/pages/:pageLabel/sync/work";
+    };
+    readonly agentSystemCopies: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/agent/system/copies";
+    };
+    readonly agentSystemRoutines: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/agent/system/routines";
     };
     readonly agentTeamSales: {
         readonly method: "POST";
@@ -726,6 +810,10 @@ export declare const kernelOperations: {
     readonly agentThreads: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/threads";
+    };
+    readonly agentVaultAlbumQuote: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/pages/:pageLabel/vault-album-quote";
     };
     readonly aiFeatureStream: {
         readonly method: "POST";
@@ -1075,6 +1163,26 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/transactions";
     };
+    readonly customOrder: {
+        readonly method: "GET";
+        readonly path: "/api/v1/custom-orders/:code";
+    };
+    readonly customOrderAct: {
+        readonly method: "POST";
+        readonly path: "/api/v1/custom-orders/:code";
+    };
+    readonly customOrderCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/custom-orders";
+    };
+    readonly customOrdersBoard: {
+        readonly method: "GET";
+        readonly path: "/api/v1/custom-orders";
+    };
+    readonly customSaleDismiss: {
+        readonly method: "POST";
+        readonly path: "/api/v1/custom-orders/sales/:transactionRef/dismiss";
+    };
     readonly fansSearch: {
         readonly method: "GET";
         readonly path: "/api/v2/fans/search";
@@ -1335,6 +1443,14 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/ofapi/exports/:jobId/rows";
     };
+    readonly ofapiVaultListsGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/ofapi/media/vault-lists";
+    };
+    readonly ofapiVaultListsRefresh: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/ofapi/media/vault-lists/refresh";
+    };
     readonly ofapiVendorUsageRefresh: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/ofapi/vendor-usage";
@@ -1575,6 +1691,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/pages";
     };
+    readonly publicVaultUploadFile: {
+        readonly method: "GET";
+        readonly path: "/api/v1/public/vault-upload-files/:token";
+    };
     readonly reportGet: {
         readonly method: "GET";
         readonly path: "/api/v1/reports/:slug";
@@ -1586,6 +1706,38 @@ export declare const kernelOperations: {
     readonly setFanFlags: {
         readonly method: "PATCH";
         readonly path: "/api/v1/fans/:platform/:platformUserId/flags";
+    };
+    readonly shiftReport: {
+        readonly method: "GET";
+        readonly path: "/api/v1/shift-reports/:shiftId";
+    };
+    readonly shiftReportClaimable: {
+        readonly method: "GET";
+        readonly path: "/api/v1/shift-reports/:shiftId/claimable";
+    };
+    readonly shiftReportCommentSet: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/shift-reports/:shiftId/comment";
+    };
+    readonly shiftReportLineSet: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/shift-reports/:shiftId/lines/:transactionId";
+    };
+    readonly shiftReportOffPlatformAdd: {
+        readonly method: "POST";
+        readonly path: "/api/v1/shift-reports/:shiftId/off-platform";
+    };
+    readonly shiftReportOffPlatformWithdraw: {
+        readonly method: "DELETE";
+        readonly path: "/api/v1/shift-reports/:shiftId/off-platform/:offPlatformId";
+    };
+    readonly shiftReportSubmit: {
+        readonly method: "POST";
+        readonly path: "/api/v1/shift-reports/:shiftId/submit";
+    };
+    readonly shiftReportsList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/shift-reports";
     };
     readonly spenderBatch: {
         readonly method: "POST";
@@ -1659,6 +1811,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/sync/requests";
     };
+    readonly systemState: {
+        readonly method: "GET";
+        readonly path: "/api/v1/system/state";
+    };
     readonly teamAuthorship: {
         readonly method: "GET";
         readonly path: "/api/v1/team/authorship";
@@ -1682,6 +1838,10 @@ export declare const kernelOperations: {
     readonly teamGreetings: {
         readonly method: "GET";
         readonly path: "/api/v1/team/greetings";
+    };
+    readonly teamLedgerPayoutPerson: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/ledger-payouts/person";
     };
     readonly teamLedgerPayoutPrepare: {
         readonly method: "GET";

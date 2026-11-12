@@ -21,12 +21,39 @@ export declare function matterKindOfKey(key: string): string;
 export declare const MATTER_MIRROR_KINDS: readonly ["publication.draft", "publication.unknown", "ledger.sale_question", "ledger.report_post", "ledger.paid_day_changed", "custom.paid_not_delivered", "send.held", "page.login_needed", "incident.open", "extension.critical", "history.request"];
 export type MatterMirrorKind = (typeof MATTER_MIRROR_KINDS)[number];
 export declare function isMatterMirrorKind(kind: string): kind is MatterMirrorKind;
+/**
+ * The kinds Hub's server opens by its own rules (not mirrored from a list),
+ * each the one writer of its kind: an agent key opens or closes none of them.
+ */
+export declare const MATTER_SERVER_KINDS: readonly ["routine.silent", "routine.failed", "routine.empty", "copy.stale", "reporter.silent"];
+export type MatterServerKind = (typeof MATTER_SERVER_KINDS)[number];
+export declare function isMatterServerKind(kind: string): kind is MatterServerKind;
+/**
+ * Отчёт смены (package F): the kinds of the shift report's own check, the server their one writer — a shift not
+ * handed in two hours after it closed (the person's), the owner's one line of them a day later, a report handed in
+ * after the ledger paid its day (the owner's). Kept apart from MATTER_SERVER_KINDS: «Состояние» closes every open
+ * matter of those that its own pass did not find.
+ */
+export declare const SHIFT_REPORT_MATTER_KINDS: readonly ["shift.report.missing", "shift.reports.missing", "shift.report.after_paid"];
+export declare function isShiftReportMatterKind(kind: string): boolean;
+/**
+ * A newcomer's way to the first shift («Начало», package J), the kinds of its
+ * own pass (people-start-tick.ts) — apart from MATTER_SERVER_KINDS on purpose:
+ * «Состояние» closes every open matter of that list its own pass did not find.
+ * Hub's server is the one writer: an agent key opens or closes none of them.
+ */
+export declare const MATTER_PERSON_START_KINDS: readonly ["person.no_pages", "person.onboarding_stuck"];
+export type MatterPersonStartKind = (typeof MATTER_PERSON_START_KINDS)[number];
+export declare function isMatterPersonStartKind(kind: string): kind is MatterPersonStartKind;
 export declare const MATTER_STATES: readonly ["open", "closed"];
 export declare const MATTER_CLOSED_HOWS: readonly ["resolved", "withdrawn", "cause_gone"];
 export declare const MATTER_SOURCE_NAMES: readonly ["server", "agent", "ledger", "contentops", "person"];
 export declare const MATTER_OWNER_ROLE_NAMES: readonly ["owner", "team_lead", "chatter"];
-/** «Ждут вас»'s rows, in the screen's order (apps/dashboard/src/api/waiting.ts). */
-export declare const WAITING_ROW_IDS: readonly ["drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history"];
+/**
+ * «Ждут вас»'s rows, in the screen's order (apps/dashboard/src/api/waiting.ts); after them the matters no old row
+ * counts (package K): people and access, the ledger's checks, and every other kind.
+ */
+export declare const WAITING_ROW_IDS: readonly ["drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history", "people", "ledger", "other"];
 export type WaitingRowId = (typeof WAITING_ROW_IDS)[number];
 /** «Решения»'s queues, in the screen's order (apps/workboard/src/shared/decisions.ts). */
 export declare const DECISION_QUEUE_IDS: readonly ["questions", "reports", "customs", "held"];
@@ -167,16 +194,19 @@ export declare const mattersWaitingQuerySchema: z.ZodObject<{
 }, z.core.$strict>;
 export declare const mattersWaitingRowSchema: z.ZodObject<{
     id: z.ZodEnum<{
+        other: "other";
         unknown: "unknown";
         login: "login";
         drafts: "drafts";
         reports: "reports";
         held: "held";
         history: "history";
+        ledger: "ledger";
         customs: "customs";
+        people: "people";
+        extension: "extension";
         questions: "questions";
         failures: "failures";
-        extension: "extension";
     }>;
     label: z.ZodString;
     count: z.ZodNullable<z.ZodNumber>;
@@ -189,16 +219,19 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
     active: z.ZodBoolean;
     rows: z.ZodArray<z.ZodObject<{
         id: z.ZodEnum<{
+            other: "other";
             unknown: "unknown";
             login: "login";
             drafts: "drafts";
             reports: "reports";
             held: "held";
             history: "history";
+            ledger: "ledger";
             customs: "customs";
+            people: "people";
+            extension: "extension";
             questions: "questions";
             failures: "failures";
-            extension: "extension";
         }>;
         label: z.ZodString;
         count: z.ZodNullable<z.ZodNumber>;
@@ -209,16 +242,19 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     total: z.ZodNumber;
     failed: z.ZodArray<z.ZodEnum<{
+        other: "other";
         unknown: "unknown";
         login: "login";
         drafts: "drafts";
         reports: "reports";
         held: "held";
         history: "history";
+        ledger: "ledger";
         customs: "customs";
+        people: "people";
+        extension: "extension";
         questions: "questions";
         failures: "failures";
-        extension: "extension";
     }>>;
     decisions: z.ZodObject<{
         questions: z.ZodNullable<z.ZodNumber>;

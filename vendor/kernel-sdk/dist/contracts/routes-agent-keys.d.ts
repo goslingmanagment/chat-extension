@@ -49,9 +49,38 @@ export declare const agentKeyCapabilityEnum: z.ZodEnum<{
     "signin:taskindex": "signin:taskindex";
     "signin:monitor": "signin:monitor";
     "write:reports": "write:reports";
+    "write:system_state": "write:system_state";
+    "introspect:agent_keys": "introspect:agent_keys";
+    "write:customs": "write:customs";
+    "write:shift_reports": "write:shift_reports";
 }>;
 /** The sliding default; the hard ceiling lives with the repository. */
 export declare const AGENT_KEY_DEFAULT_LIFETIME_DAYS = 90;
+/**
+ * A service's own capabilities: a server's key that signs people in or asks
+ * who an agent's key is, and reads and writes nothing of the agency. A key of
+ * these alone is the one key that may have no agent (ecosystem plan §3.3:
+ * «сервисные ключи — не агентские»); every other key belongs to an agent.
+ */
+export declare const AGENT_KEY_SERVICE_CAPABILITIES: readonly ["signin:contentops", "signin:taskindex", "signin:monitor", "introspect:agent_keys"];
+/** Whether a key of these capabilities is a service's own (it may then have no agent). */
+export declare function isServiceKeyCapabilities(capabilities: readonly string[]): boolean;
+/** The agent person a key belongs to (the people registry's `person_agent_keys`). */
+export declare const agentKeyAgentSchema: z.ZodObject<{
+    code: z.ZodString;
+    displayName: z.ZodString;
+    state: z.ZodEnum<{
+        left: "left";
+        invited: "invited";
+        set_up: "set_up";
+        working: "working";
+    }>;
+}, z.core.$strict>;
+/** The key's newest call, as the plane's audit recorded it. */
+export declare const agentKeyLastCallSchema: z.ZodObject<{
+    at: z.ZodString;
+    operation: z.ZodString;
+}, z.core.$strict>;
 /**
  * Everything a listing may say about a key. `keyDigest` is absent BY DESIGN:
  * `keyPrefix` identifies a key to a human, the digest would let a leaked listing
@@ -83,6 +112,10 @@ export declare const agentKeyItemSchema: z.ZodObject<{
         "signin:taskindex": "signin:taskindex";
         "signin:monitor": "signin:monitor";
         "write:reports": "write:reports";
+        "write:system_state": "write:system_state";
+        "introspect:agent_keys": "introspect:agent_keys";
+        "write:customs": "write:customs";
+        "write:shift_reports": "write:shift_reports";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresAt: z.ZodString;
@@ -90,9 +123,24 @@ export declare const agentKeyItemSchema: z.ZodObject<{
     revokedAt: z.ZodNullable<z.ZodString>;
     lastUsedAt: z.ZodNullable<z.ZodString>;
     isActive: z.ZodBoolean;
+    agent: z.ZodNullable<z.ZodObject<{
+        code: z.ZodString;
+        displayName: z.ZodString;
+        state: z.ZodEnum<{
+            left: "left";
+            invited: "invited";
+            set_up: "set_up";
+            working: "working";
+        }>;
+    }, z.core.$strict>>;
+    lastCall: z.ZodNullable<z.ZodObject<{
+        at: z.ZodString;
+        operation: z.ZodString;
+    }, z.core.$strict>>;
 }, z.core.$strict>;
 export declare const agentKeyCreateBodySchema: z.ZodObject<{
     name: z.ZodString;
+    agentCode: z.ZodOptional<z.ZodString>;
     capabilities: z.ZodArray<z.ZodEnum<{
         "read:messages": "read:messages";
         "read:money": "read:money";
@@ -115,6 +163,10 @@ export declare const agentKeyCreateBodySchema: z.ZodObject<{
         "signin:taskindex": "signin:taskindex";
         "signin:monitor": "signin:monitor";
         "write:reports": "write:reports";
+        "write:system_state": "write:system_state";
+        "introspect:agent_keys": "introspect:agent_keys";
+        "write:customs": "write:customs";
+        "write:shift_reports": "write:shift_reports";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -147,6 +199,10 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
             "signin:taskindex": "signin:taskindex";
             "signin:monitor": "signin:monitor";
             "write:reports": "write:reports";
+            "write:system_state": "write:system_state";
+            "introspect:agent_keys": "introspect:agent_keys";
+            "write:customs": "write:customs";
+            "write:shift_reports": "write:shift_reports";
         }>>;
         pageLabels: z.ZodArray<z.ZodString>;
         expiresAt: z.ZodString;
@@ -154,6 +210,20 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
         revokedAt: z.ZodNullable<z.ZodString>;
         lastUsedAt: z.ZodNullable<z.ZodString>;
         isActive: z.ZodBoolean;
+        agent: z.ZodNullable<z.ZodObject<{
+            code: z.ZodString;
+            displayName: z.ZodString;
+            state: z.ZodEnum<{
+                left: "left";
+                invited: "invited";
+                set_up: "set_up";
+                working: "working";
+            }>;
+        }, z.core.$strict>>;
+        lastCall: z.ZodNullable<z.ZodObject<{
+            at: z.ZodString;
+            operation: z.ZodString;
+        }, z.core.$strict>>;
     }, z.core.$strict>;
 }, z.core.$strict>;
 export declare const agentKeyParamsSchema: z.ZodObject<{
@@ -189,6 +259,10 @@ export declare const agentKeyUpdateBodySchema: z.ZodObject<{
         "signin:taskindex": "signin:taskindex";
         "signin:monitor": "signin:monitor";
         "write:reports": "write:reports";
+        "write:system_state": "write:system_state";
+        "introspect:agent_keys": "introspect:agent_keys";
+        "write:customs": "write:customs";
+        "write:shift_reports": "write:shift_reports";
     }>>;
 }, z.core.$strict>;
 export declare const agentKeyRevokeResponseSchema: z.ZodObject<{
@@ -196,6 +270,97 @@ export declare const agentKeyRevokeResponseSchema: z.ZodObject<{
     revoked: z.ZodBoolean;
     revokedAt: z.ZodNullable<z.ZodString>;
 }, z.core.$strict>;
+/**
+ * «Кто этот ключ» for another service (ecosystem plan §3.3, M1.2).
+ *
+ * THE EXCHANGE: an agent sends the service (ledger, ContentOps, TaskIndex) its
+ * hub key as the bearer. The service computes `sha256(key)` (lowercase hex, the
+ * digest Hub stores) and sends ONLY that, as the bearer of its OWN key holding
+ * `introspect:agent_keys`. Hub never receives the agent's key from the service
+ * and never returns a key, a digest, a prefix, a capability or a page: only the
+ * agent's code and name, whether the key works, and when it stops.
+ *
+ * An answer holds AGENT_KEY_INTROSPECT_CACHE_SECONDS; when Hub cannot be reached
+ * (a deploy, an outage) the service keeps its last ACTIVE answer for
+ * AGENT_KEY_INTROSPECT_STALE_SECONDS after it was fetched and refuses after
+ * that. An inactive answer is never extended.
+ */
+export declare const AGENT_KEY_INTROSPECT_CACHE_SECONDS = 60;
+export declare const AGENT_KEY_INTROSPECT_STALE_SECONDS = 3600;
+export declare const agentKeyIntrospectBodySchema: z.ZodObject<{
+    keyDigest: z.ZodString;
+}, z.core.$strict>;
+export declare const agentKeyIntrospectResponseSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    cacheSeconds: z.ZodLiteral<60>;
+    staleSeconds: z.ZodLiteral<3600>;
+    active: z.ZodLiteral<true>;
+    agent: z.ZodObject<{
+        code: z.ZodString;
+        displayName: z.ZodString;
+    }, z.core.$strict>;
+    expiresAt: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    cacheSeconds: z.ZodLiteral<60>;
+    staleSeconds: z.ZodLiteral<3600>;
+    active: z.ZodLiteral<false>;
+}, z.core.$strict>], "active">;
+export declare const agentKeyIntrospectRouteSchemas: {
+    readonly agentKeyIntrospect: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: "Another service asks who an agent's hub key is (needs introspect:agent_keys): the agent's code, active or not, expiry";
+        readonly description: string;
+        readonly body: z.ZodObject<{
+            keyDigest: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                cacheSeconds: z.ZodLiteral<60>;
+                staleSeconds: z.ZodLiteral<3600>;
+                active: z.ZodLiteral<true>;
+                agent: z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                }, z.core.$strict>;
+                expiresAt: z.ZodString;
+            }, z.core.$strict>, z.ZodObject<{
+                cacheSeconds: z.ZodLiteral<60>;
+                staleSeconds: z.ZodLiteral<3600>;
+                active: z.ZodLiteral<false>;
+            }, z.core.$strict>], "active">;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+};
 export declare const agentKeyAdminRouteSchemas: {
     readonly agentKeyCreate: {
         readonly auth: {
@@ -205,6 +370,7 @@ export declare const agentKeyAdminRouteSchemas: {
         readonly summary: "Issue an agent read-plane key (returns the raw token exactly once)";
         readonly body: z.ZodObject<{
             name: z.ZodString;
+            agentCode: z.ZodOptional<z.ZodString>;
             capabilities: z.ZodArray<z.ZodEnum<{
                 "read:messages": "read:messages";
                 "read:money": "read:money";
@@ -227,6 +393,10 @@ export declare const agentKeyAdminRouteSchemas: {
                 "signin:taskindex": "signin:taskindex";
                 "signin:monitor": "signin:monitor";
                 "write:reports": "write:reports";
+                "write:system_state": "write:system_state";
+                "introspect:agent_keys": "introspect:agent_keys";
+                "write:customs": "write:customs";
+                "write:shift_reports": "write:shift_reports";
             }>>;
             pageLabels: z.ZodArray<z.ZodString>;
             expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -260,6 +430,10 @@ export declare const agentKeyAdminRouteSchemas: {
                         "signin:taskindex": "signin:taskindex";
                         "signin:monitor": "signin:monitor";
                         "write:reports": "write:reports";
+                        "write:system_state": "write:system_state";
+                        "introspect:agent_keys": "introspect:agent_keys";
+                        "write:customs": "write:customs";
+                        "write:shift_reports": "write:shift_reports";
                     }>>;
                     pageLabels: z.ZodArray<z.ZodString>;
                     expiresAt: z.ZodString;
@@ -267,6 +441,20 @@ export declare const agentKeyAdminRouteSchemas: {
                     revokedAt: z.ZodNullable<z.ZodString>;
                     lastUsedAt: z.ZodNullable<z.ZodString>;
                     isActive: z.ZodBoolean;
+                    agent: z.ZodNullable<z.ZodObject<{
+                        code: z.ZodString;
+                        displayName: z.ZodString;
+                        state: z.ZodEnum<{
+                            left: "left";
+                            invited: "invited";
+                            set_up: "set_up";
+                            working: "working";
+                        }>;
+                    }, z.core.$strict>>;
+                    lastCall: z.ZodNullable<z.ZodObject<{
+                        at: z.ZodString;
+                        operation: z.ZodString;
+                    }, z.core.$strict>>;
                 }, z.core.$strict>;
             }, z.core.$strict>;
             readonly 400: z.ZodObject<{
@@ -339,6 +527,10 @@ export declare const agentKeyAdminRouteSchemas: {
                     "signin:taskindex": "signin:taskindex";
                     "signin:monitor": "signin:monitor";
                     "write:reports": "write:reports";
+                    "write:system_state": "write:system_state";
+                    "introspect:agent_keys": "introspect:agent_keys";
+                    "write:customs": "write:customs";
+                    "write:shift_reports": "write:shift_reports";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;
@@ -346,6 +538,20 @@ export declare const agentKeyAdminRouteSchemas: {
                 revokedAt: z.ZodNullable<z.ZodString>;
                 lastUsedAt: z.ZodNullable<z.ZodString>;
                 isActive: z.ZodBoolean;
+                agent: z.ZodNullable<z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                    state: z.ZodEnum<{
+                        left: "left";
+                        invited: "invited";
+                        set_up: "set_up";
+                        working: "working";
+                    }>;
+                }, z.core.$strict>>;
+                lastCall: z.ZodNullable<z.ZodObject<{
+                    at: z.ZodString;
+                    operation: z.ZodString;
+                }, z.core.$strict>>;
             }, z.core.$strict>>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;
@@ -395,6 +601,10 @@ export declare const agentKeyAdminRouteSchemas: {
                 "signin:taskindex": "signin:taskindex";
                 "signin:monitor": "signin:monitor";
                 "write:reports": "write:reports";
+                "write:system_state": "write:system_state";
+                "introspect:agent_keys": "introspect:agent_keys";
+                "write:customs": "write:customs";
+                "write:shift_reports": "write:shift_reports";
             }>>;
         }, z.core.$strict>;
         readonly response: {
@@ -424,6 +634,10 @@ export declare const agentKeyAdminRouteSchemas: {
                     "signin:taskindex": "signin:taskindex";
                     "signin:monitor": "signin:monitor";
                     "write:reports": "write:reports";
+                    "write:system_state": "write:system_state";
+                    "introspect:agent_keys": "introspect:agent_keys";
+                    "write:customs": "write:customs";
+                    "write:shift_reports": "write:shift_reports";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;
@@ -431,6 +645,20 @@ export declare const agentKeyAdminRouteSchemas: {
                 revokedAt: z.ZodNullable<z.ZodString>;
                 lastUsedAt: z.ZodNullable<z.ZodString>;
                 isActive: z.ZodBoolean;
+                agent: z.ZodNullable<z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                    state: z.ZodEnum<{
+                        left: "left";
+                        invited: "invited";
+                        set_up: "set_up";
+                        working: "working";
+                    }>;
+                }, z.core.$strict>>;
+                lastCall: z.ZodNullable<z.ZodObject<{
+                    at: z.ZodString;
+                    operation: z.ZodString;
+                }, z.core.$strict>>;
             }, z.core.$strict>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
@@ -513,3 +741,6 @@ export type AgentKeyCreateBody = z.infer<typeof agentKeyCreateBodySchema>;
 export type AgentKeyCreateResponse = z.infer<typeof agentKeyCreateResponseSchema>;
 export type AgentKeyUpdateBody = z.infer<typeof agentKeyUpdateBodySchema>;
 export type AgentKeyRevokeResponse = z.infer<typeof agentKeyRevokeResponseSchema>;
+export type AgentKeyAgent = z.infer<typeof agentKeyAgentSchema>;
+export type AgentKeyIntrospectBody = z.infer<typeof agentKeyIntrospectBodySchema>;
+export type AgentKeyIntrospectResponse = z.infer<typeof agentKeyIntrospectResponseSchema>;

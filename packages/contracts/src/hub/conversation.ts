@@ -42,7 +42,16 @@ export const ActivityBeatRequestSchema = z.strictObject({
 });
 export type ActivityBeatRequest = z.infer<typeof ActivityBeatRequestSchema>;
 
-export const ActivityBeatResultSchema = z.object({ recorded: z.number(), serverNow: z.string() });
+export const ActivityBeatResultSchema = z.object({
+  recorded: z.number(),
+  /**
+   * 2026-11-12 (hub #1232): how many matters wait for the person now — the number on the toolbar icon (hub/matters.ts).
+   * Absent: an older hub, or the hub could not count it this minute. Read loosely: a wrong value is no number, never a
+   * failed beat.
+   */
+  matters: z.optional(z.number()),
+  serverNow: z.string(),
+});
 export type ActivityBeatResult = z.infer<typeof ActivityBeatResultSchema>;
 
 /** How long a message keeps its author «в разговоре» (hub IN_CONVERSATION_MINUTES). */

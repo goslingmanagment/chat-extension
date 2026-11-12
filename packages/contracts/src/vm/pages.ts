@@ -98,6 +98,16 @@ export interface PopupVM {
   /** «ИИ сегодня $0.26 · без лимита»: what AI cost a person without an own limit today (all pages); null — they have one, or it is not known. */
   readonly aiTodayNoLimit: string | null;
   readonly newcomersCount: number | null;
+  /**
+   * 2026-11-12 (hub #1232): «Ждут вас: 2» over «Мои смены», with the title of the longest waiting one; a click opens the
+   * list in Workboard. Absent or null — nothing waits, or the hub did not say.
+   */
+  readonly waiting?: { readonly count: number; readonly title: string | null } | null;
+  /**
+   * 2026-11-12 (hub #1225): the person's last shift is not handed in — «Мои смены» reads «Сдать смену» and opens this
+   * screen of Workboard (`/workboard/my/shifts/<id>`). Absent or null — «Мои смены» as it is.
+   */
+  readonly handIn?: string | null;
   /** Spenders, «Новые», «Клавиши ?», «Настройки». */
   readonly buttons: readonly ActionButtonVM[];
   readonly links: { readonly whatsNew: UiAction; readonly changelog: UiAction };

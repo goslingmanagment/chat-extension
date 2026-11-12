@@ -10,8 +10,9 @@
 //   the hub ends the shift there and drops «в разговоре» of this person. Best effort: a browser that dies says
 //   nothing, and the hub ends the shift after 3 silent minutes.
 // - A report of what is, never owed: nothing is journaled or repeated; a lost beat is just lost.
+// - Its answer carries how many matters wait for the person (hub #1232): the toolbar icon's number (waiting.ts).
 
-import { ACTIVITY_INSTANCE_PATTERN, ACTIVITY_LIMITS, type ActivityBeatRequest, type HubFacade } from '@cg/contracts/hub';
+import { ACTIVITY_INSTANCE_PATTERN, ACTIVITY_LIMITS, type ActivityBeatRequest, type ActivityBeatResult, type HubFacade } from '@cg/contracts/hub';
 
 import { NO_LOG, type Clock, type LogSink } from './ports';
 
@@ -85,6 +86,8 @@ export interface ActivityBeatDeps {
   /** The install's own id; one that does not fit the hub's pattern beats nothing. */
   readonly instanceId: () => string;
   readonly tabs: () => readonly BeatTab[];
+  /** The hub's answer to a beat that went: its `matters` is the toolbar icon's number (waiting.ts). */
+  readonly answered?: (result: ActivityBeatResult) => void;
   readonly log?: LogSink;
 }
 
@@ -130,7 +133,8 @@ export class ActivityBeat {
     const instanceId = this.deps.instanceId();
     if (hub === null || !this.deps.enabled() || !ACTIVITY_INSTANCE_PATTERN.test(instanceId)) return;
     try {
-      await hub.activityBeat({ instanceId, ...body });
+      const result = await hub.activityBeat({ instanceId, ...body });
+      this.deps.answered?.(result);
     } catch {
       // Lost: the next minute beats again; a lost `closed` ends the shift after the hub's 3 silent minutes.
       this.log.write({ level: 'info', scope: 'bg.activity', msg: 'beat lost', fields: { pages: body.pages.length, closed: body.closed === true } });

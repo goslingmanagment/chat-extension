@@ -174,6 +174,7 @@ export declare const chatterStatsSchema: z.ZodObject<{
         streakDays: z.ZodNumber;
         longestStreakDays: z.ZodNumber;
     }, z.core.$strip>;
+    ruleFrom: z.ZodOptional<z.ZodString>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export declare const teamChatterStatsResponseSchema: z.ZodObject<{
@@ -339,6 +340,7 @@ export declare const teamChatterStatsResponseSchema: z.ZodObject<{
             streakDays: z.ZodNumber;
             longestStreakDays: z.ZodNumber;
         }, z.core.$strip>;
+        ruleFrom: z.ZodOptional<z.ZodString>;
         serverNow: z.ZodString;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
@@ -352,6 +354,8 @@ export declare const teamShiftSalesQuerySchema: z.ZodObject<{
     until: z.ZodOptional<z.ZodString>;
     pageLabel: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
+/** Where «вне смен» shows a sale: a look-in's, the page's pot, a PPV waiting for its sender, the owner's decision, nobody's. */
+export declare const OUTSIDE_SALE_HOMES: readonly ["visit", "pot", "waiting", "decide", "nobody"];
 export declare const teamShiftSalesResponseSchema: z.ZodObject<{
     from: z.ZodString;
     to: z.ZodString;
@@ -424,14 +428,18 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
         sales: z.ZodNumber;
     }, z.core.$strip>>;
     outside: z.ZodObject<{
-        visitsNetMills: z.ZodNumber;
-        nobodyNetMills: z.ZodNumber;
         daily: z.ZodArray<z.ZodObject<{
+            potNetMills: z.ZodOptional<z.ZodNumber>;
+            waitingNetMills: z.ZodOptional<z.ZodNumber>;
+            decideNetMills: z.ZodOptional<z.ZodNumber>;
             date: z.ZodString;
             visitsNetMills: z.ZodNumber;
             nobodyNetMills: z.ZodNumber;
         }, z.core.$strip>>;
         pages: z.ZodArray<z.ZodObject<{
+            potNetMills: z.ZodOptional<z.ZodNumber>;
+            waitingNetMills: z.ZodOptional<z.ZodNumber>;
+            decideNetMills: z.ZodOptional<z.ZodNumber>;
             pageLabel: z.ZodString;
             visitsNetMills: z.ZodNumber;
             nobodyNetMills: z.ZodNumber;
@@ -448,8 +456,21 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
             }>;
             netMills: z.ZodNumber;
             visitBy: z.ZodNullable<z.ZodString>;
+            home: z.ZodOptional<z.ZodEnum<{
+                waiting: "waiting";
+                visit: "visit";
+                pot: "pot";
+                decide: "decide";
+                nobody: "nobody";
+            }>>;
         }, z.core.$strip>>;
+        potNetMills: z.ZodOptional<z.ZodNumber>;
+        waitingNetMills: z.ZodOptional<z.ZodNumber>;
+        decideNetMills: z.ZodOptional<z.ZodNumber>;
+        visitsNetMills: z.ZodNumber;
+        nobodyNetMills: z.ZodNumber;
     }, z.core.$strip>;
+    ruleFrom: z.ZodOptional<z.ZodString>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export type TeamShiftSalesQuery = z.infer<typeof teamShiftSalesQuerySchema>;

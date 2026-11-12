@@ -58,8 +58,8 @@ export declare const adminAiAccountSchema: z.ZodObject<{
             at: z.ZodString;
             source: z.ZodEnum<{
                 dashboard: "dashboard";
-                revived: "revived";
                 schedule: "schedule";
+                revived: "revived";
             }>;
         }, z.core.$strip>>;
         unknownTopUp: z.ZodBoolean;
@@ -125,8 +125,8 @@ export declare const adminAiAccountsResponseSchema: z.ZodObject<{
                 at: z.ZodString;
                 source: z.ZodEnum<{
                     dashboard: "dashboard";
-                    revived: "revived";
                     schedule: "schedule";
+                    revived: "revived";
                 }>;
             }, z.core.$strip>>;
             unknownTopUp: z.ZodBoolean;
@@ -490,8 +490,8 @@ export declare const aiAccountRouteSchemas: {
                             at: z.ZodString;
                             source: z.ZodEnum<{
                                 dashboard: "dashboard";
-                                revived: "revived";
                                 schedule: "schedule";
+                                revived: "revived";
                             }>;
                         }, z.core.$strip>>;
                         unknownTopUp: z.ZodBoolean;
@@ -612,8 +612,8 @@ export declare const aiAccountRouteSchemas: {
                             at: z.ZodString;
                             source: z.ZodEnum<{
                                 dashboard: "dashboard";
-                                revived: "revived";
                                 schedule: "schedule";
+                                revived: "revived";
                             }>;
                         }, z.core.$strip>>;
                         unknownTopUp: z.ZodBoolean;

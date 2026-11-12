@@ -107,6 +107,75 @@ export declare const teamLedgerPayoutsResponseSchema: z.ZodObject<{
         stale: z.ZodBoolean;
         lastSheetsCollectAt: z.ZodNullable<z.ZodString>;
         lastRebuildAt: z.ZodNullable<z.ZodString>;
+        debtsStale: z.ZodBoolean;
+        sheetsStale: z.ZodBoolean;
+    }, z.core.$strip>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+/** A day's state by the FIFO of payouts (the ledger's two): paid, still owed (in part or whole); none — accrued nothing. */
+export declare const LEDGER_DAY_STATES: readonly ["paid", "to_pay", "none"];
+export declare const ledgerDayStateEnum: z.ZodEnum<{
+    none: "none";
+    paid: "paid";
+    to_pay: "to_pay";
+}>;
+export declare const teamLedgerPayoutPersonQuerySchema: z.ZodObject<{
+    person: z.ZodString;
+    from: z.ZodString;
+    to: z.ZodString;
+}, z.core.$strip>;
+/**
+ * One person's pay in a window as the ledger keeps it (GET /v1/payouts/person): each day accrued with its state by the
+ * payouts, the manual postings on the debt with their memo (a bonus adds, a fine or an advance takes off), the
+ * payouts, the last payout and the debt now. Owner session only; no rate, no fix, no revenue a day was priced from.
+ */
+export declare const teamLedgerPayoutPersonResponseSchema: z.ZodObject<{
+    slug: z.ZodString;
+    name: z.ZodString;
+    from: z.ZodString;
+    to: z.ZodString;
+    accrualFrom: z.ZodString;
+    factsFrom: z.ZodNullable<z.ZodString>;
+    reportsFrom: z.ZodNullable<z.ZodString>;
+    generatedAt: z.ZodString;
+    accruedMills: z.ZodNumber;
+    paidMills: z.ZodNumber;
+    balanceMills: z.ZodNumber;
+    oldestUnpaidDate: z.ZodNullable<z.ZodString>;
+    lastPayout: z.ZodNullable<z.ZodObject<{
+        date: z.ZodString;
+        document: z.ZodNumber;
+        amountMills: z.ZodNumber;
+    }, z.core.$strip>>;
+    days: z.ZodArray<z.ZodObject<{
+        date: z.ZodString;
+        model: z.ZodString;
+        amountMills: z.ZodNumber;
+        worked: z.ZodBoolean;
+        source: z.ZodString;
+        state: z.ZodEnum<{
+            none: "none";
+            paid: "paid";
+            to_pay: "to_pay";
+        }>;
+        paidMills: z.ZodNumber;
+        unpaidMills: z.ZodNumber;
+        paidBy: z.ZodArray<z.ZodNumber>;
+    }, z.core.$strip>>;
+    adjustments: z.ZodArray<z.ZodObject<{
+        date: z.ZodString;
+        amountMills: z.ZodNumber;
+        memo: z.ZodString;
+        document: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    payouts: z.ZodArray<z.ZodObject<{
+        date: z.ZodString;
+        document: z.ZodNumber;
+        amountMills: z.ZodNumber;
+    }, z.core.$strip>>;
+    checks: z.ZodObject<{
+        stale: z.ZodBoolean;
+        lastRebuildAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -130,6 +199,8 @@ export declare const teamLedgerPayoutPrepareResponseSchema: z.ZodObject<{
         model: z.ZodNullable<z.ZodString>;
         text: z.ZodString;
         shownMills: z.ZodNumber;
+        from: z.ZodNullable<z.ZodString>;
+        to: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
     flags: z.ZodArray<z.ZodObject<{
         kind: z.ZodString;
@@ -406,6 +477,8 @@ export declare const teamLedgerQuestionsResponseSchema: z.ZodObject<{
 export type TeamLedgerPayoutsResponse = z.infer<typeof teamLedgerPayoutsResponseSchema>;
 export type TeamLedgerPayoutPrepareResponse = z.infer<typeof teamLedgerPayoutPrepareResponseSchema>;
 export type TeamLedgerPayoutPerson = z.infer<typeof teamLedgerPayoutPersonSchema>;
+export type TeamLedgerPayoutPersonResponse = z.infer<typeof teamLedgerPayoutPersonResponseSchema>;
+export type LedgerDayState = z.infer<typeof ledgerDayStateEnum>;
 export type TeamLedgerReportsQuery = z.infer<typeof teamLedgerReportsQuerySchema>;
 export type TeamLedgerReportsResponse = z.infer<typeof teamLedgerReportsResponseSchema>;
 export type TeamLedgerReportDay = z.infer<typeof teamLedgerReportDaySchema>;
@@ -479,6 +552,8 @@ export declare const teamLedgerRouteSchemas: {
                     stale: z.ZodBoolean;
                     lastSheetsCollectAt: z.ZodNullable<z.ZodString>;
                     lastRebuildAt: z.ZodNullable<z.ZodString>;
+                    debtsStale: z.ZodBoolean;
+                    sheetsStale: z.ZodBoolean;
                 }, z.core.$strip>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
@@ -539,6 +614,8 @@ export declare const teamLedgerRouteSchemas: {
                     model: z.ZodNullable<z.ZodString>;
                     text: z.ZodString;
                     shownMills: z.ZodNumber;
+                    from: z.ZodNullable<z.ZodString>;
+                    to: z.ZodNullable<z.ZodString>;
                 }, z.core.$strip>>;
                 flags: z.ZodArray<z.ZodObject<{
                     kind: z.ZodString;
@@ -553,6 +630,106 @@ export declare const teamLedgerRouteSchemas: {
                 }, z.core.$strip>>;
                 message: z.ZodNullable<z.ZodString>;
                 placeholder: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamLedgerPayoutPerson: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "One person's pay in a window from the agency ledger: days with their state, adjustments with their memo, payouts";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            person: z.ZodString;
+            from: z.ZodString;
+            to: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                slug: z.ZodString;
+                name: z.ZodString;
+                from: z.ZodString;
+                to: z.ZodString;
+                accrualFrom: z.ZodString;
+                factsFrom: z.ZodNullable<z.ZodString>;
+                reportsFrom: z.ZodNullable<z.ZodString>;
+                generatedAt: z.ZodString;
+                accruedMills: z.ZodNumber;
+                paidMills: z.ZodNumber;
+                balanceMills: z.ZodNumber;
+                oldestUnpaidDate: z.ZodNullable<z.ZodString>;
+                lastPayout: z.ZodNullable<z.ZodObject<{
+                    date: z.ZodString;
+                    document: z.ZodNumber;
+                    amountMills: z.ZodNumber;
+                }, z.core.$strip>>;
+                days: z.ZodArray<z.ZodObject<{
+                    date: z.ZodString;
+                    model: z.ZodString;
+                    amountMills: z.ZodNumber;
+                    worked: z.ZodBoolean;
+                    source: z.ZodString;
+                    state: z.ZodEnum<{
+                        none: "none";
+                        paid: "paid";
+                        to_pay: "to_pay";
+                    }>;
+                    paidMills: z.ZodNumber;
+                    unpaidMills: z.ZodNumber;
+                    paidBy: z.ZodArray<z.ZodNumber>;
+                }, z.core.$strip>>;
+                adjustments: z.ZodArray<z.ZodObject<{
+                    date: z.ZodString;
+                    amountMills: z.ZodNumber;
+                    memo: z.ZodString;
+                    document: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                payouts: z.ZodArray<z.ZodObject<{
+                    date: z.ZodString;
+                    document: z.ZodNumber;
+                    amountMills: z.ZodNumber;
+                }, z.core.$strip>>;
+                checks: z.ZodObject<{
+                    stale: z.ZodBoolean;
+                    lastRebuildAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+                serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;

@@ -386,8 +386,8 @@ export declare const publicationMediaSchema: z.ZodObject<{
     }>;
     position: z.ZodNumber;
     source: z.ZodEnum<{
-        file: "file";
         vault: "vault";
+        file: "file";
     }>;
     mediaRef: z.ZodNullable<z.ZodString>;
     fileId: z.ZodNullable<z.ZodNumber>;
@@ -405,6 +405,83 @@ export declare const publicationExtraAttachmentSchema: z.ZodObject<{
     priceMills: z.ZodNullable<z.ZodNumber>;
     subscribersOnly: z.ZodBoolean;
 }, z.core.$strip>;
+/** One file of an OnlyFans album, in the approval's order (first file first). */
+export declare const publicationAlbumFileSchema: z.ZodObject<{
+    name: z.ZodString;
+    bytes: z.ZodNumber;
+    state: z.ZodEnum<{
+        pending: "pending";
+        unknown: "unknown";
+        failed: "failed";
+        too_big: "too_big";
+        reused: "reused";
+        in_album: "in_album";
+        uploading: "uploading";
+        uploaded: "uploaded";
+        not_tried: "not_tried";
+    }>;
+    credits: z.ZodNumber;
+}, z.core.$strip>;
+/** The albums' credit account (OnlyFansAPI) as it stands now. */
+export declare const publicationAlbumAccountSchema: z.ZodObject<{
+    dailyCredits: z.ZodNumber;
+    spentToday: z.ZodNumber;
+    left: z.ZodNumber;
+    balance: z.ZodNullable<z.ZodNumber>;
+    centsPer1000: z.ZodNumber;
+}, z.core.$strip>;
+/**
+ * An OnlyFans vault album's run (null for anything else): its step, its files
+ * by outcome and the credits — the price by the estimate (the one the
+ * executor kept with the run once it started; before, the same function's
+ * price of the files as they stand) and what it spent.
+ */
+export declare const publicationAlbumRunSchema: z.ZodObject<{
+    step: z.ZodNullable<z.ZodEnum<{
+        uploads: "uploads";
+        read: "read";
+        done: "done";
+        album: "album";
+        contents: "contents";
+        add: "add";
+    }>>;
+    files: z.ZodNumber;
+    done: z.ZodNumber;
+    reused: z.ZodNumber;
+    refused: z.ZodNumber;
+    unknown: z.ZodNumber;
+    notTried: z.ZodNumber;
+    tooBig: z.ZodNumber;
+    currentFile: z.ZodNullable<z.ZodString>;
+    estimateCredits: z.ZodNumber;
+    spentCredits: z.ZodNumber;
+    stopReason: z.ZodNullable<z.ZodString>;
+    fileList: z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        bytes: z.ZodNumber;
+        state: z.ZodEnum<{
+            pending: "pending";
+            unknown: "unknown";
+            failed: "failed";
+            too_big: "too_big";
+            reused: "reused";
+            in_album: "in_album";
+            uploading: "uploading";
+            uploaded: "uploaded";
+            not_tried: "not_tried";
+        }>;
+        credits: z.ZodNumber;
+    }, z.core.$strip>>;
+    account: z.ZodNullable<z.ZodObject<{
+        dailyCredits: z.ZodNumber;
+        spentToday: z.ZodNumber;
+        left: z.ZodNumber;
+        balance: z.ZodNullable<z.ZodNumber>;
+        centsPer1000: z.ZodNumber;
+    }, z.core.$strip>>;
+    linkMaxBytes: z.ZodNumber;
+}, z.core.$strip>;
+export type PublicationAlbumRun = z.infer<typeof publicationAlbumRunSchema>;
 export declare const publicationSchema: z.ZodObject<{
     id: z.ZodNumber;
     pageLabel: z.ZodString;
@@ -466,8 +543,8 @@ export declare const publicationSchema: z.ZodObject<{
         }>;
         position: z.ZodNumber;
         source: z.ZodEnum<{
-            file: "file";
             vault: "vault";
+            file: "file";
         }>;
         mediaRef: z.ZodNullable<z.ZodString>;
         fileId: z.ZodNullable<z.ZodNumber>;
@@ -531,6 +608,51 @@ export declare const publicationSchema: z.ZodObject<{
         errorCode: z.ZodNullable<z.ZodString>;
         at: z.ZodString;
     }, z.core.$strip>>;
+    albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        step: z.ZodNullable<z.ZodEnum<{
+            uploads: "uploads";
+            read: "read";
+            done: "done";
+            album: "album";
+            contents: "contents";
+            add: "add";
+        }>>;
+        files: z.ZodNumber;
+        done: z.ZodNumber;
+        reused: z.ZodNumber;
+        refused: z.ZodNumber;
+        unknown: z.ZodNumber;
+        notTried: z.ZodNumber;
+        tooBig: z.ZodNumber;
+        currentFile: z.ZodNullable<z.ZodString>;
+        estimateCredits: z.ZodNumber;
+        spentCredits: z.ZodNumber;
+        stopReason: z.ZodNullable<z.ZodString>;
+        fileList: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            bytes: z.ZodNumber;
+            state: z.ZodEnum<{
+                pending: "pending";
+                unknown: "unknown";
+                failed: "failed";
+                too_big: "too_big";
+                reused: "reused";
+                in_album: "in_album";
+                uploading: "uploading";
+                uploaded: "uploaded";
+                not_tried: "not_tried";
+            }>;
+            credits: z.ZodNumber;
+        }, z.core.$strip>>;
+        account: z.ZodNullable<z.ZodObject<{
+            dailyCredits: z.ZodNumber;
+            spentToday: z.ZodNumber;
+            left: z.ZodNumber;
+            balance: z.ZodNullable<z.ZodNumber>;
+            centsPer1000: z.ZodNumber;
+        }, z.core.$strip>>;
+        linkMaxBytes: z.ZodNumber;
+    }, z.core.$strip>>>;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
     statusChangedAt: z.ZodString;
@@ -636,8 +758,8 @@ export declare const publicationDetailSchema: z.ZodObject<{
         }>;
         position: z.ZodNumber;
         source: z.ZodEnum<{
-            file: "file";
             vault: "vault";
+            file: "file";
         }>;
         mediaRef: z.ZodNullable<z.ZodString>;
         fileId: z.ZodNullable<z.ZodNumber>;
@@ -701,6 +823,51 @@ export declare const publicationDetailSchema: z.ZodObject<{
         errorCode: z.ZodNullable<z.ZodString>;
         at: z.ZodString;
     }, z.core.$strip>>;
+    albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        step: z.ZodNullable<z.ZodEnum<{
+            uploads: "uploads";
+            read: "read";
+            done: "done";
+            album: "album";
+            contents: "contents";
+            add: "add";
+        }>>;
+        files: z.ZodNumber;
+        done: z.ZodNumber;
+        reused: z.ZodNumber;
+        refused: z.ZodNumber;
+        unknown: z.ZodNumber;
+        notTried: z.ZodNumber;
+        tooBig: z.ZodNumber;
+        currentFile: z.ZodNullable<z.ZodString>;
+        estimateCredits: z.ZodNumber;
+        spentCredits: z.ZodNumber;
+        stopReason: z.ZodNullable<z.ZodString>;
+        fileList: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            bytes: z.ZodNumber;
+            state: z.ZodEnum<{
+                pending: "pending";
+                unknown: "unknown";
+                failed: "failed";
+                too_big: "too_big";
+                reused: "reused";
+                in_album: "in_album";
+                uploading: "uploading";
+                uploaded: "uploaded";
+                not_tried: "not_tried";
+            }>;
+            credits: z.ZodNumber;
+        }, z.core.$strip>>;
+        account: z.ZodNullable<z.ZodObject<{
+            dailyCredits: z.ZodNumber;
+            spentToday: z.ZodNumber;
+            left: z.ZodNumber;
+            balance: z.ZodNullable<z.ZodNumber>;
+            centsPer1000: z.ZodNumber;
+        }, z.core.$strip>>;
+        linkMaxBytes: z.ZodNumber;
+    }, z.core.$strip>>>;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
     statusChangedAt: z.ZodString;
@@ -852,8 +1019,8 @@ export declare const publicationListResponseSchema: z.ZodObject<{
             }>;
             position: z.ZodNumber;
             source: z.ZodEnum<{
-                file: "file";
                 vault: "vault";
+                file: "file";
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
@@ -917,6 +1084,51 @@ export declare const publicationListResponseSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            step: z.ZodNullable<z.ZodEnum<{
+                uploads: "uploads";
+                read: "read";
+                done: "done";
+                album: "album";
+                contents: "contents";
+                add: "add";
+            }>>;
+            files: z.ZodNumber;
+            done: z.ZodNumber;
+            reused: z.ZodNumber;
+            refused: z.ZodNumber;
+            unknown: z.ZodNumber;
+            notTried: z.ZodNumber;
+            tooBig: z.ZodNumber;
+            currentFile: z.ZodNullable<z.ZodString>;
+            estimateCredits: z.ZodNumber;
+            spentCredits: z.ZodNumber;
+            stopReason: z.ZodNullable<z.ZodString>;
+            fileList: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                bytes: z.ZodNumber;
+                state: z.ZodEnum<{
+                    pending: "pending";
+                    unknown: "unknown";
+                    failed: "failed";
+                    too_big: "too_big";
+                    reused: "reused";
+                    in_album: "in_album";
+                    uploading: "uploading";
+                    uploaded: "uploaded";
+                    not_tried: "not_tried";
+                }>;
+                credits: z.ZodNumber;
+            }, z.core.$strip>>;
+            account: z.ZodNullable<z.ZodObject<{
+                dailyCredits: z.ZodNumber;
+                spentToday: z.ZodNumber;
+                left: z.ZodNumber;
+                balance: z.ZodNullable<z.ZodNumber>;
+                centsPer1000: z.ZodNumber;
+            }, z.core.$strip>>;
+            linkMaxBytes: z.ZodNumber;
+        }, z.core.$strip>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -996,8 +1208,8 @@ export declare const agentPublicationChangesResponseSchema: z.ZodObject<{
             }>;
             position: z.ZodNumber;
             source: z.ZodEnum<{
-                file: "file";
                 vault: "vault";
+                file: "file";
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
@@ -1061,6 +1273,51 @@ export declare const agentPublicationChangesResponseSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            step: z.ZodNullable<z.ZodEnum<{
+                uploads: "uploads";
+                read: "read";
+                done: "done";
+                album: "album";
+                contents: "contents";
+                add: "add";
+            }>>;
+            files: z.ZodNumber;
+            done: z.ZodNumber;
+            reused: z.ZodNumber;
+            refused: z.ZodNumber;
+            unknown: z.ZodNumber;
+            notTried: z.ZodNumber;
+            tooBig: z.ZodNumber;
+            currentFile: z.ZodNullable<z.ZodString>;
+            estimateCredits: z.ZodNumber;
+            spentCredits: z.ZodNumber;
+            stopReason: z.ZodNullable<z.ZodString>;
+            fileList: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                bytes: z.ZodNumber;
+                state: z.ZodEnum<{
+                    pending: "pending";
+                    unknown: "unknown";
+                    failed: "failed";
+                    too_big: "too_big";
+                    reused: "reused";
+                    in_album: "in_album";
+                    uploading: "uploading";
+                    uploaded: "uploaded";
+                    not_tried: "not_tried";
+                }>;
+                credits: z.ZodNumber;
+            }, z.core.$strip>>;
+            account: z.ZodNullable<z.ZodObject<{
+                dailyCredits: z.ZodNumber;
+                spentToday: z.ZodNumber;
+                left: z.ZodNumber;
+                balance: z.ZodNullable<z.ZodNumber>;
+                centsPer1000: z.ZodNumber;
+            }, z.core.$strip>>;
+            linkMaxBytes: z.ZodNumber;
+        }, z.core.$strip>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -1145,8 +1402,8 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                 }>;
                 position: z.ZodNumber;
                 source: z.ZodEnum<{
-                    file: "file";
                     vault: "vault";
+                    file: "file";
                 }>;
                 mediaRef: z.ZodNullable<z.ZodString>;
                 fileId: z.ZodNullable<z.ZodNumber>;
@@ -1210,20 +1467,67 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                 errorCode: z.ZodNullable<z.ZodString>;
                 at: z.ZodString;
             }, z.core.$strip>>;
+            albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                step: z.ZodNullable<z.ZodEnum<{
+                    uploads: "uploads";
+                    read: "read";
+                    done: "done";
+                    album: "album";
+                    contents: "contents";
+                    add: "add";
+                }>>;
+                files: z.ZodNumber;
+                done: z.ZodNumber;
+                reused: z.ZodNumber;
+                refused: z.ZodNumber;
+                unknown: z.ZodNumber;
+                notTried: z.ZodNumber;
+                tooBig: z.ZodNumber;
+                currentFile: z.ZodNullable<z.ZodString>;
+                estimateCredits: z.ZodNumber;
+                spentCredits: z.ZodNumber;
+                stopReason: z.ZodNullable<z.ZodString>;
+                fileList: z.ZodArray<z.ZodObject<{
+                    name: z.ZodString;
+                    bytes: z.ZodNumber;
+                    state: z.ZodEnum<{
+                        pending: "pending";
+                        unknown: "unknown";
+                        failed: "failed";
+                        too_big: "too_big";
+                        reused: "reused";
+                        in_album: "in_album";
+                        uploading: "uploading";
+                        uploaded: "uploaded";
+                        not_tried: "not_tried";
+                    }>;
+                    credits: z.ZodNumber;
+                }, z.core.$strip>>;
+                account: z.ZodNullable<z.ZodObject<{
+                    dailyCredits: z.ZodNumber;
+                    spentToday: z.ZodNumber;
+                    left: z.ZodNumber;
+                    balance: z.ZodNullable<z.ZodNumber>;
+                    centsPer1000: z.ZodNumber;
+                }, z.core.$strip>>;
+                linkMaxBytes: z.ZodNumber;
+            }, z.core.$strip>>>;
             createdAt: z.ZodString;
             updatedAt: z.ZodString;
             statusChangedAt: z.ZodString;
         }, z.core.$strip>>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
-/** The person's answer to "unknown" (spec §8.2). */
+/** The person's answer to "unknown" (spec §8.2). A post that went out names
+ *  its id and where it is; a vault album (either platform) has no post: it
+ *  goes out with neither, and becomes published. */
 export declare const publicationResolveBodySchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     outcome: z.ZodLiteral<"went_out">;
-    state: z.ZodEnum<{
+    state: z.ZodOptional<z.ZodEnum<{
         scheduled: "scheduled";
         published: "published";
-    }>;
-    platformPostRef: z.ZodString;
+    }>>;
+    platformPostRef: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     outcome: z.ZodLiteral<"did_not_go_out">;
 }, z.core.$strict>], "outcome">;
@@ -1289,8 +1593,8 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             }>;
             position: z.ZodNumber;
             source: z.ZodEnum<{
-                file: "file";
                 vault: "vault";
+                file: "file";
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
@@ -1354,6 +1658,51 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            step: z.ZodNullable<z.ZodEnum<{
+                uploads: "uploads";
+                read: "read";
+                done: "done";
+                album: "album";
+                contents: "contents";
+                add: "add";
+            }>>;
+            files: z.ZodNumber;
+            done: z.ZodNumber;
+            reused: z.ZodNumber;
+            refused: z.ZodNumber;
+            unknown: z.ZodNumber;
+            notTried: z.ZodNumber;
+            tooBig: z.ZodNumber;
+            currentFile: z.ZodNullable<z.ZodString>;
+            estimateCredits: z.ZodNumber;
+            spentCredits: z.ZodNumber;
+            stopReason: z.ZodNullable<z.ZodString>;
+            fileList: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                bytes: z.ZodNumber;
+                state: z.ZodEnum<{
+                    pending: "pending";
+                    unknown: "unknown";
+                    failed: "failed";
+                    too_big: "too_big";
+                    reused: "reused";
+                    in_album: "in_album";
+                    uploading: "uploading";
+                    uploaded: "uploaded";
+                    not_tried: "not_tried";
+                }>;
+                credits: z.ZodNumber;
+            }, z.core.$strip>>;
+            account: z.ZodNullable<z.ZodObject<{
+                dailyCredits: z.ZodNumber;
+                spentToday: z.ZodNumber;
+                left: z.ZodNumber;
+                balance: z.ZodNullable<z.ZodNumber>;
+                centsPer1000: z.ZodNumber;
+            }, z.core.$strip>>;
+            linkMaxBytes: z.ZodNumber;
+        }, z.core.$strip>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -1419,8 +1768,8 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             }>;
             position: z.ZodNumber;
             source: z.ZodEnum<{
-                file: "file";
                 vault: "vault";
+                file: "file";
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
@@ -1484,6 +1833,51 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            step: z.ZodNullable<z.ZodEnum<{
+                uploads: "uploads";
+                read: "read";
+                done: "done";
+                album: "album";
+                contents: "contents";
+                add: "add";
+            }>>;
+            files: z.ZodNumber;
+            done: z.ZodNumber;
+            reused: z.ZodNumber;
+            refused: z.ZodNumber;
+            unknown: z.ZodNumber;
+            notTried: z.ZodNumber;
+            tooBig: z.ZodNumber;
+            currentFile: z.ZodNullable<z.ZodString>;
+            estimateCredits: z.ZodNumber;
+            spentCredits: z.ZodNumber;
+            stopReason: z.ZodNullable<z.ZodString>;
+            fileList: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                bytes: z.ZodNumber;
+                state: z.ZodEnum<{
+                    pending: "pending";
+                    unknown: "unknown";
+                    failed: "failed";
+                    too_big: "too_big";
+                    reused: "reused";
+                    in_album: "in_album";
+                    uploading: "uploading";
+                    uploaded: "uploaded";
+                    not_tried: "not_tried";
+                }>;
+                credits: z.ZodNumber;
+            }, z.core.$strip>>;
+            account: z.ZodNullable<z.ZodObject<{
+                dailyCredits: z.ZodNumber;
+                spentToday: z.ZodNumber;
+                left: z.ZodNumber;
+                balance: z.ZodNullable<z.ZodNumber>;
+                centsPer1000: z.ZodNumber;
+            }, z.core.$strip>>;
+            linkMaxBytes: z.ZodNumber;
+        }, z.core.$strip>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -1606,8 +2000,8 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
             }>;
             position: z.ZodNumber;
             source: z.ZodEnum<{
-                file: "file";
                 vault: "vault";
+                file: "file";
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
@@ -1671,6 +2065,51 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            step: z.ZodNullable<z.ZodEnum<{
+                uploads: "uploads";
+                read: "read";
+                done: "done";
+                album: "album";
+                contents: "contents";
+                add: "add";
+            }>>;
+            files: z.ZodNumber;
+            done: z.ZodNumber;
+            reused: z.ZodNumber;
+            refused: z.ZodNumber;
+            unknown: z.ZodNumber;
+            notTried: z.ZodNumber;
+            tooBig: z.ZodNumber;
+            currentFile: z.ZodNullable<z.ZodString>;
+            estimateCredits: z.ZodNumber;
+            spentCredits: z.ZodNumber;
+            stopReason: z.ZodNullable<z.ZodString>;
+            fileList: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                bytes: z.ZodNumber;
+                state: z.ZodEnum<{
+                    pending: "pending";
+                    unknown: "unknown";
+                    failed: "failed";
+                    too_big: "too_big";
+                    reused: "reused";
+                    in_album: "in_album";
+                    uploading: "uploading";
+                    uploaded: "uploaded";
+                    not_tried: "not_tried";
+                }>;
+                credits: z.ZodNumber;
+            }, z.core.$strip>>;
+            account: z.ZodNullable<z.ZodObject<{
+                dailyCredits: z.ZodNumber;
+                spentToday: z.ZodNumber;
+                left: z.ZodNumber;
+                balance: z.ZodNullable<z.ZodNumber>;
+                centsPer1000: z.ZodNumber;
+            }, z.core.$strip>>;
+            linkMaxBytes: z.ZodNumber;
+        }, z.core.$strip>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -1750,8 +2189,8 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                 }>;
                 position: z.ZodNumber;
                 source: z.ZodEnum<{
-                    file: "file";
                     vault: "vault";
+                    file: "file";
                 }>;
                 mediaRef: z.ZodNullable<z.ZodString>;
                 fileId: z.ZodNullable<z.ZodNumber>;
@@ -1815,6 +2254,51 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                 errorCode: z.ZodNullable<z.ZodString>;
                 at: z.ZodString;
             }, z.core.$strip>>;
+            albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                step: z.ZodNullable<z.ZodEnum<{
+                    uploads: "uploads";
+                    read: "read";
+                    done: "done";
+                    album: "album";
+                    contents: "contents";
+                    add: "add";
+                }>>;
+                files: z.ZodNumber;
+                done: z.ZodNumber;
+                reused: z.ZodNumber;
+                refused: z.ZodNumber;
+                unknown: z.ZodNumber;
+                notTried: z.ZodNumber;
+                tooBig: z.ZodNumber;
+                currentFile: z.ZodNullable<z.ZodString>;
+                estimateCredits: z.ZodNumber;
+                spentCredits: z.ZodNumber;
+                stopReason: z.ZodNullable<z.ZodString>;
+                fileList: z.ZodArray<z.ZodObject<{
+                    name: z.ZodString;
+                    bytes: z.ZodNumber;
+                    state: z.ZodEnum<{
+                        pending: "pending";
+                        unknown: "unknown";
+                        failed: "failed";
+                        too_big: "too_big";
+                        reused: "reused";
+                        in_album: "in_album";
+                        uploading: "uploading";
+                        uploaded: "uploaded";
+                        not_tried: "not_tried";
+                    }>;
+                    credits: z.ZodNumber;
+                }, z.core.$strip>>;
+                account: z.ZodNullable<z.ZodObject<{
+                    dailyCredits: z.ZodNumber;
+                    spentToday: z.ZodNumber;
+                    left: z.ZodNumber;
+                    balance: z.ZodNullable<z.ZodNumber>;
+                    centsPer1000: z.ZodNumber;
+                }, z.core.$strip>>;
+                linkMaxBytes: z.ZodNumber;
+            }, z.core.$strip>>>;
             createdAt: z.ZodString;
             updatedAt: z.ZodString;
             statusChangedAt: z.ZodString;
@@ -1991,8 +2475,8 @@ export declare const agentPostCommandResponseSchema: z.ZodObject<{
             }>;
             position: z.ZodNumber;
             source: z.ZodEnum<{
-                file: "file";
                 vault: "vault";
+                file: "file";
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
@@ -2056,6 +2540,51 @@ export declare const agentPostCommandResponseSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            step: z.ZodNullable<z.ZodEnum<{
+                uploads: "uploads";
+                read: "read";
+                done: "done";
+                album: "album";
+                contents: "contents";
+                add: "add";
+            }>>;
+            files: z.ZodNumber;
+            done: z.ZodNumber;
+            reused: z.ZodNumber;
+            refused: z.ZodNumber;
+            unknown: z.ZodNumber;
+            notTried: z.ZodNumber;
+            tooBig: z.ZodNumber;
+            currentFile: z.ZodNullable<z.ZodString>;
+            estimateCredits: z.ZodNumber;
+            spentCredits: z.ZodNumber;
+            stopReason: z.ZodNullable<z.ZodString>;
+            fileList: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                bytes: z.ZodNumber;
+                state: z.ZodEnum<{
+                    pending: "pending";
+                    unknown: "unknown";
+                    failed: "failed";
+                    too_big: "too_big";
+                    reused: "reused";
+                    in_album: "in_album";
+                    uploading: "uploading";
+                    uploaded: "uploaded";
+                    not_tried: "not_tried";
+                }>;
+                credits: z.ZodNumber;
+            }, z.core.$strip>>;
+            account: z.ZodNullable<z.ZodObject<{
+                dailyCredits: z.ZodNumber;
+                spentToday: z.ZodNumber;
+                left: z.ZodNumber;
+                balance: z.ZodNullable<z.ZodNumber>;
+                centsPer1000: z.ZodNumber;
+            }, z.core.$strip>>;
+            linkMaxBytes: z.ZodNumber;
+        }, z.core.$strip>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -2213,3 +2742,59 @@ export declare const agentPublicationTargetsResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export type AgentPublicationTargetsResponse = z.infer<typeof agentPublicationTargetsResponseSchema>;
+export declare const agentVaultAlbumQuoteBodySchema: z.ZodObject<{
+    title: z.ZodString;
+    albumRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    files: z.ZodArray<z.ZodObject<{
+        sha256: z.ZodString;
+        byteSize: z.ZodNumber;
+        name: z.ZodString;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+export declare const agentVaultAlbumQuoteResponseSchema: z.ZodObject<{
+    platform: z.ZodEnum<{
+        fansly: "fansly";
+        onlyfans: "onlyfans";
+        telegram: "telegram";
+    }>;
+    album: z.ZodObject<{
+        kind: z.ZodEnum<{
+            new: "new";
+            found: "found";
+            similar: "similar";
+        }>;
+        albumRef: z.ZodNullable<z.ZodString>;
+        mediaCount: z.ZodNullable<z.ZodNumber>;
+        similar: z.ZodArray<z.ZodObject<{
+            albumRef: z.ZodString;
+            title: z.ZodString;
+            mediaCount: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>>;
+        knownAt: z.ZodNullable<z.ZodString>;
+        walkRequested: z.ZodBoolean;
+    }, z.core.$strip>;
+    files: z.ZodArray<z.ZodObject<{
+        position: z.ZodNumber;
+        name: z.ZodString;
+        byteSize: z.ZodNumber;
+        credits: z.ZodNumber;
+        onPage: z.ZodBoolean;
+        tooBig: z.ZodBoolean;
+    }, z.core.$strip>>;
+    expectedOrder: z.ZodNullable<z.ZodArray<z.ZodNumber>>;
+    credits: z.ZodNumber;
+    usd: z.ZodNumber;
+    account: z.ZodNullable<z.ZodObject<{
+        dailyCredits: z.ZodNumber;
+        spentToday: z.ZodNumber;
+        left: z.ZodNumber;
+        balance: z.ZodNullable<z.ZodNumber>;
+        centsPer1000: z.ZodNumber;
+    }, z.core.$strip>>;
+    linkMaxBytes: z.ZodNullable<z.ZodNumber>;
+    sending: z.ZodObject<{
+        on: z.ZodBoolean;
+        why: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+export type AgentVaultAlbumQuoteResponse = z.infer<typeof agentVaultAlbumQuoteResponseSchema>;

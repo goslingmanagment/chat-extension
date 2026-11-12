@@ -1,4 +1,5 @@
-import { adminPeopleProposalsQuerySchema, adminPeopleProposalsResponseSchema, adminPersonCreateBodySchema, adminPersonCreateResponseSchema, adminPersonPayTermBodySchema, adminPersonProposalDecideBodySchema, adminPersonProposalDecideResponseSchema, adminPersonProposalParamsSchema, adminPersonResponseSchema, adminPersonUpdateBodySchema, agentPeopleQuerySchema, agentPeopleResponseSchema, agentPersonProposalBodySchema, agentPersonProposalResponseSchema, agentPersonProposalsQuerySchema, agentPersonProposalsResponseSchema, personCodeParamsSchema, teamPeopleResponseSchema, } from "./people";
+import { adminPeopleProposalsQuerySchema, adminPeopleProposalsResponseSchema, adminPersonCreateBodySchema, adminPersonCreateResponseSchema, adminPersonImportNoteSettleBodySchema, adminPersonPayTermBodySchema, adminPersonProposalDecideBodySchema, adminPersonProposalDecideResponseSchema, adminPersonProposalParamsSchema, adminPersonResponseSchema, adminPersonUpdateBodySchema, agentPeopleQuerySchema, agentPeopleResponseSchema, agentPersonProposalBodySchema, agentPersonProposalResponseSchema, agentPersonProposalsQuerySchema, agentPersonProposalsResponseSchema, personCodeParamsSchema, teamPeopleResponseSchema, } from "./people";
+import { accountPayoutDetailsBodySchema, accountPayoutDetailsResponseSchema, accountStartResponseSchema, } from "./person-start";
 import { errorResponseSchema } from "./primitives";
 // The people registry (people.ts): the team's list for a session, the
 // owner's card of one person with the pay terms and every write, and the
@@ -16,6 +17,22 @@ const agentErrors = {
     409: errorResponseSchema, 503: errorResponseSchema,
 };
 export const peopleRouteSchemas = {
+    accountStart: {
+        auth: { kind: "any-session" }, tags: ["client"],
+        summary: "«Начало»: the caller's own way from the invitation to the first shift, each step closed by what Hub sees",
+        description: "Workboard «Начало». The person of the session's login (null when the login is nobody's): the extension "
+            + "installed and signed in, the pages opened, the first active minute, where payouts go — the caller's own, "
+            + "never anyone else's. A narrow session (from the extension) is refused. Database only.",
+        response: { 200: accountStartResponseSchema, ...sessionErrors },
+    },
+    accountPayoutDetailsSet: {
+        auth: { kind: "any-session" }, tags: ["client"],
+        summary: "Write where the caller's own payouts go (free text; empty clears it)",
+        description: "The person of the session's login writes their own; read back by them and by the owner's card only. "
+            + "Not checked, not a wallet. Audited without the text. 409 when the login is nobody's in the registry.",
+        body: accountPayoutDetailsBodySchema,
+        response: { 200: accountPayoutDetailsResponseSchema, 400: errorResponseSchema, ...sessionErrors, 409: errorResponseSchema },
+    },
     teamPeople: {
         auth: { kind: "session" }, tags: ["admin"],
         summary: "The people of the agency, one record per person, with their logins, agent keys, working pages, schedule, rights"
@@ -32,9 +49,9 @@ export const peopleRouteSchemas = {
     },
     adminPersonCreate: {
         auth: { kind: "owner-session" }, tags: ["admin"],
-        summary: "Create a person, and with `invite` their login and invite link in the same transaction",
-        description: "A failure on any part (a taken code, login, Telegram id or tag, a missing page) leaves nothing behind. The raw "
-            + "invite token is returned exactly once.",
+        summary: "Create a person, and with `invite` their login and invite link, with `payTerms` their pay terms, in the same transaction",
+        description: "A failure on any part (a taken code, login, Telegram id or tag, a missing page or model) leaves nothing behind. "
+            + "The raw invite token is returned exactly once.",
         body: adminPersonCreateBodySchema,
         response: { 200: adminPersonCreateResponseSchema, ...ownerErrors },
     },
@@ -54,6 +71,14 @@ export const peopleRouteSchemas = {
             + "before and after.",
         params: personCodeParamsSchema,
         body: adminPersonPayTermBodySchema,
+        response: { 200: adminPersonResponseSchema, ...ownerErrors },
+    },
+    adminPersonImportNoteSettle: {
+        auth: { kind: "owner-session" }, tags: ["admin"],
+        summary: "Mark one of a person's import notes «Сверено» (or take it back): the owner looked into the disagreement",
+        description: "The note is named by its place in the list and its code; 409 when they no longer match. Audited.",
+        params: personCodeParamsSchema,
+        body: adminPersonImportNoteSettleBodySchema,
         response: { 200: adminPersonResponseSchema, ...ownerErrors },
     },
     adminPeopleProposals: {

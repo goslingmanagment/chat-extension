@@ -1797,6 +1797,10 @@ export const EN: I18nCatalog<'en'> = {
   'popup.refreshStatus': 'Refresh status',
   'popup.myShifts': 'My shifts',
   'popup.myShiftsHint': 'Your shifts and sales in Workboard. They open in a new tab.',
+  'popup.waiting': 'Waiting for you: {n}',
+  'popup.waitingHint': 'What waits for you in Workboard, the oldest first. It opens in a new tab.',
+  'popup.handIn': 'Hand in the shift',
+  'popup.handInHint': 'Your last shift is not handed in yet: its report opens in Workboard.',
   'popup.version': 'Version {v}',
 
   // ── Sign-in ──

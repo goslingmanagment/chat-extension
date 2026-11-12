@@ -363,29 +363,60 @@ function Windows({ vm }: { readonly vm: PopupVM }): JSX.Element | null {
 /**
  * «Мои смены» (2026-11-12): Workboard's «Мои смены» in a new tab, signed in by the hub's one-time link (a hub without
  * it: Workboard's plain address, the person signs in there). Under the windows, in every signed-in state, tab or not.
+ * Over it, when something waits (hub #1232), «Ждут вас: 2» with the longest waiting one's title opens the list (a
+ * chatter's is the strip over «Мои смены»); a shift not handed in (hub #1225) turns the button into «Сдать смену»,
+ * which opens that shift's screen.
  */
-function MyShifts(): JSX.Element {
+function MyShifts({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'waiting' | 'shifts' | null>(null);
+  const waiting = vm.waiting ?? null;
+  const handIn = vm.handIn ?? null;
+  const open = (which: 'waiting' | 'shifts', next: string | null): void => {
+    setBusy(which);
+    void act({ type: 'Navigate', to: next === null ? { kind: 'workboard' } : { kind: 'workboard', next } }).finally(() => setBusy(null));
+  };
+  // Each button gets its own mark: one vnode is never drawn twice.
+  const out = (): JSX.Element => (
+    <span class="pg-popup__key" aria-hidden="true">
+      <Kbd>↗</Kbd>
+    </span>
+  );
   return (
-    <div class="pg-popup__btns">
-      <Button
-        label={i18n.t('popup.myShifts')}
-        variant="line"
-        busy={busy}
-        tooltip={i18n.t('popup.myShiftsHint')}
-        trailing={
-          <span class="pg-popup__key" aria-hidden="true">
-            <Kbd>↗</Kbd>
-          </span>
-        }
-        onClick={() => {
-          setBusy(true);
-          void act({ type: 'Navigate', to: { kind: 'workboard' } }).finally(() => setBusy(false));
-        }}
-      />
-    </div>
+    <>
+      {waiting === null ? null : (
+        <div class="pg-popup__btns pg-popup__waiting" data-pg-waiting={waiting.count}>
+          <Button
+            label={i18n.t('popup.waiting', { n: waiting.count })}
+            variant="line"
+            busy={busy === 'waiting'}
+            tooltip={i18n.t('popup.waitingHint')}
+            trailing={
+              <>
+                {waiting.title === null ? null : (
+                  <span class="pg-popup__waiting-t" title={waiting.title}>
+                    {waiting.title}
+                  </span>
+                )}
+                {out()}
+              </>
+            }
+            onClick={() => open('waiting', null)}
+          />
+        </div>
+      )}
+      <div class="pg-popup__btns">
+        <Button
+          label={i18n.t(handIn === null ? 'popup.myShifts' : 'popup.handIn')}
+          variant="line"
+          busy={busy === 'shifts'}
+          tooltip={i18n.t(handIn === null ? 'popup.myShiftsHint' : 'popup.handInHint')}
+          trailing={out()}
+          onClick={() => open('shifts', handIn)}
+        />
+      </div>
+    </>
   );
 }
 
@@ -474,7 +505,7 @@ export function Popup(): JSX.Element {
           <Stage vm={vm} />
           <Facts vm={vm} />
           <Windows vm={vm} />
-          <MyShifts />
+          <MyShifts vm={vm} />
         </>
       )}
       <SiteSwitchError />

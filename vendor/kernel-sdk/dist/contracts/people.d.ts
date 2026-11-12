@@ -27,8 +27,14 @@ export declare const PERSON_KINDS: readonly ["human", "agent", "service"];
 export declare const PERSON_ROLES: readonly ["owner", "team_lead", "chatter", "content_manager", "contractor", "agent", "service"];
 /** invited → set_up (оформлен) → working → left. */
 export declare const PERSON_STATES: readonly ["invited", "set_up", "working", "left"];
-/** Narrow rights beside the role. customs_lead — «ведёт кастомы». */
-export declare const PERSON_RIGHTS: readonly ["customs_lead"];
+/**
+ * Narrow rights beside the role. customs_lead — «ведёт кастомы»; records_customs — «записывает кастомы в
+ * системе»: the person gets the custom checks' matters (an unrecorded custom, «отдайте фану»), off by default;
+ * submits_shift — «сдаёт смену в системе»: the person's switch of the shift report in Hub (ecosystem package F;
+ * off — «Мои смены» as before); sees_own_pay — «видит свои деньги»: the person's switch of «Мои деньги» on «Мои
+ * смены» (ecosystem package H1; off — the screen as before). Never anyone's rates.
+ */
+export declare const PERSON_RIGHTS: readonly ["customs_lead", "records_customs", "submits_shift", "sees_own_pay"];
 export declare const PERSON_WEEKDAYS: readonly ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 /** Where a record came from: the owner's screen, the one-off import, an agent's accepted proposal. */
 export declare const PERSON_ORIGINS: readonly ["owner", "import", "proposal"];
@@ -62,6 +68,9 @@ export declare const personStateEnum: z.ZodEnum<{
 }>;
 export declare const personRightEnum: z.ZodEnum<{
     customs_lead: "customs_lead";
+    records_customs: "records_customs";
+    submits_shift: "submits_shift";
+    sees_own_pay: "sees_own_pay";
 }>;
 export declare const personWeekdayEnum: z.ZodEnum<{
     mon: "mon";
@@ -127,6 +136,7 @@ export declare const personLoginSchema: z.ZodObject<{
         disabled: "disabled";
         invited: "invited";
     }>;
+    lastSeenAt: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
 export declare const personAgentKeySchema: z.ZodObject<{
     agentKeyId: z.ZodNumber;
@@ -150,6 +160,9 @@ export declare const personWorkingPageSchema: z.ZodObject<{
 export declare const personRightSchema: z.ZodObject<{
     right: z.ZodEnum<{
         customs_lead: "customs_lead";
+        records_customs: "records_customs";
+        submits_shift: "submits_shift";
+        sees_own_pay: "sees_own_pay";
     }>;
     grantedAt: z.ZodString;
 }, z.core.$strip>;
@@ -162,6 +175,7 @@ export declare const personOnboardingStepSchema: z.ZodObject<{
 export declare const personImportNoteSchema: z.ZodObject<{
     code: z.ZodString;
     text: z.ZodString;
+    settledAt: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
 export declare const personTelegramSchema: z.ZodObject<{
     userId: z.ZodNullable<z.ZodNumber>;
@@ -212,6 +226,7 @@ export declare const personSchema: z.ZodObject<{
             disabled: "disabled";
             invited: "invited";
         }>;
+        lastSeenAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
     agentKeys: z.ZodArray<z.ZodObject<{
         agentKeyId: z.ZodNumber;
@@ -277,6 +292,9 @@ export declare const personSchema: z.ZodObject<{
     rights: z.ZodArray<z.ZodObject<{
         right: z.ZodEnum<{
             customs_lead: "customs_lead";
+            records_customs: "records_customs";
+            submits_shift: "submits_shift";
+            sees_own_pay: "sees_own_pay";
         }>;
         grantedAt: z.ZodString;
     }, z.core.$strip>>;
@@ -289,6 +307,7 @@ export declare const personSchema: z.ZodObject<{
     importNotes: z.ZodArray<z.ZodObject<{
         code: z.ZodString;
         text: z.ZodString;
+        settledAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
     origin: z.ZodEnum<{
         owner: "owner";
@@ -342,6 +361,13 @@ export declare const personInviteInputSchema: z.ZodObject<{
     pageLabels: z.ZodArray<z.ZodString>;
     expiresInHours: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strip>;
+export declare const adminPersonPayTermBodySchema: z.ZodObject<{
+    modelSlug: z.ZodString;
+    validFrom: z.ZodString;
+    shareBasisPoints: z.ZodNumber;
+    fixPerShiftMills: z.ZodNumber;
+    note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+}, z.core.$strip>;
 export declare const adminPersonCreateBodySchema: z.ZodObject<{
     state: z.ZodOptional<z.ZodEnum<{
         left: "left";
@@ -375,6 +401,9 @@ export declare const adminPersonCreateBodySchema: z.ZodObject<{
     }, z.core.$strip>>;
     rights: z.ZodOptional<z.ZodArray<z.ZodEnum<{
         customs_lead: "customs_lead";
+        records_customs: "records_customs";
+        submits_shift: "submits_shift";
+        sees_own_pay: "sees_own_pay";
     }>>>;
     onboarding: z.ZodOptional<z.ZodArray<z.ZodObject<{
         step: z.ZodString;
@@ -399,6 +428,13 @@ export declare const adminPersonCreateBodySchema: z.ZodObject<{
         pageLabels: z.ZodArray<z.ZodString>;
         expiresInHours: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strip>>;
+    payTerms: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        modelSlug: z.ZodString;
+        validFrom: z.ZodString;
+        shareBasisPoints: z.ZodNumber;
+        fixPerShiftMills: z.ZodNumber;
+        note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    }, z.core.$strip>>>;
     displayName: z.ZodString;
     role: z.ZodEnum<{
         owner: "owner";
@@ -459,6 +495,9 @@ export declare const adminPersonUpdateBodySchema: z.ZodObject<{
     }, z.core.$strip>>;
     rights: z.ZodOptional<z.ZodArray<z.ZodEnum<{
         customs_lead: "customs_lead";
+        records_customs: "records_customs";
+        submits_shift: "submits_shift";
+        sees_own_pay: "sees_own_pay";
     }>>>;
     onboarding: z.ZodOptional<z.ZodArray<z.ZodObject<{
         step: z.ZodString;
@@ -475,14 +514,13 @@ export declare const adminPersonUpdateBodySchema: z.ZodObject<{
         remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
-export declare const adminPersonPayTermBodySchema: z.ZodObject<{
-    modelSlug: z.ZodString;
-    validFrom: z.ZodString;
-    shareBasisPoints: z.ZodNumber;
-    fixPerShiftMills: z.ZodNumber;
-    note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+/** «Сверено» on one import note of a person (or taken back): the note by its place in the list and its code. */
+export declare const adminPersonImportNoteSettleBodySchema: z.ZodObject<{
+    index: z.ZodNumber;
+    code: z.ZodString;
+    settled: z.ZodBoolean;
 }, z.core.$strip>;
-/** What a proposal changes: the owner's edit of an existing person, or a new person (never an invitation). */
+/** What a proposal changes: the owner's edit of an existing person, or a new person (never an invitation, never pay terms). */
 export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     kind: z.ZodLiteral<"update">;
     personCode: z.ZodString;
@@ -529,6 +567,9 @@ export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodO
         }, z.core.$strip>>;
         rights: z.ZodOptional<z.ZodArray<z.ZodEnum<{
             customs_lead: "customs_lead";
+            records_customs: "records_customs";
+            submits_shift: "submits_shift";
+            sees_own_pay: "sees_own_pay";
         }>>>;
         onboarding: z.ZodOptional<z.ZodArray<z.ZodObject<{
             step: z.ZodString;
@@ -581,6 +622,15 @@ export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodO
             service: "service";
             content_manager: "content_manager";
         }>;
+        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        logins: z.ZodOptional<z.ZodObject<{
+            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+        }, z.core.$strip>>;
+        agentKeys: z.ZodOptional<z.ZodObject<{
+            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+        }, z.core.$strip>>;
         schedule: z.ZodOptional<z.ZodObject<{
             pageLabel: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             from: z.ZodNullable<z.ZodString>;
@@ -598,17 +648,11 @@ export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodO
                 }>>>>;
             }, z.core.$strip>>;
         }, z.core.$strip>>;
-        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        logins: z.ZodOptional<z.ZodObject<{
-            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-        }, z.core.$strip>>;
-        agentKeys: z.ZodOptional<z.ZodObject<{
-            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-        }, z.core.$strip>>;
         rights: z.ZodOptional<z.ZodArray<z.ZodEnum<{
             customs_lead: "customs_lead";
+            records_customs: "records_customs";
+            submits_shift: "submits_shift";
+            sees_own_pay: "sees_own_pay";
         }>>>;
         workingPageLabels: z.ZodOptional<z.ZodArray<z.ZodString>>;
     }, z.core.$strip>;
@@ -659,6 +703,9 @@ export declare const agentPersonProposalBodySchema: z.ZodDiscriminatedUnion<[z.Z
         }, z.core.$strip>>;
         rights: z.ZodOptional<z.ZodArray<z.ZodEnum<{
             customs_lead: "customs_lead";
+            records_customs: "records_customs";
+            submits_shift: "submits_shift";
+            sees_own_pay: "sees_own_pay";
         }>>>;
         onboarding: z.ZodOptional<z.ZodArray<z.ZodObject<{
             step: z.ZodString;
@@ -714,6 +761,15 @@ export declare const agentPersonProposalBodySchema: z.ZodDiscriminatedUnion<[z.Z
             service: "service";
             content_manager: "content_manager";
         }>;
+        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        logins: z.ZodOptional<z.ZodObject<{
+            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+        }, z.core.$strip>>;
+        agentKeys: z.ZodOptional<z.ZodObject<{
+            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+        }, z.core.$strip>>;
         schedule: z.ZodOptional<z.ZodObject<{
             pageLabel: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             from: z.ZodNullable<z.ZodString>;
@@ -731,17 +787,11 @@ export declare const agentPersonProposalBodySchema: z.ZodDiscriminatedUnion<[z.Z
                 }>>>>;
             }, z.core.$strip>>;
         }, z.core.$strip>>;
-        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        logins: z.ZodOptional<z.ZodObject<{
-            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-        }, z.core.$strip>>;
-        agentKeys: z.ZodOptional<z.ZodObject<{
-            add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-            remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
-        }, z.core.$strip>>;
         rights: z.ZodOptional<z.ZodArray<z.ZodEnum<{
             customs_lead: "customs_lead";
+            records_customs: "records_customs";
+            submits_shift: "submits_shift";
+            sees_own_pay: "sees_own_pay";
         }>>>;
         workingPageLabels: z.ZodOptional<z.ZodArray<z.ZodString>>;
     }, z.core.$strip>;
@@ -834,6 +884,7 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
                 disabled: "disabled";
                 invited: "invited";
             }>;
+            lastSeenAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         agentKeys: z.ZodArray<z.ZodObject<{
             agentKeyId: z.ZodNumber;
@@ -899,6 +950,9 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
         rights: z.ZodArray<z.ZodObject<{
             right: z.ZodEnum<{
                 customs_lead: "customs_lead";
+                records_customs: "records_customs";
+                submits_shift: "submits_shift";
+                sees_own_pay: "sees_own_pay";
             }>;
             grantedAt: z.ZodString;
         }, z.core.$strip>>;
@@ -911,6 +965,7 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
         importNotes: z.ZodArray<z.ZodObject<{
             code: z.ZodString;
             text: z.ZodString;
+            settledAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
@@ -935,6 +990,7 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
             disabled: "disabled";
             invited: "invited";
         }>;
+        lastSeenAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -983,6 +1039,7 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
                 disabled: "disabled";
                 invited: "invited";
             }>;
+            lastSeenAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         agentKeys: z.ZodArray<z.ZodObject<{
             agentKeyId: z.ZodNumber;
@@ -1048,6 +1105,9 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
         rights: z.ZodArray<z.ZodObject<{
             right: z.ZodEnum<{
                 customs_lead: "customs_lead";
+                records_customs: "records_customs";
+                submits_shift: "submits_shift";
+                sees_own_pay: "sees_own_pay";
             }>;
             grantedAt: z.ZodString;
         }, z.core.$strip>>;
@@ -1060,6 +1120,7 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
         importNotes: z.ZodArray<z.ZodObject<{
             code: z.ZodString;
             text: z.ZodString;
+            settledAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
@@ -1123,6 +1184,54 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
         createdAt: z.ZodString;
         decidedAt: z.ZodNullable<z.ZodString>;
         decisionNote: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    start: z.ZodNullable<z.ZodObject<{
+        newcomer: z.ZodBoolean;
+        signedUp: z.ZodBoolean;
+        steps: z.ZodArray<z.ZodObject<{
+            step: z.ZodEnum<{
+                pages: "pages";
+                install: "install";
+                extension: "extension";
+                activity: "activity";
+                payout: "payout";
+            }>;
+            done: z.ZodBoolean;
+            doneAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        done: z.ZodNumber;
+        total: z.ZodNumber;
+        current: z.ZodNullable<z.ZodEnum<{
+            pages: "pages";
+            install: "install";
+            extension: "extension";
+            activity: "activity";
+            payout: "payout";
+        }>>;
+        since: z.ZodNullable<z.ZodString>;
+        stuck: z.ZodBoolean;
+        extension: z.ZodNullable<z.ZodObject<{
+            label: z.ZodString;
+            signedInAt: z.ZodString;
+            active: z.ZodBoolean;
+        }, z.core.$strip>>;
+        pages: z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            platform: z.ZodEnum<{
+                fansly: "fansly";
+                onlyfans: "onlyfans";
+                telegram: "telegram";
+            }>;
+            modelName: z.ZodString;
+        }, z.core.$strip>>;
+        firstActivity: z.ZodNullable<z.ZodObject<{
+            at: z.ZodString;
+            pageLabel: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    payoutDetails: z.ZodNullable<z.ZodObject<{
+        text: z.ZodString;
+        updatedAt: z.ZodString;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -1171,6 +1280,7 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
                 disabled: "disabled";
                 invited: "invited";
             }>;
+            lastSeenAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         agentKeys: z.ZodArray<z.ZodObject<{
             agentKeyId: z.ZodNumber;
@@ -1236,6 +1346,9 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
         rights: z.ZodArray<z.ZodObject<{
             right: z.ZodEnum<{
                 customs_lead: "customs_lead";
+                records_customs: "records_customs";
+                submits_shift: "submits_shift";
+                sees_own_pay: "sees_own_pay";
             }>;
             grantedAt: z.ZodString;
         }, z.core.$strip>>;
@@ -1248,6 +1361,7 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
         importNotes: z.ZodArray<z.ZodObject<{
             code: z.ZodString;
             text: z.ZodString;
+            settledAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
@@ -1311,6 +1425,54 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
         createdAt: z.ZodString;
         decidedAt: z.ZodNullable<z.ZodString>;
         decisionNote: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    start: z.ZodNullable<z.ZodObject<{
+        newcomer: z.ZodBoolean;
+        signedUp: z.ZodBoolean;
+        steps: z.ZodArray<z.ZodObject<{
+            step: z.ZodEnum<{
+                pages: "pages";
+                install: "install";
+                extension: "extension";
+                activity: "activity";
+                payout: "payout";
+            }>;
+            done: z.ZodBoolean;
+            doneAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        done: z.ZodNumber;
+        total: z.ZodNumber;
+        current: z.ZodNullable<z.ZodEnum<{
+            pages: "pages";
+            install: "install";
+            extension: "extension";
+            activity: "activity";
+            payout: "payout";
+        }>>;
+        since: z.ZodNullable<z.ZodString>;
+        stuck: z.ZodBoolean;
+        extension: z.ZodNullable<z.ZodObject<{
+            label: z.ZodString;
+            signedInAt: z.ZodString;
+            active: z.ZodBoolean;
+        }, z.core.$strip>>;
+        pages: z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            platform: z.ZodEnum<{
+                fansly: "fansly";
+                onlyfans: "onlyfans";
+                telegram: "telegram";
+            }>;
+            modelName: z.ZodString;
+        }, z.core.$strip>>;
+        firstActivity: z.ZodNullable<z.ZodObject<{
+            at: z.ZodString;
+            pageLabel: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    payoutDetails: z.ZodNullable<z.ZodObject<{
+        text: z.ZodString;
+        updatedAt: z.ZodString;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
     invite: z.ZodNullable<z.ZodObject<{
@@ -1415,6 +1577,7 @@ export declare const adminPersonProposalDecideResponseSchema: z.ZodObject<{
                 disabled: "disabled";
                 invited: "invited";
             }>;
+            lastSeenAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         agentKeys: z.ZodArray<z.ZodObject<{
             agentKeyId: z.ZodNumber;
@@ -1480,6 +1643,9 @@ export declare const adminPersonProposalDecideResponseSchema: z.ZodObject<{
         rights: z.ZodArray<z.ZodObject<{
             right: z.ZodEnum<{
                 customs_lead: "customs_lead";
+                records_customs: "records_customs";
+                submits_shift: "submits_shift";
+                sees_own_pay: "sees_own_pay";
             }>;
             grantedAt: z.ZodString;
         }, z.core.$strip>>;
@@ -1492,6 +1658,7 @@ export declare const adminPersonProposalDecideResponseSchema: z.ZodObject<{
         importNotes: z.ZodArray<z.ZodObject<{
             code: z.ZodString;
             text: z.ZodString;
+            settledAt: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
@@ -1593,6 +1760,9 @@ export declare const agentPersonSchema: z.ZodObject<{
     }, z.core.$strip>>;
     rights: z.ZodArray<z.ZodEnum<{
         customs_lead: "customs_lead";
+        records_customs: "records_customs";
+        submits_shift: "submits_shift";
+        sees_own_pay: "sees_own_pay";
     }>>;
     updatedAt: z.ZodString;
     payTerms: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1695,6 +1865,9 @@ export declare const agentPeopleResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
         rights: z.ZodArray<z.ZodEnum<{
             customs_lead: "customs_lead";
+            records_customs: "records_customs";
+            submits_shift: "submits_shift";
+            sees_own_pay: "sees_own_pay";
         }>>;
         updatedAt: z.ZodString;
         payTerms: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1797,6 +1970,8 @@ export type PersonScheduleInput = z.infer<typeof personScheduleInputSchema>;
 export type AdminPersonCreateBody = z.infer<typeof adminPersonCreateBodySchema>;
 export type AdminPersonUpdateBody = z.infer<typeof adminPersonUpdateBodySchema>;
 export type AdminPersonPayTermBody = z.infer<typeof adminPersonPayTermBodySchema>;
+export type AdminPersonImportNoteSettleBody = z.infer<typeof adminPersonImportNoteSettleBodySchema>;
+export type PersonImportNote = z.infer<typeof personImportNoteSchema>;
 export type PersonProposalChange = z.infer<typeof personProposalChangeSchema>;
 export type AgentPersonProposalBody = z.infer<typeof agentPersonProposalBodySchema>;
 export type AgentPerson = z.infer<typeof agentPersonSchema>;

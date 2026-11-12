@@ -17,7 +17,174 @@ export declare const ofapiMediaUploadSchema: z.ZodObject<{
     maxCredits: z.ZodNumber;
     dryRun: z.ZodDefault<z.ZodBoolean>;
 }, z.core.$strict>;
+/** An OnlyFans page's vault lists as Hub last walked them (0394), and its walk state. */
+export declare const ofapiVaultListsWireSchema: z.ZodObject<{
+    pageId: z.ZodNumber;
+    lists: z.ZodArray<z.ZodObject<{
+        listRef: z.ZodString;
+        name: z.ZodString;
+        type: z.ZodString;
+        mediaCount: z.ZodNullable<z.ZodNumber>;
+        firstSeenAt: z.ZodString;
+        lastSeenAt: z.ZodString;
+        missingSince: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    walk: z.ZodObject<{
+        requestedAt: z.ZodNullable<z.ZodString>;
+        completedAt: z.ZodNullable<z.ZodString>;
+        completedRequests: z.ZodNullable<z.ZodNumber>;
+        failedAt: z.ZodNullable<z.ZodString>;
+        failure: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+export type OfapiVaultListsWire = z.infer<typeof ofapiVaultListsWireSchema>;
 export declare const ofapiMediaRouteSchemas: {
+    readonly ofapiVaultListsGet: {
+        readonly auth: {
+            readonly kind: "session";
+        };
+        readonly tags: readonly ["ops"];
+        readonly summary: "An OnlyFans page's vault lists (albums) as Hub last walked them, and the walk's state";
+        readonly querystring: z.ZodObject<{
+            pageId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageId: z.ZodNumber;
+                lists: z.ZodArray<z.ZodObject<{
+                    listRef: z.ZodString;
+                    name: z.ZodString;
+                    type: z.ZodString;
+                    mediaCount: z.ZodNullable<z.ZodNumber>;
+                    firstSeenAt: z.ZodString;
+                    lastSeenAt: z.ZodString;
+                    missingSince: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                walk: z.ZodObject<{
+                    requestedAt: z.ZodNullable<z.ZodString>;
+                    completedAt: z.ZodNullable<z.ZodString>;
+                    completedRequests: z.ZodNullable<z.ZodNumber>;
+                    failedAt: z.ZodNullable<z.ZodString>;
+                    failure: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly ofapiVaultListsRefresh: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["ops"];
+        readonly summary: "Ask for a walk of an OnlyFans page's vault lists (reads only, at most 12 requests); the minutely job answers it";
+        readonly body: z.ZodObject<{
+            pageId: z.ZodNumber;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageId: z.ZodNumber;
+                lists: z.ZodArray<z.ZodObject<{
+                    listRef: z.ZodString;
+                    name: z.ZodString;
+                    type: z.ZodString;
+                    mediaCount: z.ZodNullable<z.ZodNumber>;
+                    firstSeenAt: z.ZodString;
+                    lastSeenAt: z.ZodString;
+                    missingSince: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                walk: z.ZodObject<{
+                    requestedAt: z.ZodNullable<z.ZodString>;
+                    completedAt: z.ZodNullable<z.ZodString>;
+                    completedRequests: z.ZodNullable<z.ZodNumber>;
+                    failedAt: z.ZodNullable<z.ZodString>;
+                    failure: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+        };
+    };
     readonly ofapiMediaUploadResume: {
         readonly auth: {
             readonly kind: "owner-session";

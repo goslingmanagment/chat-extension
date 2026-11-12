@@ -49,12 +49,64 @@ const MIRROR_KIND_SET = new Set(MATTER_MIRROR_KINDS);
 export function isMatterMirrorKind(kind) {
     return MIRROR_KIND_SET.has(kind);
 }
+/**
+ * The kinds Hub's server opens by its own rules (not mirrored from a list),
+ * each the one writer of its kind: an agent key opens or closes none of them.
+ */
+export const MATTER_SERVER_KINDS = [
+    /** A routine with no run for twice its period and ten minutes («Состояние», package P). */
+    "routine.silent",
+    /** A routine that failed twice in a row. */
+    "routine.failed",
+    /** A routine whose input stayed empty longer than its reporter's threshold. */
+    "routine.empty",
+    /** A copy older than 36 hours. */
+    "copy.stale",
+    /** A reporter (the Mac's) silent for 30 minutes inside its hours. */
+    "reporter.silent",
+];
+const SERVER_KIND_SET = new Set(MATTER_SERVER_KINDS);
+export function isMatterServerKind(kind) {
+    return SERVER_KIND_SET.has(kind);
+}
+/**
+ * Отчёт смены (package F): the kinds of the shift report's own check, the server their one writer — a shift not
+ * handed in two hours after it closed (the person's), the owner's one line of them a day later, a report handed in
+ * after the ledger paid its day (the owner's). Kept apart from MATTER_SERVER_KINDS: «Состояние» closes every open
+ * matter of those that its own pass did not find.
+ */
+export const SHIFT_REPORT_MATTER_KINDS = ["shift.report.missing", "shift.reports.missing", "shift.report.after_paid"];
+const SHIFT_REPORT_KIND_SET = new Set(SHIFT_REPORT_MATTER_KINDS);
+export function isShiftReportMatterKind(kind) {
+    return SHIFT_REPORT_KIND_SET.has(kind);
+}
+/**
+ * A newcomer's way to the first shift («Начало», package J), the kinds of its
+ * own pass (people-start-tick.ts) — apart from MATTER_SERVER_KINDS on purpose:
+ * «Состояние» closes every open matter of that list its own pass did not find.
+ * Hub's server is the one writer: an agent key opens or closes none of them.
+ */
+export const MATTER_PERSON_START_KINDS = [
+    /** A newcomer with no page opened to their login: the owner assigns one. */
+    "person.no_pages",
+    /** A newcomer on the same step of «Начало» for 48 hours (or the invitation not opened for as long). */
+    "person.onboarding_stuck",
+];
+const PERSON_START_KIND_SET = new Set(MATTER_PERSON_START_KINDS);
+export function isMatterPersonStartKind(kind) {
+    return PERSON_START_KIND_SET.has(kind);
+}
 export const MATTER_STATES = ["open", "closed"];
 export const MATTER_CLOSED_HOWS = ["resolved", "withdrawn", "cause_gone"];
 export const MATTER_SOURCE_NAMES = ["server", "agent", "ledger", "contentops", "person"];
 export const MATTER_OWNER_ROLE_NAMES = ["owner", "team_lead", "chatter"];
-/** «Ждут вас»'s rows, in the screen's order (apps/dashboard/src/api/waiting.ts). */
-export const WAITING_ROW_IDS = ["drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history"];
+/**
+ * «Ждут вас»'s rows, in the screen's order (apps/dashboard/src/api/waiting.ts); after them the matters no old row
+ * counts (package K): people and access, the ledger's checks, and every other kind.
+ */
+export const WAITING_ROW_IDS = [
+    "drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history", "people", "ledger", "other",
+];
 /** «Решения»'s queues, in the screen's order (apps/workboard/src/shared/decisions.ts). */
 export const DECISION_QUEUE_IDS = ["questions", "reports", "customs", "held"];
 const username = z.string().trim().min(1).max(64);

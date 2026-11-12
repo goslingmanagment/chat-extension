@@ -20,11 +20,17 @@ export * from "./fan-queues";
 export * from "./routes-fan-queues";
 // Дела: what waits for a person, by reason key (package D), spread by routes.ts.
 export * from "./matters";
+export * from "./matter-checks";
 export * from "./routes-matters";
 // Agent reports: named markdown pages an agent key publishes (package O), spread by routes.ts.
 export * from "./agent-reports";
 export * from "./routes-agent-reports";
+// Заказ кастома (package I), spread by routes.ts.
+export * from "./custom-orders";
+export * from "./custom-order-rules";
+export * from "./routes-custom-orders";
 export * from "./agent-team";
+export * from "./agent-doors";
 // «Рассылки» kept by Hub (outreach-store-v1), spread by routes.ts.
 export * from "./outreach";
 export * from "./routes-outreach";
@@ -77,11 +83,19 @@ export * from "./routes-shift-review";
 export * from "./routes-team-ledger";
 // The chatter's own shift reports from the agency ledger (`GET /api/v1/account/reports`), spread by routes.ts.
 export * from "./routes-account-reports";
+// «Мои деньги»: the chatter's own pay behind the person's switch (`GET /api/v1/account/pay`), spread by routes.ts.
+export * from "./routes-account-pay";
 // Its quality numbers, one definition for the review's screen and «Смены» (`teamChatterNumbers`).
 export * from "./shift-review-rules";
+export * from "./shift-review-audit";
 // The people registry (team list, the owner's card and writes, the agent feed and proposals), spread by routes.ts.
 export * from "./people";
+export * from "./person-start";
 export * from "./routes-people";
+// Система → «Состояние»: the routines and copies of every place (package P), spread by routes.ts.
+export * from "./system-state";
+export * from "./routes-system-state";
+export * from "./routes-shift-handins";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-model-applications";
 export * from "./routes-ofapi-read-collections";

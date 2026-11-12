@@ -22,6 +22,19 @@ export const NARROW_WEB_SESSION_OPERATIONS = [
     "me",
     "accountChatterStats",
     "accountReports",
+    // The chatter's strip «Ждут вас» above «Мои смены»: a narrow session reads as a chatter (their own, never money).
+    "mattersList",
+    // Отчёт смены (ecosystem package F): the shift screen the extension opens, «Сдать смену» on it.
+    "shiftReport",
+    "shiftReportsList",
+    "shiftReportClaimable",
+    "shiftReportLineSet",
+    "shiftReportCommentSet",
+    "shiftReportOffPlatformAdd",
+    "shiftReportOffPlatformWithdraw",
+    "shiftReportSubmit",
+    // «Мои деньги» on «Мои смены» (ecosystem package H1): the person's own sums, behind their switch.
+    "accountPay",
 ];
 /** Whether a narrow web session may call the route with this key. */
 export function narrowWebSessionAllows(operationKey) {

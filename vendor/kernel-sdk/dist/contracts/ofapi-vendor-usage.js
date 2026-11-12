@@ -29,7 +29,7 @@ export const ofapiVendorUsageResponseSchema = z.object({
     local: z.object({ recordedCredits: z.number(), estimatedCredits: z.number(), externalResidualCredits: z.number() }),
     difference: z.number(), equivalentScope: z.boolean(), explanation: z.string(),
 });
-export const ofapiCapabilitySchema = z.enum(["reads", "commands", "webhooks", "exports", "uploads", "links"]);
+export const ofapiCapabilitySchema = z.enum(["reads", "commands", "webhooks", "exports", "uploads", "links", "vault"]);
 export const ofapiKeyScopeSchema = z.object({
     credentialFingerprint: z.string().regex(/^[a-f0-9]{64}$/), version: z.number().int().nonnegative(),
     capabilities: z.array(ofapiCapabilitySchema).nullable(), accountIds: z.array(z.string().regex(/^acct_[A-Za-z0-9_-]+$/)).nullable(),
@@ -39,7 +39,7 @@ export const ofapiKeyScopeSchema = z.object({
 });
 export const ofapiKeyScopeApplySchema = z.object({
     credentialFingerprint: z.string().regex(/^[a-f0-9]{64}$/), expectedVersion: z.number().int().nonnegative(),
-    capabilities: z.array(ofapiCapabilitySchema).max(6).nullable(),
+    capabilities: z.array(ofapiCapabilitySchema).max(7).nullable(),
     accountIds: z.array(z.string().regex(/^acct_[A-Za-z0-9_-]+$/)).max(100).nullable(),
     visibility: z.enum(["unknown", "declared_team", "declared_restricted"]),
 }).strict().refine(value => value.visibility !== "declared_team" || value.accountIds === null, "A restricted account list cannot declare team-wide visibility");

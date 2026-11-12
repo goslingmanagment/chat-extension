@@ -235,6 +235,12 @@ ${/* Windows prints Spenders' key as «Ctrl+Alt+M», three times ⌘⇧M: the ro
 .pg-popup__btns .cg-btn kbd { font-size: 11px; letter-spacing: -0.01em; }
 .pg-popup__count { font-weight: 500; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
 .pg-popup__key { margin-left: auto; display: inline-flex; }
+${/* «Ждут вас: 2» (2026-11-12): the title of the longest waiting one after the count, on the same one line, ending in «…». */ ''}
+.pg-popup__waiting .cg-btn { flex-wrap: nowrap; }
+.pg-popup__waiting .cg-btn__t { flex: none; }
+.pg-popup__waiting-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 400; color: var(--cg-ink-muted); }
+.pg-popup__waiting-t::before { content: "· "; }
+.cg-root--page .cg-btn--line:hover .pg-popup__waiting-t { color: inherit; opacity: 0.75; }
 ${/* The foot: «Что нового», the optional site's switch (X61) and «Обновить статус», quiet, in one line under a line. */ ''}
 .pg-popup__foot { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 9px 16px 11px; border-top: 1px solid var(--pg-line); font-size: 13px; color: var(--cg-ink-muted); white-space: nowrap; }
 .pg-popup__site { display: inline-flex; min-width: 0; }

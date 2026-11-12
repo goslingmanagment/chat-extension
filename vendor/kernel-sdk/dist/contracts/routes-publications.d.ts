@@ -123,8 +123,8 @@ export declare const publicationRouteSchemas: {
                         }>;
                         position: import("zod").ZodNumber;
                         source: import("zod").ZodEnum<{
-                            file: "file";
                             vault: "vault";
+                            file: "file";
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -188,6 +188,51 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                        step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            uploads: "uploads";
+                            read: "read";
+                            done: "done";
+                            album: "album";
+                            contents: "contents";
+                            add: "add";
+                        }>>;
+                        files: import("zod").ZodNumber;
+                        done: import("zod").ZodNumber;
+                        reused: import("zod").ZodNumber;
+                        refused: import("zod").ZodNumber;
+                        unknown: import("zod").ZodNumber;
+                        notTried: import("zod").ZodNumber;
+                        tooBig: import("zod").ZodNumber;
+                        currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                        estimateCredits: import("zod").ZodNumber;
+                        spentCredits: import("zod").ZodNumber;
+                        stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                            name: import("zod").ZodString;
+                            bytes: import("zod").ZodNumber;
+                            state: import("zod").ZodEnum<{
+                                pending: "pending";
+                                unknown: "unknown";
+                                failed: "failed";
+                                too_big: "too_big";
+                                reused: "reused";
+                                in_album: "in_album";
+                                uploading: "uploading";
+                                uploaded: "uploaded";
+                                not_tried: "not_tried";
+                            }>;
+                            credits: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        account: import("zod").ZodNullable<import("zod").ZodObject<{
+                            dailyCredits: import("zod").ZodNumber;
+                            spentToday: import("zod").ZodNumber;
+                            left: import("zod").ZodNumber;
+                            balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            centsPer1000: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        linkMaxBytes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -364,8 +409,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -429,6 +474,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -541,8 +631,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -606,6 +696,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -829,8 +964,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -894,6 +1029,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -1017,8 +1197,8 @@ export declare const publicationRouteSchemas: {
                             }>;
                             position: import("zod").ZodNumber;
                             source: import("zod").ZodEnum<{
-                                file: "file";
                                 vault: "vault";
+                                file: "file";
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -1082,6 +1262,51 @@ export declare const publicationRouteSchemas: {
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
                         }, import("zod/v4/core").$strip>>;
+                        albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                            step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                uploads: "uploads";
+                                read: "read";
+                                done: "done";
+                                album: "album";
+                                contents: "contents";
+                                add: "add";
+                            }>>;
+                            files: import("zod").ZodNumber;
+                            done: import("zod").ZodNumber;
+                            reused: import("zod").ZodNumber;
+                            refused: import("zod").ZodNumber;
+                            unknown: import("zod").ZodNumber;
+                            notTried: import("zod").ZodNumber;
+                            tooBig: import("zod").ZodNumber;
+                            currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                            estimateCredits: import("zod").ZodNumber;
+                            spentCredits: import("zod").ZodNumber;
+                            stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                                name: import("zod").ZodString;
+                                bytes: import("zod").ZodNumber;
+                                state: import("zod").ZodEnum<{
+                                    pending: "pending";
+                                    unknown: "unknown";
+                                    failed: "failed";
+                                    too_big: "too_big";
+                                    reused: "reused";
+                                    in_album: "in_album";
+                                    uploading: "uploading";
+                                    uploaded: "uploaded";
+                                    not_tried: "not_tried";
+                                }>;
+                                credits: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            account: import("zod").ZodNullable<import("zod").ZodObject<{
+                                dailyCredits: import("zod").ZodNumber;
+                                spentToday: import("zod").ZodNumber;
+                                left: import("zod").ZodNumber;
+                                balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                                centsPer1000: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            linkMaxBytes: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>>;
                         createdAt: import("zod").ZodString;
                         updatedAt: import("zod").ZodString;
                         statusChangedAt: import("zod").ZodString;
@@ -1196,8 +1421,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -1261,6 +1486,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -1278,11 +1548,11 @@ export declare const publicationRouteSchemas: {
         }, import("zod/v4/core").$strip>;
         readonly body: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
             outcome: import("zod").ZodLiteral<"went_out">;
-            state: import("zod").ZodEnum<{
+            state: import("zod").ZodOptional<import("zod").ZodEnum<{
                 scheduled: "scheduled";
                 published: "published";
-            }>;
-            platformPostRef: import("zod").ZodString;
+            }>>;
+            platformPostRef: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             outcome: import("zod").ZodLiteral<"did_not_go_out">;
         }, import("zod/v4/core").$strict>], "outcome">;
@@ -1384,8 +1654,8 @@ export declare const publicationRouteSchemas: {
                         }>;
                         position: import("zod").ZodNumber;
                         source: import("zod").ZodEnum<{
-                            file: "file";
                             vault: "vault";
+                            file: "file";
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -1449,6 +1719,51 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                        step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            uploads: "uploads";
+                            read: "read";
+                            done: "done";
+                            album: "album";
+                            contents: "contents";
+                            add: "add";
+                        }>>;
+                        files: import("zod").ZodNumber;
+                        done: import("zod").ZodNumber;
+                        reused: import("zod").ZodNumber;
+                        refused: import("zod").ZodNumber;
+                        unknown: import("zod").ZodNumber;
+                        notTried: import("zod").ZodNumber;
+                        tooBig: import("zod").ZodNumber;
+                        currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                        estimateCredits: import("zod").ZodNumber;
+                        spentCredits: import("zod").ZodNumber;
+                        stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                            name: import("zod").ZodString;
+                            bytes: import("zod").ZodNumber;
+                            state: import("zod").ZodEnum<{
+                                pending: "pending";
+                                unknown: "unknown";
+                                failed: "failed";
+                                too_big: "too_big";
+                                reused: "reused";
+                                in_album: "in_album";
+                                uploading: "uploading";
+                                uploaded: "uploaded";
+                                not_tried: "not_tried";
+                            }>;
+                            credits: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        account: import("zod").ZodNullable<import("zod").ZodObject<{
+                            dailyCredits: import("zod").ZodNumber;
+                            spentToday: import("zod").ZodNumber;
+                            left: import("zod").ZodNumber;
+                            balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            centsPer1000: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        linkMaxBytes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -1514,8 +1829,8 @@ export declare const publicationRouteSchemas: {
                         }>;
                         position: import("zod").ZodNumber;
                         source: import("zod").ZodEnum<{
-                            file: "file";
                             vault: "vault";
+                            file: "file";
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -1579,6 +1894,51 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                        step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            uploads: "uploads";
+                            read: "read";
+                            done: "done";
+                            album: "album";
+                            contents: "contents";
+                            add: "add";
+                        }>>;
+                        files: import("zod").ZodNumber;
+                        done: import("zod").ZodNumber;
+                        reused: import("zod").ZodNumber;
+                        refused: import("zod").ZodNumber;
+                        unknown: import("zod").ZodNumber;
+                        notTried: import("zod").ZodNumber;
+                        tooBig: import("zod").ZodNumber;
+                        currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                        estimateCredits: import("zod").ZodNumber;
+                        spentCredits: import("zod").ZodNumber;
+                        stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                            name: import("zod").ZodString;
+                            bytes: import("zod").ZodNumber;
+                            state: import("zod").ZodEnum<{
+                                pending: "pending";
+                                unknown: "unknown";
+                                failed: "failed";
+                                too_big: "too_big";
+                                reused: "reused";
+                                in_album: "in_album";
+                                uploading: "uploading";
+                                uploaded: "uploaded";
+                                not_tried: "not_tried";
+                            }>;
+                            credits: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        account: import("zod").ZodNullable<import("zod").ZodObject<{
+                            dailyCredits: import("zod").ZodNumber;
+                            spentToday: import("zod").ZodNumber;
+                            left: import("zod").ZodNumber;
+                            balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            centsPer1000: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        linkMaxBytes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -1704,8 +2064,8 @@ export declare const publicationRouteSchemas: {
                             }>;
                             position: import("zod").ZodNumber;
                             source: import("zod").ZodEnum<{
-                                file: "file";
                                 vault: "vault";
+                                file: "file";
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -1769,6 +2129,51 @@ export declare const publicationRouteSchemas: {
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
                         }, import("zod/v4/core").$strip>>;
+                        albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                            step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                uploads: "uploads";
+                                read: "read";
+                                done: "done";
+                                album: "album";
+                                contents: "contents";
+                                add: "add";
+                            }>>;
+                            files: import("zod").ZodNumber;
+                            done: import("zod").ZodNumber;
+                            reused: import("zod").ZodNumber;
+                            refused: import("zod").ZodNumber;
+                            unknown: import("zod").ZodNumber;
+                            notTried: import("zod").ZodNumber;
+                            tooBig: import("zod").ZodNumber;
+                            currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                            estimateCredits: import("zod").ZodNumber;
+                            spentCredits: import("zod").ZodNumber;
+                            stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                                name: import("zod").ZodString;
+                                bytes: import("zod").ZodNumber;
+                                state: import("zod").ZodEnum<{
+                                    pending: "pending";
+                                    unknown: "unknown";
+                                    failed: "failed";
+                                    too_big: "too_big";
+                                    reused: "reused";
+                                    in_album: "in_album";
+                                    uploading: "uploading";
+                                    uploaded: "uploaded";
+                                    not_tried: "not_tried";
+                                }>;
+                                credits: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            account: import("zod").ZodNullable<import("zod").ZodObject<{
+                                dailyCredits: import("zod").ZodNumber;
+                                spentToday: import("zod").ZodNumber;
+                                left: import("zod").ZodNumber;
+                                balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                                centsPer1000: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            linkMaxBytes: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>>;
                         createdAt: import("zod").ZodString;
                         updatedAt: import("zod").ZodString;
                         statusChangedAt: import("zod").ZodString;
@@ -1895,8 +2300,8 @@ export declare const publicationRouteSchemas: {
                             }>;
                             position: import("zod").ZodNumber;
                             source: import("zod").ZodEnum<{
-                                file: "file";
                                 vault: "vault";
+                                file: "file";
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -1960,6 +2365,51 @@ export declare const publicationRouteSchemas: {
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
                         }, import("zod/v4/core").$strip>>;
+                        albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                            step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                uploads: "uploads";
+                                read: "read";
+                                done: "done";
+                                album: "album";
+                                contents: "contents";
+                                add: "add";
+                            }>>;
+                            files: import("zod").ZodNumber;
+                            done: import("zod").ZodNumber;
+                            reused: import("zod").ZodNumber;
+                            refused: import("zod").ZodNumber;
+                            unknown: import("zod").ZodNumber;
+                            notTried: import("zod").ZodNumber;
+                            tooBig: import("zod").ZodNumber;
+                            currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                            estimateCredits: import("zod").ZodNumber;
+                            spentCredits: import("zod").ZodNumber;
+                            stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                                name: import("zod").ZodString;
+                                bytes: import("zod").ZodNumber;
+                                state: import("zod").ZodEnum<{
+                                    pending: "pending";
+                                    unknown: "unknown";
+                                    failed: "failed";
+                                    too_big: "too_big";
+                                    reused: "reused";
+                                    in_album: "in_album";
+                                    uploading: "uploading";
+                                    uploaded: "uploaded";
+                                    not_tried: "not_tried";
+                                }>;
+                                credits: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            account: import("zod").ZodNullable<import("zod").ZodObject<{
+                                dailyCredits: import("zod").ZodNumber;
+                                spentToday: import("zod").ZodNumber;
+                                left: import("zod").ZodNumber;
+                                balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                                centsPer1000: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            linkMaxBytes: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>>;
                         createdAt: import("zod").ZodString;
                         updatedAt: import("zod").ZodString;
                         statusChangedAt: import("zod").ZodString;
@@ -2086,8 +2536,8 @@ export declare const publicationRouteSchemas: {
                             }>;
                             position: import("zod").ZodNumber;
                             source: import("zod").ZodEnum<{
-                                file: "file";
                                 vault: "vault";
+                                file: "file";
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -2151,6 +2601,51 @@ export declare const publicationRouteSchemas: {
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
                         }, import("zod/v4/core").$strip>>;
+                        albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                            step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                uploads: "uploads";
+                                read: "read";
+                                done: "done";
+                                album: "album";
+                                contents: "contents";
+                                add: "add";
+                            }>>;
+                            files: import("zod").ZodNumber;
+                            done: import("zod").ZodNumber;
+                            reused: import("zod").ZodNumber;
+                            refused: import("zod").ZodNumber;
+                            unknown: import("zod").ZodNumber;
+                            notTried: import("zod").ZodNumber;
+                            tooBig: import("zod").ZodNumber;
+                            currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                            estimateCredits: import("zod").ZodNumber;
+                            spentCredits: import("zod").ZodNumber;
+                            stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                                name: import("zod").ZodString;
+                                bytes: import("zod").ZodNumber;
+                                state: import("zod").ZodEnum<{
+                                    pending: "pending";
+                                    unknown: "unknown";
+                                    failed: "failed";
+                                    too_big: "too_big";
+                                    reused: "reused";
+                                    in_album: "in_album";
+                                    uploading: "uploading";
+                                    uploaded: "uploaded";
+                                    not_tried: "not_tried";
+                                }>;
+                                credits: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            account: import("zod").ZodNullable<import("zod").ZodObject<{
+                                dailyCredits: import("zod").ZodNumber;
+                                spentToday: import("zod").ZodNumber;
+                                left: import("zod").ZodNumber;
+                                balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                                centsPer1000: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            linkMaxBytes: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>>;
                         createdAt: import("zod").ZodString;
                         updatedAt: import("zod").ZodString;
                         statusChangedAt: import("zod").ZodString;
@@ -2265,8 +2760,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -2330,6 +2825,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -2777,8 +3317,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -2842,6 +3382,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -2989,8 +3574,8 @@ export declare const publicationRouteSchemas: {
                         }>;
                         position: import("zod").ZodNumber;
                         source: import("zod").ZodEnum<{
-                            file: "file";
                             vault: "vault";
+                            file: "file";
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -3054,6 +3639,51 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                        step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            uploads: "uploads";
+                            read: "read";
+                            done: "done";
+                            album: "album";
+                            contents: "contents";
+                            add: "add";
+                        }>>;
+                        files: import("zod").ZodNumber;
+                        done: import("zod").ZodNumber;
+                        reused: import("zod").ZodNumber;
+                        refused: import("zod").ZodNumber;
+                        unknown: import("zod").ZodNumber;
+                        notTried: import("zod").ZodNumber;
+                        tooBig: import("zod").ZodNumber;
+                        currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                        estimateCredits: import("zod").ZodNumber;
+                        spentCredits: import("zod").ZodNumber;
+                        stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                            name: import("zod").ZodString;
+                            bytes: import("zod").ZodNumber;
+                            state: import("zod").ZodEnum<{
+                                pending: "pending";
+                                unknown: "unknown";
+                                failed: "failed";
+                                too_big: "too_big";
+                                reused: "reused";
+                                in_album: "in_album";
+                                uploading: "uploading";
+                                uploaded: "uploaded";
+                                not_tried: "not_tried";
+                            }>;
+                            credits: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        account: import("zod").ZodNullable<import("zod").ZodObject<{
+                            dailyCredits: import("zod").ZodNumber;
+                            spentToday: import("zod").ZodNumber;
+                            left: import("zod").ZodNumber;
+                            balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            centsPer1000: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        linkMaxBytes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -3309,8 +3939,8 @@ export declare const publicationRouteSchemas: {
                         }>;
                         position: import("zod").ZodNumber;
                         source: import("zod").ZodEnum<{
-                            file: "file";
                             vault: "vault";
+                            file: "file";
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -3374,6 +4004,51 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                        step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            uploads: "uploads";
+                            read: "read";
+                            done: "done";
+                            album: "album";
+                            contents: "contents";
+                            add: "add";
+                        }>>;
+                        files: import("zod").ZodNumber;
+                        done: import("zod").ZodNumber;
+                        reused: import("zod").ZodNumber;
+                        refused: import("zod").ZodNumber;
+                        unknown: import("zod").ZodNumber;
+                        notTried: import("zod").ZodNumber;
+                        tooBig: import("zod").ZodNumber;
+                        currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                        estimateCredits: import("zod").ZodNumber;
+                        spentCredits: import("zod").ZodNumber;
+                        stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                            name: import("zod").ZodString;
+                            bytes: import("zod").ZodNumber;
+                            state: import("zod").ZodEnum<{
+                                pending: "pending";
+                                unknown: "unknown";
+                                failed: "failed";
+                                too_big: "too_big";
+                                reused: "reused";
+                                in_album: "in_album";
+                                uploading: "uploading";
+                                uploaded: "uploaded";
+                                not_tried: "not_tried";
+                            }>;
+                            credits: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        account: import("zod").ZodNullable<import("zod").ZodObject<{
+                            dailyCredits: import("zod").ZodNumber;
+                            spentToday: import("zod").ZodNumber;
+                            left: import("zod").ZodNumber;
+                            balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            centsPer1000: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        linkMaxBytes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -3502,8 +4177,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -3567,6 +4242,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -3705,8 +4425,8 @@ export declare const publicationRouteSchemas: {
                             }>;
                             position: import("zod").ZodNumber;
                             source: import("zod").ZodEnum<{
-                                file: "file";
                                 vault: "vault";
+                                file: "file";
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -3770,6 +4490,51 @@ export declare const publicationRouteSchemas: {
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
                         }, import("zod/v4/core").$strip>>;
+                        albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                            step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                uploads: "uploads";
+                                read: "read";
+                                done: "done";
+                                album: "album";
+                                contents: "contents";
+                                add: "add";
+                            }>>;
+                            files: import("zod").ZodNumber;
+                            done: import("zod").ZodNumber;
+                            reused: import("zod").ZodNumber;
+                            refused: import("zod").ZodNumber;
+                            unknown: import("zod").ZodNumber;
+                            notTried: import("zod").ZodNumber;
+                            tooBig: import("zod").ZodNumber;
+                            currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                            estimateCredits: import("zod").ZodNumber;
+                            spentCredits: import("zod").ZodNumber;
+                            stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                                name: import("zod").ZodString;
+                                bytes: import("zod").ZodNumber;
+                                state: import("zod").ZodEnum<{
+                                    pending: "pending";
+                                    unknown: "unknown";
+                                    failed: "failed";
+                                    too_big: "too_big";
+                                    reused: "reused";
+                                    in_album: "in_album";
+                                    uploading: "uploading";
+                                    uploaded: "uploaded";
+                                    not_tried: "not_tried";
+                                }>;
+                                credits: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            account: import("zod").ZodNullable<import("zod").ZodObject<{
+                                dailyCredits: import("zod").ZodNumber;
+                                spentToday: import("zod").ZodNumber;
+                                left: import("zod").ZodNumber;
+                                balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                                centsPer1000: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            linkMaxBytes: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>>;
                         createdAt: import("zod").ZodString;
                         updatedAt: import("zod").ZodString;
                         statusChangedAt: import("zod").ZodString;
@@ -3923,8 +4688,8 @@ export declare const publicationRouteSchemas: {
                         }>;
                         position: import("zod").ZodNumber;
                         source: import("zod").ZodEnum<{
-                            file: "file";
                             vault: "vault";
+                            file: "file";
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -3988,6 +4753,51 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                        step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            uploads: "uploads";
+                            read: "read";
+                            done: "done";
+                            album: "album";
+                            contents: "contents";
+                            add: "add";
+                        }>>;
+                        files: import("zod").ZodNumber;
+                        done: import("zod").ZodNumber;
+                        reused: import("zod").ZodNumber;
+                        refused: import("zod").ZodNumber;
+                        unknown: import("zod").ZodNumber;
+                        notTried: import("zod").ZodNumber;
+                        tooBig: import("zod").ZodNumber;
+                        currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                        estimateCredits: import("zod").ZodNumber;
+                        spentCredits: import("zod").ZodNumber;
+                        stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                            name: import("zod").ZodString;
+                            bytes: import("zod").ZodNumber;
+                            state: import("zod").ZodEnum<{
+                                pending: "pending";
+                                unknown: "unknown";
+                                failed: "failed";
+                                too_big: "too_big";
+                                reused: "reused";
+                                in_album: "in_album";
+                                uploading: "uploading";
+                                uploaded: "uploaded";
+                                not_tried: "not_tried";
+                            }>;
+                            credits: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        account: import("zod").ZodNullable<import("zod").ZodObject<{
+                            dailyCredits: import("zod").ZodNumber;
+                            spentToday: import("zod").ZodNumber;
+                            left: import("zod").ZodNumber;
+                            balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            centsPer1000: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        linkMaxBytes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -4154,8 +4964,8 @@ export declare const publicationRouteSchemas: {
                         }>;
                         position: import("zod").ZodNumber;
                         source: import("zod").ZodEnum<{
-                            file: "file";
                             vault: "vault";
+                            file: "file";
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -4219,6 +5029,51 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                        step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            uploads: "uploads";
+                            read: "read";
+                            done: "done";
+                            album: "album";
+                            contents: "contents";
+                            add: "add";
+                        }>>;
+                        files: import("zod").ZodNumber;
+                        done: import("zod").ZodNumber;
+                        reused: import("zod").ZodNumber;
+                        refused: import("zod").ZodNumber;
+                        unknown: import("zod").ZodNumber;
+                        notTried: import("zod").ZodNumber;
+                        tooBig: import("zod").ZodNumber;
+                        currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                        estimateCredits: import("zod").ZodNumber;
+                        spentCredits: import("zod").ZodNumber;
+                        stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                            name: import("zod").ZodString;
+                            bytes: import("zod").ZodNumber;
+                            state: import("zod").ZodEnum<{
+                                pending: "pending";
+                                unknown: "unknown";
+                                failed: "failed";
+                                too_big: "too_big";
+                                reused: "reused";
+                                in_album: "in_album";
+                                uploading: "uploading";
+                                uploaded: "uploaded";
+                                not_tried: "not_tried";
+                            }>;
+                            credits: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        account: import("zod").ZodNullable<import("zod").ZodObject<{
+                            dailyCredits: import("zod").ZodNumber;
+                            spentToday: import("zod").ZodNumber;
+                            left: import("zod").ZodNumber;
+                            balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            centsPer1000: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>;
+                        linkMaxBytes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -4386,6 +5241,123 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strip>;
             readonly 200: import("zod").ZodObject<{
                 requestedAt: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly agentVaultAlbumQuote: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            pageLabel: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+        readonly body: import("zod").ZodObject<{
+            title: import("zod").ZodString;
+            albumRef: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
+            files: import("zod").ZodArray<import("zod").ZodObject<{
+                sha256: import("zod").ZodString;
+                byteSize: import("zod").ZodNumber;
+                name: import("zod").ZodString;
+            }, import("zod/v4/core").$strict>>;
+        }, import("zod/v4/core").$strict>;
+        readonly response: {
+            readonly 429: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 503: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                platform: import("zod").ZodEnum<{
+                    fansly: "fansly";
+                    onlyfans: "onlyfans";
+                    telegram: "telegram";
+                }>;
+                album: import("zod").ZodObject<{
+                    kind: import("zod").ZodEnum<{
+                        new: "new";
+                        found: "found";
+                        similar: "similar";
+                    }>;
+                    albumRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    mediaCount: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    similar: import("zod").ZodArray<import("zod").ZodObject<{
+                        albumRef: import("zod").ZodString;
+                        title: import("zod").ZodString;
+                        mediaCount: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    }, import("zod/v4/core").$strip>>;
+                    knownAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    walkRequested: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>;
+                files: import("zod").ZodArray<import("zod").ZodObject<{
+                    position: import("zod").ZodNumber;
+                    name: import("zod").ZodString;
+                    byteSize: import("zod").ZodNumber;
+                    credits: import("zod").ZodNumber;
+                    onPage: import("zod").ZodBoolean;
+                    tooBig: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
+                expectedOrder: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodNumber>>;
+                credits: import("zod").ZodNumber;
+                usd: import("zod").ZodNumber;
+                account: import("zod").ZodNullable<import("zod").ZodObject<{
+                    dailyCredits: import("zod").ZodNumber;
+                    spentToday: import("zod").ZodNumber;
+                    left: import("zod").ZodNumber;
+                    balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    centsPer1000: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                linkMaxBytes: import("zod").ZodNullable<import("zod").ZodNumber>;
+                sending: import("zod").ZodObject<{
+                    on: import("zod").ZodBoolean;
+                    why: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>;
             }, import("zod/v4/core").$strip>;
         };
     };
@@ -4590,8 +5562,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -4655,6 +5627,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;
@@ -4837,8 +5854,8 @@ export declare const publicationRouteSchemas: {
                             }>;
                             position: import("zod").ZodNumber;
                             source: import("zod").ZodEnum<{
-                                file: "file";
                                 vault: "vault";
+                                file: "file";
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -4902,6 +5919,51 @@ export declare const publicationRouteSchemas: {
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
                         }, import("zod/v4/core").$strip>>;
+                        albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                            step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                uploads: "uploads";
+                                read: "read";
+                                done: "done";
+                                album: "album";
+                                contents: "contents";
+                                add: "add";
+                            }>>;
+                            files: import("zod").ZodNumber;
+                            done: import("zod").ZodNumber;
+                            reused: import("zod").ZodNumber;
+                            refused: import("zod").ZodNumber;
+                            unknown: import("zod").ZodNumber;
+                            notTried: import("zod").ZodNumber;
+                            tooBig: import("zod").ZodNumber;
+                            currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                            estimateCredits: import("zod").ZodNumber;
+                            spentCredits: import("zod").ZodNumber;
+                            stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                                name: import("zod").ZodString;
+                                bytes: import("zod").ZodNumber;
+                                state: import("zod").ZodEnum<{
+                                    pending: "pending";
+                                    unknown: "unknown";
+                                    failed: "failed";
+                                    too_big: "too_big";
+                                    reused: "reused";
+                                    in_album: "in_album";
+                                    uploading: "uploading";
+                                    uploaded: "uploaded";
+                                    not_tried: "not_tried";
+                                }>;
+                                credits: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            account: import("zod").ZodNullable<import("zod").ZodObject<{
+                                dailyCredits: import("zod").ZodNumber;
+                                spentToday: import("zod").ZodNumber;
+                                left: import("zod").ZodNumber;
+                                balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                                centsPer1000: import("zod").ZodNumber;
+                            }, import("zod/v4/core").$strip>>;
+                            linkMaxBytes: import("zod").ZodNumber;
+                        }, import("zod/v4/core").$strip>>>;
                         createdAt: import("zod").ZodString;
                         updatedAt: import("zod").ZodString;
                         statusChangedAt: import("zod").ZodString;
@@ -5096,8 +6158,8 @@ export declare const publicationRouteSchemas: {
                     }>;
                     position: import("zod").ZodNumber;
                     source: import("zod").ZodEnum<{
-                        file: "file";
                         vault: "vault";
+                        file: "file";
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -5161,6 +6223,51 @@ export declare const publicationRouteSchemas: {
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
+                albumRun: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodObject<{
+                    step: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        uploads: "uploads";
+                        read: "read";
+                        done: "done";
+                        album: "album";
+                        contents: "contents";
+                        add: "add";
+                    }>>;
+                    files: import("zod").ZodNumber;
+                    done: import("zod").ZodNumber;
+                    reused: import("zod").ZodNumber;
+                    refused: import("zod").ZodNumber;
+                    unknown: import("zod").ZodNumber;
+                    notTried: import("zod").ZodNumber;
+                    tooBig: import("zod").ZodNumber;
+                    currentFile: import("zod").ZodNullable<import("zod").ZodString>;
+                    estimateCredits: import("zod").ZodNumber;
+                    spentCredits: import("zod").ZodNumber;
+                    stopReason: import("zod").ZodNullable<import("zod").ZodString>;
+                    fileList: import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        bytes: import("zod").ZodNumber;
+                        state: import("zod").ZodEnum<{
+                            pending: "pending";
+                            unknown: "unknown";
+                            failed: "failed";
+                            too_big: "too_big";
+                            reused: "reused";
+                            in_album: "in_album";
+                            uploading: "uploading";
+                            uploaded: "uploaded";
+                            not_tried: "not_tried";
+                        }>;
+                        credits: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    account: import("zod").ZodNullable<import("zod").ZodObject<{
+                        dailyCredits: import("zod").ZodNumber;
+                        spentToday: import("zod").ZodNumber;
+                        left: import("zod").ZodNumber;
+                        balance: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        centsPer1000: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    linkMaxBytes: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>>;
                 createdAt: import("zod").ZodString;
                 updatedAt: import("zod").ZodString;
                 statusChangedAt: import("zod").ZodString;

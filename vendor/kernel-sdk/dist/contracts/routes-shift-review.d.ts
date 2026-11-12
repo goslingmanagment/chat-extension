@@ -53,6 +53,8 @@ export declare const SHIFT_REVIEW_ORIGINS: readonly ["ai", "fix", "own"];
 export declare const SHIFT_REVIEW_MARKS: readonly ["dash", "cyrillic", "leak"];
 export declare const SHIFT_REVIEW_AUTHORS: readonly ["me", "other", "none", "auto"];
 export declare const SHIFT_REVIEW_SALE_VERDICTS: readonly ["mine", "both", "theirs", "none"];
+/** A sale's home by the one rule of whose a sale is (apps/runtime services/sale-rule.ts, `sale_homes`). */
+export declare const SALE_HOME_KINDS: readonly ["shift", "visit", "pot", "waiting", "decide", "nobody", "before_rule", "unknown"];
 export declare const SHIFT_REVIEW_SALE_ORIGINS: readonly ["own", "colleague_ppv", "no_author_ppv", "other_wrote", "nobody_wrote_48h", "post_tip", "campaign"];
 export declare const teamShiftReviewQuerySchema: z.ZodObject<{
     userId: z.ZodCoercedNumber<unknown>;
@@ -64,8 +66,8 @@ declare const shiftReviewMineSchema: z.ZodObject<{
     edited: z.ZodNullable<z.ZodBoolean>;
     origin: z.ZodNullable<z.ZodEnum<{
         fix: "fix";
-        own: "own";
         ai: "ai";
+        own: "own";
     }>>;
     aiShare: z.ZodNullable<z.ZodNumber>;
     aiFeature: z.ZodNullable<z.ZodString>;
@@ -109,8 +111,8 @@ declare const shiftReviewMessageSchema: z.ZodObject<{
         edited: z.ZodNullable<z.ZodBoolean>;
         origin: z.ZodNullable<z.ZodEnum<{
             fix: "fix";
-            own: "own";
             ai: "ai";
+            own: "own";
         }>>;
         aiShare: z.ZodNullable<z.ZodNumber>;
         aiFeature: z.ZodNullable<z.ZodString>;
@@ -137,6 +139,12 @@ declare const shiftReviewChatSchema: z.ZodObject<{
     fanLifetimeNetMills: z.ZodNullable<z.ZodNumber>;
     shiftNetMills: z.ZodNumber;
     earlierHidden: z.ZodNumber;
+    fanLastBefore: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    followedAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    ai: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        feature: z.ZodString;
+        count: z.ZodNumber;
+    }, z.core.$strip>>>;
     messages: z.ZodArray<z.ZodObject<{
         ref: z.ZodString;
         at: z.ZodString;
@@ -166,8 +174,8 @@ declare const shiftReviewChatSchema: z.ZodObject<{
             edited: z.ZodNullable<z.ZodBoolean>;
             origin: z.ZodNullable<z.ZodEnum<{
                 fix: "fix";
-                own: "own";
                 ai: "ai";
+                own: "own";
             }>>;
             aiShare: z.ZodNullable<z.ZodNumber>;
             aiFeature: z.ZodNullable<z.ZodString>;
@@ -183,6 +191,18 @@ declare const shiftReviewChatSchema: z.ZodObject<{
             }>>;
         }, z.core.$strip>>;
     }, z.core.$strip>>;
+}, z.core.$strip>;
+/** A new follower of a page of the shift within it: a Fansly follow, an OnlyFans fan's first subscription to the page. */
+declare const shiftReviewFollowSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    fanRef: z.ZodNullable<z.ZodString>;
+    fanUsername: z.ZodNullable<z.ZodString>;
+    chatKey: z.ZodNullable<z.ZodString>;
+    at: z.ZodString;
+    kind: z.ZodEnum<{
+        subscription: "subscription";
+        follow: "follow";
+    }>;
 }, z.core.$strip>;
 declare const shiftReviewSaleSchema: z.ZodObject<{
     saleRef: z.ZodString;
@@ -213,14 +233,27 @@ declare const shiftReviewSaleSchema: z.ZodObject<{
         messages: z.ZodNumber;
     }, z.core.$strip>>;
     origin: z.ZodEnum<{
-        campaign: "campaign";
         own: "own";
         colleague_ppv: "colleague_ppv";
         no_author_ppv: "no_author_ppv";
         other_wrote: "other_wrote";
         nobody_wrote_48h: "nobody_wrote_48h";
         post_tip: "post_tip";
+        campaign: "campaign";
     }>;
+    home: z.ZodOptional<z.ZodObject<{
+        kind: z.ZodEnum<{
+            unknown: "unknown";
+            shift: "shift";
+            waiting: "waiting";
+            visit: "visit";
+            pot: "pot";
+            decide: "decide";
+            nobody: "nobody";
+            before_rule: "before_rule";
+        }>;
+        text: z.ZodString;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const teamShiftReviewResponseSchema: z.ZodObject<{
     shift: z.ZodObject<{
@@ -246,6 +279,19 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             messages: z.ZodNumber;
             worked: z.ZodBoolean;
             allFans: z.ZodOptional<z.ZodBoolean>;
+            sales: z.ZodOptional<z.ZodObject<{
+                netMills: z.ZodNumber;
+                byKind: z.ZodArray<z.ZodObject<{
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    count: z.ZodNumber;
+                    netMills: z.ZodNumber;
+                }, z.core.$strip>>;
+            }, z.core.$strip>>;
         }, z.core.$strip>>;
         salesNetMills: z.ZodNumber;
     }, z.core.$strip>;
@@ -266,6 +312,12 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
         fanLifetimeNetMills: z.ZodNullable<z.ZodNumber>;
         shiftNetMills: z.ZodNumber;
         earlierHidden: z.ZodNumber;
+        fanLastBefore: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        followedAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        ai: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            feature: z.ZodString;
+            count: z.ZodNumber;
+        }, z.core.$strip>>>;
         messages: z.ZodArray<z.ZodObject<{
             ref: z.ZodString;
             at: z.ZodString;
@@ -295,8 +347,8 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
                 edited: z.ZodNullable<z.ZodBoolean>;
                 origin: z.ZodNullable<z.ZodEnum<{
                     fix: "fix";
-                    own: "own";
                     ai: "ai";
+                    own: "own";
                 }>>;
                 aiShare: z.ZodNullable<z.ZodNumber>;
                 aiFeature: z.ZodNullable<z.ZodString>;
@@ -342,14 +394,27 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             messages: z.ZodNumber;
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
-            campaign: "campaign";
             own: "own";
             colleague_ppv: "colleague_ppv";
             no_author_ppv: "no_author_ppv";
             other_wrote: "other_wrote";
             nobody_wrote_48h: "nobody_wrote_48h";
             post_tip: "post_tip";
+            campaign: "campaign";
         }>;
+        home: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<{
+                unknown: "unknown";
+                shift: "shift";
+                waiting: "waiting";
+                visit: "visit";
+                pot: "pot";
+                decide: "decide";
+                nobody: "nobody";
+                before_rule: "before_rule";
+            }>;
+            text: z.ZodString;
+        }, z.core.$strip>>;
     }, z.core.$strip>>;
     beforeSales: z.ZodArray<z.ZodObject<{
         saleRef: z.ZodString;
@@ -380,14 +445,27 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             messages: z.ZodNumber;
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
-            campaign: "campaign";
             own: "own";
             colleague_ppv: "colleague_ppv";
             no_author_ppv: "no_author_ppv";
             other_wrote: "other_wrote";
             nobody_wrote_48h: "nobody_wrote_48h";
             post_tip: "post_tip";
+            campaign: "campaign";
         }>;
+        home: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<{
+                unknown: "unknown";
+                shift: "shift";
+                waiting: "waiting";
+                visit: "visit";
+                pot: "pot";
+                decide: "decide";
+                nobody: "nobody";
+                before_rule: "before_rule";
+            }>;
+            text: z.ZodString;
+        }, z.core.$strip>>;
     }, z.core.$strip>>;
     laterSales: z.ZodArray<z.ZodObject<{
         saleRef: z.ZodString;
@@ -418,14 +496,27 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             messages: z.ZodNumber;
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
-            campaign: "campaign";
             own: "own";
             colleague_ppv: "colleague_ppv";
             no_author_ppv: "no_author_ppv";
             other_wrote: "other_wrote";
             nobody_wrote_48h: "nobody_wrote_48h";
             post_tip: "post_tip";
+            campaign: "campaign";
         }>;
+        home: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<{
+                unknown: "unknown";
+                shift: "shift";
+                waiting: "waiting";
+                visit: "visit";
+                pot: "pot";
+                decide: "decide";
+                nobody: "nobody";
+                before_rule: "before_rule";
+            }>;
+            text: z.ZodString;
+        }, z.core.$strip>>;
     }, z.core.$strip>>;
     waits: z.ZodArray<z.ZodObject<{
         chat: z.ZodString;
@@ -439,8 +530,25 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
         }>>;
         pending: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
+    follows: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        fanRef: z.ZodNullable<z.ZodString>;
+        fanUsername: z.ZodNullable<z.ZodString>;
+        chatKey: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+        kind: z.ZodEnum<{
+            subscription: "subscription";
+            follow: "follow";
+        }>;
+    }, z.core.$strip>>>;
+    aiUse: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        feature: z.ZodString;
+        count: z.ZodNumber;
+    }, z.core.$strip>>>;
     unarchived: z.ZodNumber;
     deleted: z.ZodNumber;
+    ruleFrom: z.ZodOptional<z.ZodString>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export type TeamShiftReviewQuery = z.infer<typeof teamShiftReviewQuerySchema>;
@@ -449,6 +557,7 @@ export type ShiftReviewChat = z.infer<typeof shiftReviewChatSchema>;
 export type ShiftReviewMessage = z.infer<typeof shiftReviewMessageSchema>;
 export type ShiftReviewMine = z.infer<typeof shiftReviewMineSchema>;
 export type ShiftReviewSale = z.infer<typeof shiftReviewSaleSchema>;
+export type ShiftReviewFollow = z.infer<typeof shiftReviewFollowSchema>;
 export type ShiftReviewSaleOrigin = (typeof SHIFT_REVIEW_SALE_ORIGINS)[number];
 export declare const shiftReviewRouteSchemas: {
     readonly teamShiftReview: {
@@ -487,6 +596,19 @@ export declare const shiftReviewRouteSchemas: {
                         messages: z.ZodNumber;
                         worked: z.ZodBoolean;
                         allFans: z.ZodOptional<z.ZodBoolean>;
+                        sales: z.ZodOptional<z.ZodObject<{
+                            netMills: z.ZodNumber;
+                            byKind: z.ZodArray<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    subscription: "subscription";
+                                    tip: "tip";
+                                    post: "post";
+                                    ppv: "ppv";
+                                }>;
+                                count: z.ZodNumber;
+                                netMills: z.ZodNumber;
+                            }, z.core.$strip>>;
+                        }, z.core.$strip>>;
                     }, z.core.$strip>>;
                     salesNetMills: z.ZodNumber;
                 }, z.core.$strip>;
@@ -507,6 +629,12 @@ export declare const shiftReviewRouteSchemas: {
                     fanLifetimeNetMills: z.ZodNullable<z.ZodNumber>;
                     shiftNetMills: z.ZodNumber;
                     earlierHidden: z.ZodNumber;
+                    fanLastBefore: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                    followedAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                    ai: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                        feature: z.ZodString;
+                        count: z.ZodNumber;
+                    }, z.core.$strip>>>;
                     messages: z.ZodArray<z.ZodObject<{
                         ref: z.ZodString;
                         at: z.ZodString;
@@ -536,8 +664,8 @@ export declare const shiftReviewRouteSchemas: {
                             edited: z.ZodNullable<z.ZodBoolean>;
                             origin: z.ZodNullable<z.ZodEnum<{
                                 fix: "fix";
-                                own: "own";
                                 ai: "ai";
+                                own: "own";
                             }>>;
                             aiShare: z.ZodNullable<z.ZodNumber>;
                             aiFeature: z.ZodNullable<z.ZodString>;
@@ -583,14 +711,27 @@ export declare const shiftReviewRouteSchemas: {
                         messages: z.ZodNumber;
                     }, z.core.$strip>>;
                     origin: z.ZodEnum<{
-                        campaign: "campaign";
                         own: "own";
                         colleague_ppv: "colleague_ppv";
                         no_author_ppv: "no_author_ppv";
                         other_wrote: "other_wrote";
                         nobody_wrote_48h: "nobody_wrote_48h";
                         post_tip: "post_tip";
+                        campaign: "campaign";
                     }>;
+                    home: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            unknown: "unknown";
+                            shift: "shift";
+                            waiting: "waiting";
+                            visit: "visit";
+                            pot: "pot";
+                            decide: "decide";
+                            nobody: "nobody";
+                            before_rule: "before_rule";
+                        }>;
+                        text: z.ZodString;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>;
                 beforeSales: z.ZodArray<z.ZodObject<{
                     saleRef: z.ZodString;
@@ -621,14 +762,27 @@ export declare const shiftReviewRouteSchemas: {
                         messages: z.ZodNumber;
                     }, z.core.$strip>>;
                     origin: z.ZodEnum<{
-                        campaign: "campaign";
                         own: "own";
                         colleague_ppv: "colleague_ppv";
                         no_author_ppv: "no_author_ppv";
                         other_wrote: "other_wrote";
                         nobody_wrote_48h: "nobody_wrote_48h";
                         post_tip: "post_tip";
+                        campaign: "campaign";
                     }>;
+                    home: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            unknown: "unknown";
+                            shift: "shift";
+                            waiting: "waiting";
+                            visit: "visit";
+                            pot: "pot";
+                            decide: "decide";
+                            nobody: "nobody";
+                            before_rule: "before_rule";
+                        }>;
+                        text: z.ZodString;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>;
                 laterSales: z.ZodArray<z.ZodObject<{
                     saleRef: z.ZodString;
@@ -659,14 +813,27 @@ export declare const shiftReviewRouteSchemas: {
                         messages: z.ZodNumber;
                     }, z.core.$strip>>;
                     origin: z.ZodEnum<{
-                        campaign: "campaign";
                         own: "own";
                         colleague_ppv: "colleague_ppv";
                         no_author_ppv: "no_author_ppv";
                         other_wrote: "other_wrote";
                         nobody_wrote_48h: "nobody_wrote_48h";
                         post_tip: "post_tip";
+                        campaign: "campaign";
                     }>;
+                    home: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            unknown: "unknown";
+                            shift: "shift";
+                            waiting: "waiting";
+                            visit: "visit";
+                            pot: "pot";
+                            decide: "decide";
+                            nobody: "nobody";
+                            before_rule: "before_rule";
+                        }>;
+                        text: z.ZodString;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>;
                 waits: z.ZodArray<z.ZodObject<{
                     chat: z.ZodString;
@@ -680,8 +847,25 @@ export declare const shiftReviewRouteSchemas: {
                     }>>;
                     pending: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
+                follows: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanUsername: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        follow: "follow";
+                    }>;
+                }, z.core.$strip>>>;
+                aiUse: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    feature: z.ZodString;
+                    count: z.ZodNumber;
+                }, z.core.$strip>>>;
                 unarchived: z.ZodNumber;
                 deleted: z.ZodNumber;
+                ruleFrom: z.ZodOptional<z.ZodString>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{

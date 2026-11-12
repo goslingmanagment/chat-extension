@@ -217,6 +217,13 @@ export interface WindowsApi {
   update(windowId: number, info: { focused?: boolean }): Promise<unknown>;
 }
 
+/** Our toolbar button: only its badge (badge.ts); no permission needed. `setBadgeTextColor`: Firefox 63+. */
+export interface ActionApi {
+  setBadgeText(details: { text: string }): Promise<void>;
+  setBadgeBackgroundColor(details: { color: string }): Promise<void>;
+  setBadgeTextColor?(details: { color: string }): Promise<void>;
+}
+
 export interface BrowserApi {
   readonly runtime: RuntimeApi;
   readonly tabs: TabsApi;
@@ -225,6 +232,8 @@ export interface BrowserApi {
   readonly alarms: AlarmsApi;
   readonly permissions: PermissionsApi;
   readonly scripting: ScriptingApi;
+  /** The toolbar button; optional so that fakes without it stay whole. */
+  readonly action?: ActionApi;
   /** Absent until the optional permission is granted. Read it again on onAdded. */
   readonly webRequest?: WebRequestApi;
   /** Absent until the optional permission is granted. Read it again on onAdded. */

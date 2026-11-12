@@ -16,6 +16,7 @@ export * from './usage';
 export * from './attribution';
 export * from './note-attribution';
 export * from './conversation';
+export * from './matters';
 export * from './fan-card';
 export * from './fan-marks';
 export * from './fan-badges';

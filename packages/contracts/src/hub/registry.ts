@@ -38,6 +38,7 @@ import {
 import { MessageAuthorsQuerySchema, MessageAuthorsSchema, SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
 import { FanNoteAttributionsQuerySchema, FanNoteAttributionsSchema, NoteAttributionsRequestSchema, NoteAttributionsResultSchema } from './note-attribution';
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
+import { ClientMattersSchema } from './matters';
 import { HandoffQuerySchema, HandoffSchema } from './queue';
 import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineProbeRequestSchema, OnlineProbeResultSchema, OnlineQuerySchema } from './online';
 import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema, OnlyfansPollRequestSchema, OnlyfansPollResultSchema } from './onlyfans-feed';
@@ -93,6 +94,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientMessageAuthors: { request: MessageAuthorsQuerySchema, response: MessageAuthorsSchema },
   clientActivity: { request: ActivityBeatRequestSchema, response: ActivityBeatResultSchema },
   clientInConversation: { request: InConversationQuerySchema, response: InConversationResultSchema },
+  clientMatters: { request: null, response: ClientMattersSchema },
   clientFanCard: { request: FanCardQuerySchema, response: FanCardSchema },
   clientFanLinkDecide: { request: FanLinkDecideRequestSchema, response: FanLinkDecideResultSchema },
   clientFanFactChange: { request: FanFactChangeRequestSchema, response: FanFactChangeResultSchema },

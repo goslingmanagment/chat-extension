@@ -147,6 +147,7 @@ export declare const ofapiVendorRouteSchemas: {
                     exports: "exports";
                     uploads: "uploads";
                     links: "links";
+                    vault: "vault";
                 }>>>;
                 accountIds: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodString>>;
                 visibility: import("zod").ZodEnum<{
@@ -182,6 +183,7 @@ export declare const ofapiVendorRouteSchemas: {
                 exports: "exports";
                 uploads: "uploads";
                 links: "links";
+                vault: "vault";
             }>>>;
             accountIds: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodString>>;
             visibility: import("zod").ZodEnum<{
@@ -236,6 +238,7 @@ export declare const ofapiVendorRouteSchemas: {
                     exports: "exports";
                     uploads: "uploads";
                     links: "links";
+                    vault: "vault";
                 }>>>;
                 accountIds: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodString>>;
                 visibility: import("zod").ZodEnum<{

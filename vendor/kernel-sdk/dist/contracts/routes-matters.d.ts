@@ -148,16 +148,19 @@ export declare const matterRouteSchemas: {
                 active: import("zod").ZodBoolean;
                 rows: import("zod").ZodArray<import("zod").ZodObject<{
                     id: import("zod").ZodEnum<{
+                        other: "other";
                         unknown: "unknown";
                         login: "login";
                         drafts: "drafts";
                         reports: "reports";
                         held: "held";
                         history: "history";
+                        ledger: "ledger";
                         customs: "customs";
+                        people: "people";
+                        extension: "extension";
                         questions: "questions";
                         failures: "failures";
-                        extension: "extension";
                     }>;
                     label: import("zod").ZodString;
                     count: import("zod").ZodNullable<import("zod").ZodNumber>;
@@ -168,16 +171,19 @@ export declare const matterRouteSchemas: {
                 }, import("zod/v4/core").$strip>>;
                 total: import("zod").ZodNumber;
                 failed: import("zod").ZodArray<import("zod").ZodEnum<{
+                    other: "other";
                     unknown: "unknown";
                     login: "login";
                     drafts: "drafts";
                     reports: "reports";
                     held: "held";
                     history: "history";
+                    ledger: "ledger";
                     customs: "customs";
+                    people: "people";
+                    extension: "extension";
                     questions: "questions";
                     failures: "failures";
-                    extension: "extension";
                 }>>;
                 decisions: import("zod").ZodObject<{
                     questions: import("zod").ZodNullable<import("zod").ZodNumber>;

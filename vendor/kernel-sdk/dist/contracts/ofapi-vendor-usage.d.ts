@@ -82,6 +82,7 @@ export declare const ofapiCapabilitySchema: z.ZodEnum<{
     exports: "exports";
     uploads: "uploads";
     links: "links";
+    vault: "vault";
 }>;
 export type OfapiCapability = z.infer<typeof ofapiCapabilitySchema>;
 export declare const ofapiKeyScopeSchema: z.ZodObject<{
@@ -94,6 +95,7 @@ export declare const ofapiKeyScopeSchema: z.ZodObject<{
         exports: "exports";
         uploads: "uploads";
         links: "links";
+        vault: "vault";
     }>>>;
     accountIds: z.ZodNullable<z.ZodArray<z.ZodString>>;
     visibility: z.ZodEnum<{
@@ -121,6 +123,7 @@ export declare const ofapiKeyScopeApplySchema: z.ZodObject<{
         exports: "exports";
         uploads: "uploads";
         links: "links";
+        vault: "vault";
     }>>>;
     accountIds: z.ZodNullable<z.ZodArray<z.ZodString>>;
     visibility: z.ZodEnum<{

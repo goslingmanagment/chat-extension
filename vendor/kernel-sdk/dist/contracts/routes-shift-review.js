@@ -19,7 +19,7 @@
  */
 import { z } from "zod";
 import { CHATTER_SALE_KINDS } from "./chatter-stats";
-import { errorResponseSchema, intId, isoDateTime, isoTimestamp, mills } from "./primitives";
+import { businessDate, errorResponseSchema, intId, isoDateTime, isoTimestamp, mills } from "./primitives";
 const count = z.number().int().nonnegative();
 /** An AI text counts as the source of a message when this share of the message's words comes straight from it. */
 export const SHIFT_REVIEW_AI_SHARE = 0.7;
@@ -56,6 +56,8 @@ export const SHIFT_REVIEW_ORIGINS = ["ai", "fix", "own"];
 export const SHIFT_REVIEW_MARKS = ["dash", "cyrillic", "leak"];
 export const SHIFT_REVIEW_AUTHORS = ["me", "other", "none", "auto"];
 export const SHIFT_REVIEW_SALE_VERDICTS = ["mine", "both", "theirs", "none"];
+/** A sale's home by the one rule of whose a sale is (apps/runtime services/sale-rule.ts, `sale_homes`). */
+export const SALE_HOME_KINDS = ["shift", "visit", "pot", "waiting", "decide", "nobody", "before_rule", "unknown"];
 export const SHIFT_REVIEW_SALE_ORIGINS = ["own", "colleague_ppv", "no_author_ppv", "other_wrote", "nobody_wrote_48h", "post_tip", "campaign"];
 export const teamShiftReviewQuerySchema = z.object({
     userId: z.coerce.number().int().positive(),
@@ -152,8 +154,27 @@ const shiftReviewChatSchema = z.object({
     shiftNetMills: mills,
     /** Messages before the shift that are not sent (only the last SHIFT_REVIEW_CONTEXT_MESSAGES are). */
     earlierHidden: count,
+    /**
+     * The fan's last message (that the page could see) before the shift, within SHIFT_REVIEW_WAIT_HORIZON_HOURS; null —
+     * none so recent (the fan had been silent longer, or never wrote). The shift audit's «реактивация» reads it.
+     */
+    fanLastBefore: isoTimestamp.nullable().optional(),
+    /** When the fan last followed the page (OnlyFans: first subscribed), from SHIFT_REVIEW_WAIT_HORIZON_HOURS before the shift to its end; null — not then. */
+    followedAt: isoTimestamp.nullable().optional(),
+    /** The chatter's AI texts made in this chat within the shift, by feature. */
+    ai: z.array(z.object({ feature: z.string(), count })).optional(),
     /** Oldest first. */
     messages: z.array(shiftReviewMessageSchema),
+});
+/** A new follower of a page of the shift within it: a Fansly follow, an OnlyFans fan's first subscription to the page. */
+const shiftReviewFollowSchema = z.object({
+    pageLabel: z.string(),
+    fanRef: z.string().nullable(),
+    fanUsername: z.string().nullable(),
+    /** The fan's chat in `chats`; null — not among them. */
+    chatKey: z.string().nullable(),
+    at: isoTimestamp,
+    kind: z.enum(["follow", "subscription"]),
 });
 const shiftReviewSaleSchema = z.object({
     /** The transaction's id. */
@@ -190,6 +211,12 @@ const shiftReviewSaleSchema = z.object({
      * contribution. A PPV with a known author goes by it, whoever wrote last.
      */
     origin: z.enum(SHIFT_REVIEW_SALE_ORIGINS),
+    /**
+     * With `ruleFrom`: the sale's home by the one rule — `kind` (a person's `shift` or `visit`, the page's `pot`, a PPV
+     * `waiting` for its sender, the owner's to `decide`, `nobody`'s, `before_rule`, `unknown`) and why, in the owner's
+     * words. `verdict` and `holderName` then say the same.
+     */
+    home: z.object({ kind: z.enum(SALE_HOME_KINDS), text: z.string() }).optional(),
 });
 export const teamShiftReviewResponseSchema = z.object({
     shift: z.object({
@@ -214,7 +241,17 @@ export const teamShiftReviewResponseSchema = z.object({
          * (owner, 2026-11-08) for SHIFT_REVIEW_SEAM_MINUTES or more. Any other page, and every page of a look-in, brings in just the chats the person wrote in.
          * `allFans` absent — as `worked`.
          */
-        pages: z.array(z.object({ pageLabel: z.string(), platform: z.string(), messages: count, worked: z.boolean(), allFans: z.boolean().optional() })),
+        pages: z.array(z.object({
+            pageLabel: z.string(), platform: z.string(), messages: count, worked: z.boolean(), allFans: z.boolean().optional(),
+            /**
+             * Every sale on the page within the shift, whoever's (the page's money, as the shift audit counts it), net, and by
+             * kind. Whose each is — `sales`; the shift's — `salesNetMills`. Absent — not read.
+             */
+            sales: z.object({
+                netMills: mills,
+                byKind: z.array(z.object({ kind: z.enum(CHATTER_SALE_KINDS), count, netMills: mills })),
+            }).optional(),
+        })),
         /**
          * The shift's sales, net, as «Смены → Заработок» settles them: the sales on its pages while it held them
          * (`salesHeldBy`), less those a colleague's overlapping shift held too when the colleague last wrote to the fan.
@@ -258,6 +295,10 @@ export const teamShiftReviewResponseSchema = z.object({
         by: z.enum(["me", "other", "none"]).nullable(),
         pending: z.boolean().optional(),
     })),
+    /** The new followers of the shift's pages within it, oldest first. Absent — not read. */
+    follows: z.array(shiftReviewFollowSchema).optional(),
+    /** The chatter's AI events on the shift's pages within it, by page and feature (`ai_usage_events`). Absent — not read. */
+    aiUse: z.array(z.object({ pageLabel: z.string(), feature: z.string(), count })).optional(),
     /** The chatter's messages of the shift neither the archive nor the page's socket holds yet (no text, not in `chats`). */
     unarchived: count,
     /**
@@ -265,6 +306,12 @@ export const teamShiftReviewResponseSchema = z.object({
      * the ones deleted within SHIFT_REVIEW_DELETED_UNSEEN_SECONDS whose text the archive never got: those are only here.
      */
     deleted: count,
+    /**
+     * The first Moscow day of the one rule of whose a sale is (the screens' switch), when this shift is counted by it (its
+     * report date is that day or later): `salesNetMills` is what the sales' homes give it, `sales` holds every sale
+     * credited to it (a PPV bought before it that waited for the person too), each with its `home`. Absent — the old count.
+     */
+    ruleFrom: businessDate.optional(),
     serverNow: isoTimestamp,
 });
 export const shiftReviewRouteSchemas = {

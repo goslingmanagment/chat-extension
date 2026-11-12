@@ -208,6 +208,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   /** The hub address write still on its way: a sign-in clicked meanwhile waits for it and learns how it ended. */
   let addressWrite: Promise<WriteOutcome> | null = null;
   let newcomers: number | null = null;
+  let waiting: NonNullable<PagesModel['waiting']> | null = null;
   let reloadingHost = false;
   let fanLabels: ReadonlyMap<string, string> = new Map();
   let fanUsernames: ReadonlyMap<string, string> = new Map();
@@ -358,6 +359,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       location: location.value,
       systemScheme: ports.systemScheme.value,
       newcomers,
+      waiting,
       reloadingHost,
       fanLabels,
       fanUsernames,
@@ -478,6 +480,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       quotas = new Map();
       aiLimit = null;
       newcomers = null;
+      waiting = null;
       fanLabels = new Map();
       fanUsernames = new Map();
       if (next !== null) sessionEnd = null;
@@ -620,6 +623,18 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     emit();
   }
 
+  /**
+   * «Ждут вас» (hub #1232): what waits for the person, asked when the popup opens (and on «Обновить статус»); the
+   * background sets the icon's number from the same answer. No answer — the line stays as it was.
+   */
+  async function loadWaiting(): Promise<void> {
+    const generation = sessionGeneration;
+    const answer = await ask('matters.get', {});
+    if (disposed || generation !== sessionGeneration || !answer.ok || answer.payload.waiting === null) return;
+    waiting = answer.payload.waiting;
+    emit();
+  }
+
   /** A binding not answered yet, or the open chat's account not seen yet: the persona cannot be named. */
   function bindingsPending(): boolean {
     if (valueOf(session) === null) return false;
@@ -735,6 +750,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       env.page === 'options' ? loadOps() : Promise.resolve(),
       checkAccess(),
       signedIn && env.page === 'popup' ? loadAiLimit() : Promise.resolve(),
+      signedIn && env.page === 'popup' ? loadWaiting() : Promise.resolve(),
       signedIn
         ? loadBootstrap(force).then(() => {
             if (force && bootstrap.s === 'ok') check = { ...check, latencyMs: Math.max(0, clock.now() - askedAt) };
@@ -1068,7 +1084,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       if (env.page === 'popup') ports.window.close?.();
       return done('Navigate', { outcome: 'opened' });
     }
-    if (to.kind === 'workboard') return openWorkboard();
+    if (to.kind === 'workboard') return openWorkboard(to.next);
     if (to.kind === 'surface') {
       if (!to.open || (to.surface !== 'spenders' && to.surface !== 'newcomers' && to.surface !== 'cheatsheet')) return code('Navigate', 'CG-NAV-FAILED');
       return tabCommand('Navigate', { kind: 'surface', surface: to.surface });
@@ -1096,11 +1112,12 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
 
   /**
    * «Мои смены» (hub #1213): Workboard's «Мои смены» signed in by the hub's one-time link (`web-link-v1`), opened at
-   * once and once. A hub without it, a refusal or no answer within 10 s: Workboard's plain address, where the person
-   * signs in. Nothing is repeated: another click mints another link.
+   * once and once; `next` — another screen of Workboard (the shift to hand in, hub #1225). A hub without it, a refusal
+   * or no answer within 10 s: Workboard's plain address, where the person signs in. Nothing is repeated: another click
+   * mints another link.
    */
-  async function openWorkboard(): Promise<ActionReceipt> {
-    const answer = await ask('session.webLink', { next: WORKBOARD_SHIFTS_PATH }, { timeoutMs: WEB_LINK_TIMEOUT_MS });
+  async function openWorkboard(next: string = WORKBOARD_SHIFTS_PATH): Promise<ActionReceipt> {
+    const answer = await ask('session.webLink', { next }, { timeoutMs: WEB_LINK_TIMEOUT_MS });
     if (disposed) return done('Navigate');
     const plain = env.links.workboard;
     const opened = (answer.ok && ports.openLink(answer.payload.url)) || (plain !== null && ports.openLink(plain));
