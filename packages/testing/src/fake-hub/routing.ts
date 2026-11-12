@@ -161,6 +161,7 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientFanNoteAttributions: { params: PAGE_FAN },
   clientMessageAuthors: { params: PAGE_FAN },
   clientActivity: { body: 'merge' },
+  clientMatters: null,
   clientChatspaceTabState: { body: 'merge' },
   clientInConversation: { params: PAGE },
   clientFanCard: { params: PAGE_FAN },

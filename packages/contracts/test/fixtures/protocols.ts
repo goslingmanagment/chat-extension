@@ -250,6 +250,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{}, { next: '/workboard/my/shifts' }], invalid: [{ next: 'https://example.test/workboard/' }, { next: '' }, { next: `/${'w'.repeat(2048)}` }, { next: '/x', extra: true }] },
     res: { valid: [{ url: 'https://team.example.test/api/v1/auth/sso/accept?code=synthetic' }], invalid: [{ url: '' }, {}] },
   },
+  'matters.get': {
+    req: { valid: [{}], invalid: [{ extra: true }] },
+    res: {
+      valid: [{ waiting: null }, { waiting: { count: 0, title: null, handIn: null } }, { waiting: { count: 2, title: 'Сдайте смену 11 нояб., 18:14–02:36', handIn: '/workboard/my/shifts/41' } }],
+      // Only Workboard's own path opens the shift; a count is never negative.
+      invalid: [{}, { waiting: { count: -1, title: null, handIn: null } }, { waiting: { count: 1, title: null, handIn: 'https://example.test/workboard/my/shifts/41' } }, { waiting: { count: 1, title: null, handIn: '/console/x' } }],
+    },
+  },
   'bootstrap.get': {
     req: { valid: [{}, { force: true }], invalid: [{ force: 'yes' }] },
     res: dto(H.bootstrap, { ...H.bootstrap, flags: { insertion: 'on' } }),

@@ -114,8 +114,11 @@ export const NavigationTargetSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('page'), page: z.enum(['whats-new', 'changelog']) }),
   /** 1.35.0 (X61): the popup's «Открыть ChatSpace» — the build's own site in a new tab, at its address of the manifest. */
   z.strictObject({ kind: z.literal('site-home') }),
-  /** 2026-11-12: the popup's «Мои смены» — Workboard's «Мои смены» in a new tab, signed in by the hub's one-time link. */
-  z.strictObject({ kind: z.literal('workboard') }),
+  /**
+   * 2026-11-12: the popup's «Мои смены» — Workboard's «Мои смены» in a new tab, signed in by the hub's one-time link;
+   * `next` (hub #1225) — another of Workboard's screens, the shift to hand in («Сдать смену»). Absent — «Мои смены».
+   */
+  z.strictObject({ kind: z.literal('workboard'), next: z.optional(boundedText(2048).check(z.startsWith('/workboard/'))) }),
   /** debug-prompt.html with the snapshot's opaque token (DB-007). */
   z.strictObject({ kind: z.literal('debug-prompt'), promptHandle: HandleSchema }),
   z.strictObject({ kind: z.literal('journal'), journal: z.enum(JOURNAL_KINDS) }),

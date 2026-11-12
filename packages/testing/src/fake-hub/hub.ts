@@ -1285,7 +1285,20 @@ export class FakeHub {
         return { kind: 'json', status: 200, body: s.data.messageAuthors(need(page), (request as MessageAuthorsQuery).fanRef, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? 'chatter', now) };
       case 'clientActivity': {
         const who = need(principal).user.userId;
-        return read(s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now));
+        const beat = s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now);
+        // «Ждут вас» (hub #1232): the answer counts the person's matters; a hub before them sends no count.
+        const matters = s.config.matters;
+        return read(beat.ok && matters !== null ? { ok: true, body: { ...beat.body, matters: matters.length } } : beat);
+      }
+      // «Ждут вас» (hub #1210): the person's open matters, the longest waiting first, no evidence; a hub before them: 404.
+      case 'clientMatters': {
+        need(principal);
+        const matters = s.config.matters;
+        if (matters === null) return { kind: 'refuse', refusal: { error: 'not_found' } };
+        const rows = matters
+          .map((matter, index) => ({ id: index + 1, kind: matter.kind, title: matter.title, link: matter.link ?? null, pageLabels: [], openedAt: iso(now - (matter.openedAgoMs ?? (matters.length - index) * 60_000)) }))
+          .sort((a, b) => Date.parse(a.openedAt) - Date.parse(b.openedAt));
+        return { kind: 'json', status: 200, body: { count: rows.length, matters: rows.slice(0, 50), serverNow: iso(now) } };
       }
       // The always-on ChatSpace tab's report (hub #959): taken and kept nowhere — the stand has no server user.
       case 'clientChatspaceTabState':

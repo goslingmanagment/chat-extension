@@ -138,6 +138,7 @@ import {
   type SharedRecaps,
   type SharedRecapsQuery,
   type SignOutOutcome,
+  type ClientMatters,
   type WebLink,
   type WebLinkRequest,
   type SpenderBatch,
@@ -1047,6 +1048,17 @@ export class ChatExtensionHub implements HubFacade {
     const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
     if (!hasCapability(entry.bootstrap.capabilities, 'chatter-activity-v1')) throw new FacadeCheckError('capabilityMissing', 'clientActivity', connection.epoch, 'chatter-activity-v1');
     return (await this.ctx.client('clientActivity', request, {}, connection)) as ActivityBeatResult;
+  }
+
+  /**
+   * «Ждут вас» (hub #1210): the person's open matters — the count and the longest waiting, no evidence. No capability
+   * and no page: a hub without the route answers 404 and the popup shows nothing. Never repeated by itself.
+   */
+  async matters(): Promise<ClientMatters> {
+    const connection = this.ctx.connection('clientMatters');
+    await this.ready;
+    if (!this.ctx.isCurrent(connection)) throw this.ctx.failure('clientMatters', transportFailure('aborted'), connection);
+    return (await this.ctx.client('clientMatters', null, {}, connection)) as ClientMatters;
   }
 
   /** Chat Memory week 1: «в разговоре» of a page granted by this bootstrap; refused without `in-conversation-v1`. */

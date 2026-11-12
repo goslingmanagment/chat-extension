@@ -4,6 +4,15 @@ Firefox extension (MV3): ChatGoose AI (Reply, Fix, Hi, Ping, Recap, Review, Help
 "New" subscribers, hotkeys and sound on top of ChatSpace (`chat.onlymonster.ai`, OnlyFans) and fansly.com.
 A client of the Agency Hub (`~/code/1-platform/hub`): all AI and all platform data go only through the hub and the vendored `@kernel/sdk`.
 
+## Where this project stands in the system
+
+ChatGoose is the chatter's workplace inside the conversation and a client of the hub: it is the home of NOTHING.
+People and sign-in, sales and whose a sale is, shifts and shift reports, custom orders and matters («Ждут вас») live
+in the hub; accounting in the ledger; files in ContentOps. Words, money and date formats come from the vendored
+`@hub/look`, never a local copy. A new thing a chatter does gets its door in the hub first and a narrow-token route
+(`HUB_ROUTES`, `narrowToken: true`), never a local store of its own: the extension shows and asks, the hub keeps.
+The one map of the system is `~/code/SYSTEM.md` on the owner's machine.
+
 ## Layout
 
 pnpm monorepo, TypeScript strict, WXT, Preact.

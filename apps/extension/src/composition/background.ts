@@ -94,6 +94,8 @@ import {
   NoteAttributionReporter,
   noteWriteOrigin,
   ActivityBeat,
+  WaitingBadge,
+  waitingLineOf,
   ServerTabReport,
   type ServerTabSeen,
   beatTabsOf,
@@ -125,6 +127,7 @@ import { HEALTH_TICK_MS } from '@cg/core/services/telemetry';
 import { readVoiceOpView } from '@cg/core/services/voice';
 import { ChatExtensionHub, VENDORED_CONTRACT_HASH, errorWireOf } from '@cg/hub';
 import {
+  createActionBadge,
   createAlarms,
   createPermissionBundle,
   giveBackPermissions,
@@ -862,6 +865,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   };
   // A tab off any account's route (ChatSpace's overview «/») keeps the page it was last on, never the pages it lists.
   const beatLastPage = new Map<string, BeatTab>();
+  // «Ждут вас» (hub #1232; core/services/waiting.ts): the beat's answer and the popup's read set the icon's number.
+  const actionBadge = createActionBadge(api);
+  const waitingBadge = new WaitingBadge({ show: (text) => actionBadge.show(text), log: coreLog });
   const activity = new ActivityBeat({
     clock: CLOCK,
     hub: () => hubInstance,
@@ -872,6 +878,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     },
     instanceId: () => instanceId,
     tabs: () => beatTabsOf(presence.tabs(), pageLabelOfAccount, beatLastPage),
+    answered: (result) => waitingBadge.count(result.matters),
     log: coreLog,
   });
   // The agency's always-on ChatSpace tab (hub apps/chatspace-browser): its Firefox policy says `serverTab`; there alone
@@ -1477,6 +1484,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       void serverSignInPage(change.session !== null);
       activity.sessionChanged();
       beatLastPage.clear();
+      waitingBadge.clear();
       rpc.emit('session.changed', { session: change.session, reason: change.reason });
       // Another person, or nobody: no mark of the old sign-in stays; the next tab report asks again.
       talking.stop();
@@ -1647,6 +1655,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   );
   // «Мои смены» of the popup (hub #1213): the one-time link goes to the page that opens it, and nowhere else.
   rpc.handle('session.webLink', ({ next }) => hubCall(async () => ({ url: (await hub().webLink(next === undefined ? {} : { next })).url })));
+  // «Ждут вас» of the popup (hub #1210): asked as it opens; the icon's number follows the same answer. No answer — no line.
+  rpc.handle('matters.get', async () => {
+    try {
+      const line = waitingLineOf(await hub().matters());
+      waitingBadge.count(line.count);
+      return ok({ waiting: line });
+    } catch {
+      return ok({ waiting: null });
+    }
+  });
   rpc.handle('bootstrap.get', ({ force }) => hubCall(() => hub().bootstrap(force === true ? { force: true } : undefined)));
   rpc.handle('binding.resolve', ({ account }) => {
     const resolution = hub().resolveBinding(account);

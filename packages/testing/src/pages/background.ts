@@ -73,6 +73,8 @@ export interface BackgroundState {
   aiLimit?: AiLimitSnapshot | null;
   /** «Мои смены»: the hub's one-time link (`web-link-v1`); absent or null — the hub has none (CG-HUB-CAPABILITY). */
   webLink?: string | null;
+  /** «Ждут вас» (hub #1232): what `matters.get` answers; absent or null — the hub did not say. */
+  waiting?: { count: number; title: string | null; handIn: string | null } | null;
   ops: OpView[];
   journals: Partial<Record<JournalKind, JournalFixture>>;
   prompts: Record<string, PromptSnapshotView>;
@@ -343,6 +345,8 @@ export class FakePageBackground implements PageRpc {
         return { ok: true, payload: { serverRevoked: state.serverRevoked } };
       case 'session.webLink':
         return needsSession() ?? (state.webLink === undefined || state.webLink === null ? refuse('CG-HUB-CAPABILITY') : { ok: true, payload: { url: state.webLink } });
+      case 'matters.get':
+        return needsSession() ?? { ok: true, payload: { waiting: state.waiting ?? null } };
       case 'bootstrap.get':
         return needsSession() ?? { ok: true, payload: state.bootstrap };
       case 'catalog.get':

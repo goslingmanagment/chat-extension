@@ -47,6 +47,7 @@ import {
 import { type MessageAuthors, type MessageAuthorsQuery, type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type FanNoteAttributions, type FanNoteAttributionsQuery, type NoteAttributionsRequest, type NoteAttributionsResult } from './note-attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
+import { type ClientMatters } from './matters';
 import { type Handoff, type HandoffQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineProbeRequest, type OnlineProbeResult, type OnlineQuery } from './online';
 import { type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollRequest, type OnlyfansPollResult } from './onlyfans-feed';
@@ -210,6 +211,8 @@ export interface HubFacade {
    * checked (the hub skips a page that is not theirs). Never repeated: a lost beat is just lost.
    */
   activityBeat(request: ActivityBeatRequest): Promise<ActivityBeatResult>;
+  /** «Ждут вас» (hub #1210): the person's open matters — how many and the longest waiting; asked when the popup opens, never repeated. */
+  matters(): Promise<ClientMatters>;
   /** Chat Memory week 1: «в разговоре» of a page — refused without `in-conversation-v1` and for a page not granted. */
   inConversation(query: InConversationQuery): Promise<InConversationResult>;
   /** Chat Memory week 2: the fan's card across pages — refused without `fan-card-v1` and for a page not granted. */

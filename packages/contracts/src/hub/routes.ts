@@ -78,6 +78,8 @@ export const HUB_ROUTES = {
   clientActivity: { method: 'POST', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['chatter-activity-v1'], narrowToken: true },
   /** Chat Memory week 1: «в разговоре» — who wrote to which fan of the page in the last 15 minutes. No owner switch. */
   clientInConversation: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['in-conversation-v1'], narrowToken: true },
+  /** 2026-11-12 (hub #1210): «Ждут вас» — how many matters wait for the person and the longest waiting; no page, no capability. */
+  clientMatters: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   /** Chat Memory week 2: the fan's card, «Да / Нет» of a suggested account, a fact deleted or corrected. No owner switch. */
   clientFanCard: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
   clientFanLinkDecide: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },

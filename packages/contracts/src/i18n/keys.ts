@@ -340,6 +340,8 @@ export const UI_TEXT_KEYS = [
   'popup.btn.keys', 'popup.btn.settings', 'popup.whatsNew', 'popup.history', 'popup.refreshStatus', 'popup.version',
   // 2026-11-12: «Мои смены» — Workboard's «Мои смены» in a new tab, signed in by the hub's one-time link.
   'popup.myShifts', 'popup.myShiftsHint',
+  // 2026-11-12: «Ждут вас: 2» over «Мои смены» (the hub's matters), and «Сдать смену» for a shift not handed in.
+  'popup.waiting', 'popup.waitingHint', 'popup.handIn', 'popup.handInHint',
   'signIn.title', 'signIn.login', 'signIn.password', 'signIn.submit', 'signIn.pending',
   'settings.label',
   'settings.nav.label',

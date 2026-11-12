@@ -223,6 +223,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'clientBootstrap',
   'quotaRequestsToday',
   'personalAiLimit',
+  'matters',
   'fanslyProxies',
   'generationVisibleAfterMs',
   'spendersTotal',
@@ -279,6 +280,12 @@ export function checkCommand(value: unknown): FakeHubCommand {
     const day = patch['voiceDay'];
     if (day !== undefined && !isVoiceDay(day)) throw new Error('fake hub control: config.patch.voiceDay takes pageChars, globalChars, scriptMaxChars (whole, ≥ 1) and spentToday (page → whole chars ≥ 0)');
     if (patch['onlineStand'] !== undefined && !isBoolean(patch['onlineStand'])) throw new Error('fake hub control: config.patch.onlineStand is true or false');
+    const matters = patch['matters'];
+    const isMatter = (one: unknown): boolean => {
+      const row = one as Record<string, unknown>;
+      return isObject(one) && isString(row['kind']) && isString(row['title']) && (row['link'] === undefined || row['link'] === null || isString(row['link'])) && (row['openedAgoMs'] === undefined || (isNumber(row['openedAgoMs']) && (row['openedAgoMs'] as number) >= 0));
+    };
+    if (matters !== undefined && matters !== null && !(Array.isArray(matters) && matters.every(isMatter))) throw new Error('fake hub control: config.patch.matters is a list of { kind, title, link?, openedAgoMs? }, or null');
   }
   return value as FakeHubCommand;
 }

@@ -42,7 +42,7 @@ import {
   type HubFeatureNeeds,
 } from '../scenarios/hub';
 import { iso } from './clock';
-import { type BootstrapPresetName, type CoachDepthKnob, type FakeHubCommand, type FakeHubConfigPatch } from './types';
+import { type BootstrapPresetName, type CoachDepthKnob, type FakeHubCommand, type FakeHubConfigPatch, type FakeMatter } from './types';
 import { DEFAULT_VOICE_DAY, type VoiceDay } from './voice';
 
 /** The preset of a fake hub nobody configured: the pilot as the owner runs it (a row per page, an empty `*`). */
@@ -133,6 +133,8 @@ export interface FakeHubConfig {
   /** `fansly-proxies-v1`: what `clientFanslyProxies` answers; null — no proxies, as a stand without them. */
   readonly fanslyProxies: readonly { readonly pageLabel: string; readonly platformAccountId: string | null; readonly scheme: string; readonly host: string; readonly port: number; readonly username: string | null; readonly password: string | null }[] | null;
   readonly personalAiLimit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number; readonly poolMicroUsd?: number } | null;
+  /** «Ждут вас»: the person's open matters (types.ts `matters`); null — a hub before them. */
+  readonly matters: readonly FakeMatter[] | null;
   readonly generationVisibleAfterMs: number;
   readonly spendersTotal: number;
   readonly aiChunkDelayMs: number;
@@ -172,6 +174,7 @@ const BASE = {
   clientBootstrap: true,
   quotaRequestsToday: 120,
   personalAiLimit: null,
+  matters: [],
   fanslyProxies: null,
   generationVisibleAfterMs: 0,
   spendersTotal: 1240,
@@ -289,6 +292,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.quotaRequestsToday === undefined ? {} : { quotaRequestsToday: patch.quotaRequestsToday }),
     ...(patch.fanslyProxies === undefined ? {} : { fanslyProxies: patch.fanslyProxies }),
     ...(patch.personalAiLimit === undefined ? {} : { personalAiLimit: patch.personalAiLimit }),
+    ...(patch.matters === undefined ? {} : { matters: patch.matters === null ? null : patch.matters.map((matter) => ({ ...matter })) }),
     ...(patch.generationVisibleAfterMs === undefined ? {} : { generationVisibleAfterMs: patch.generationVisibleAfterMs }),
     ...(patch.spendersTotal === undefined ? {} : { spendersTotal: patch.spendersTotal }),
     ...(patch.aiChunkDelayMs === undefined ? {} : { aiChunkDelayMs: patch.aiChunkDelayMs }),

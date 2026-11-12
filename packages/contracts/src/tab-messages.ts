@@ -36,7 +36,7 @@ import {
   displayText,
 } from './primitives';
 import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendFuseFactSchema, SendFuseStateSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup, SendMarksSchema } from './send';
-import { CONTRACT_HASH_PATTERN, WebLinkRequestSchema } from './hub/auth';
+import { CONTRACT_HASH_PATTERN, WEB_LINK_NEXT_MAX_CHARS, WebLinkRequestSchema } from './hub/auth';
 import { HiFanAvatarUrlSchema } from './hi-start-proof';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
@@ -503,6 +503,20 @@ export const TAB_REQUESTS = {
    * credential for a minute: never logged, never kept.
    */
   'session.webLink': { req: WebLinkRequestSchema, res: z.strictObject({ url: boundedText(4096) }), from: PAGE, pages: ['popup'] },
+  /**
+   * 2026-11-12 (hub #1210, #1232): «Ждут вас» of the popup — asked when it opens; the background asks the hub and sets
+   * the toolbar icon's number from the same answer. `waiting` null — the hub did not say (an older hub, no answer).
+   * `title`: the longest waiting matter's; `handIn`: the shift's screen in Workboard when the person's last shift is
+   * not handed in (a `shift.report.missing` matter), null otherwise.
+   */
+  'matters.get': {
+    req: Empty,
+    res: z.strictObject({
+      waiting: z.nullable(z.strictObject({ count: CountSchema, title: z.nullable(boundedText(200)), handIn: z.nullable(boundedText(WEB_LINK_NEXT_MAX_CHARS).check(z.startsWith('/workboard/'))) })),
+    }),
+    from: PAGE,
+    pages: ['popup'],
+  },
   'bootstrap.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: BootstrapSchema, from: ANY },
   /** Binds a host account to exactly one page by platformAccountId; CG-BINDING-* on failure. */
   'binding.resolve': { req: z.strictObject({ account: HostAccountSchema }), res: z.strictObject({ binding: HubBindingSchema }), from: ANY },

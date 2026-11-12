@@ -138,6 +138,11 @@ export interface PagesModel {
   readonly systemScheme: ColorScheme;
   /** Popup: new subscribers of the open page in the default window; null — unknown. */
   readonly newcomers: number | null;
+  /**
+   * Popup (2026-11-12, hub #1232): «Ждут вас» — how many matters wait, the longest waiting one's title, the shift's
+   * screen to hand in; absent or null — not asked yet, or the hub did not say.
+   */
+  readonly waiting?: { readonly count: number; readonly title: string | null; readonly handIn: string | null } | null;
   /** Popup (X61): «Перезагрузить вкладку» is running — the background reloads the old build's tabs, the popup waits for them. */
   readonly reloadingHost: boolean;
   /**

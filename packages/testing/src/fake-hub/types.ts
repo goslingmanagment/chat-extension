@@ -83,6 +83,13 @@ export interface FakeHubConfigPatch {
   /** `fansly-proxies-v1`: what `clientFanslyProxies` answers. */
   readonly fanslyProxies?: readonly { readonly pageLabel: string; readonly platformAccountId: string | null; readonly scheme: string; readonly host: string; readonly port: number; readonly username: string | null; readonly password: string | null }[] | null;
   readonly personalAiLimit?: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number; readonly poolMicroUsd?: number } | null;
+  /**
+   * 2026-11-12 («Ждут вас», hub #1210/#1232): the person's open matters — the beat answers their count, `clientMatters`
+   * the list (the longest waiting first). `[]` — nothing waits (the default). null — a hub before them: the beat sends
+   * no count and `clientMatters` is 404. `openedAgoMs` — how long it has waited (default: a minute per row, the first
+   * the oldest).
+   */
+  readonly matters?: readonly FakeMatter[] | null;
   /** A finished generation becomes visible to H-5 this long after `done` (`generation_not_ready` before). */
   readonly generationVisibleAfterMs?: number;
   /** Rows of the Spenders board per page. */
@@ -125,6 +132,14 @@ export interface FakeHubConfigPatch {
    * stand's own archive, and no note.
    */
   readonly coachDepth?: CoachDepthKnob | null;
+}
+
+/** One matter of the person's (`matters`), as the hub keeps it: its kind, its title, where it is done. */
+export interface FakeMatter {
+  readonly kind: string;
+  readonly title: string;
+  readonly link?: string | null;
+  readonly openedAgoMs?: number;
 }
 
 /** The `coachDepth` knob of the fake hub. */
