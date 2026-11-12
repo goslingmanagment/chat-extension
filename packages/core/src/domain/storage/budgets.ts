@@ -79,8 +79,11 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [LOCAL_KEYS.sendAttributions]: 512 * KiB,
   /** No text: at most 1000 facts of about 300 bytes; a fill names a few questionnaire labels. */
   [LOCAL_KEYS.noteAttributions]: 1 * MiB,
-  /** Six pins of a few hundred bytes for each creator worked on within six hours; past it the quietest creator goes. */
-  [LOCAL_KEYS.fanslyPins]: 8 * KiB,
+  /**
+   * Six pins of up to ~300 bytes for every creator worked on within six hours: far above a shift (forty creators fit);
+   * past it the quietest creator goes, as the last resort.
+   */
+  [LOCAL_KEYS.fanslyPins]: 64 * KiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
   [SESSION_KEYS.settingsExtRevision]: 64,

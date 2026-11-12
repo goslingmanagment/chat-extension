@@ -4,16 +4,17 @@
 // - One key, one person: `{v: 1, owner: '<hubOrigin>|<userId>', accounts: {[creator]: pins}}`. Nobody signed in: an
 //   empty answer, nothing written or deleted. Another owner than the stored one: the stored value is dropped and the
 //   key starts empty for the new one. The owner is read at each operation — an idle module hears no session event, so
-//   no cleanup by event could lose pins mid-shift or miss another person.
+//   no cleanup by event could lose pins mid-shift or miss another person — at the call, and again when its step runs:
+//   another person signed in meanwhile gets no answer of the first one's pins.
 // - Every read and write is one step of one queue: a tab never reads, decides and writes by itself.
 // - Each operation prunes what expired (domain/hosts/fansly/pins.ts), applies itself (a touch before the prune) and
 //   writes only what changed; every creator's expired pins go with it, and a creator with none is dropped.
 // - Ids, names and moments only; the log hears counts.
 
-import { FANSLY_PIN_LIMITS, type FanslyPin, type FanslyPinOp } from '@cg/contracts/fansly-pins';
+import type { FanslyPin, FanslyPinOp } from '@cg/contracts/fansly-pins';
 
 import { applyPinOp, pinStoreOf, prunePins, readPinStore, samePinChips } from '../../../domain/hosts/fansly/pins';
-import { LOCAL_KEYS, STORAGE_KEY_BUDGETS } from '../../../domain/storage';
+import { LOCAL_KEYS, STORAGE_KEY_BUDGETS, stableJson } from '../../../domain/storage';
 import { createWriteChain, type KeyValuePort, type ServiceLog } from '../../storage/ports';
 
 export const FANSLY_PINS_KEY = LOCAL_KEYS.fanslyPins;
@@ -50,12 +51,13 @@ const NONE: FanslyPinsAnswer = { pins: [], changed: false };
 export function createFanslyPins(deps: FanslyPinsDeps): FanslyPinsService {
   const log = deps.log ?? (() => undefined);
   const chain = createWriteChain();
-  const budget = STORAGE_KEY_BUDGETS[FANSLY_PINS_KEY] ?? 8 * 1024;
+  const budget = STORAGE_KEY_BUDGETS[FANSLY_PINS_KEY] ?? 64 * 1024;
 
-  const run = (creator: string, op: FanslyPinOp | null): Promise<FanslyPinsAnswer> =>
-    chain(async () => {
+  const run = (creator: string, op: FanslyPinOp | null): Promise<FanslyPinsAnswer> => {
+    const asked = deps.owner();
+    return chain(async () => {
       const owner = deps.owner();
-      if (owner === null) return NONE;
+      if (owner === null || owner !== asked) return NONE;
       const got = await deps.local.get([FANSLY_PINS_KEY]);
       if (!got.ok) {
         log({ level: 'warn', scope: SCOPE, msg: 'pins not read', code: got.code });
@@ -69,7 +71,7 @@ export function createFanslyPins(deps: FanslyPinsDeps): FanslyPinsService {
       const after = op === null ? prunePins(before, now) : applyPinOp(before, op, now);
       const next = pinStoreOf(owner, { ...stored.accounts, [creator]: after }, now, creator, budget);
       // Written only when something changed: a read of nothing new costs no write.
-      if (raw === undefined ? Object.keys(next.accounts).length > 0 : JSON.stringify(next) !== JSON.stringify(raw)) {
+      if (raw === undefined ? Object.keys(next.accounts).length > 0 : stableJson(next) !== stableJson(raw)) {
         const written = Object.keys(next.accounts).length === 0 ? await deps.local.remove([FANSLY_PINS_KEY]) : await deps.local.set({ [FANSLY_PINS_KEY]: next });
         if (!written.ok) {
           log({ level: 'warn', scope: SCOPE, msg: 'pins not written', code: written.code, fields: { op: op?.op ?? 'read' } });
@@ -77,8 +79,9 @@ export function createFanslyPins(deps: FanslyPinsDeps): FanslyPinsService {
         }
       }
       const pins = next.accounts[creator] ?? [];
-      return { pins: pins.slice(0, FANSLY_PIN_LIMITS.max), changed: !samePinChips(before, pins) };
+      return { pins, changed: !samePinChips(before, pins) };
     });
+  };
 
   return {
     read: (creator) => run(creator, null),

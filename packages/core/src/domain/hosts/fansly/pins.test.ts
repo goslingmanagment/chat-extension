@@ -1,11 +1,12 @@
 // The rules of temporary chat pins (./pins.ts): six hours of quiet, a touch before the prune at the boundary, a late
-// touch never bringing a pin back, the limit's eviction, one pin per chat, and the stored value of another owner.
+// touch never bringing a pin back, the limit's eviction, one pin per chat, the stored value of another owner, the budget's
+// last resort, a name cut to the schema, and the strip's chips that never move under the pointer.
 
 import { describe, expect, it } from 'vitest';
 
-import { FANSLY_PIN_LIMITS, type FanslyPin, type FanslyPinTarget } from '@cg/contracts/fansly-pins';
+import { FANSLY_PIN_LIMITS, FanslyPinTargetSchema, type FanslyPin, type FanslyPinTarget } from '@cg/contracts/fansly-pins';
 
-import { applyPinOp, pinStoreOf, readPinStore } from './pins';
+import { applyPinOp, cutPinName, layPinChips, pinChipClosed, pinChipEntered, pinStoreOf, pinTargetOf, readPinStore, touchChat, type ShownPin } from './pins';
 
 const HOUR = 60 * 60 * 1000;
 const QUIET = FANSLY_PIN_LIMITS.quietMs;
@@ -68,5 +69,74 @@ describe('temporary pins', () => {
     expect(readPinStore(undefined, 'https://hub.example|7')).toEqual({ accounts: {}, foreign: false });
     // An expired creator's list goes with the next write.
     expect(pinStoreOf('https://hub.example|7', { [creator]: pins }, T0 + QUIET, 'another', 8 * 1024).accounts).toEqual({});
+  });
+});
+
+describe('temporary pins: the edges', () => {
+  it('a touch never brings back a pin quiet for six hours that no read pruned yet', () => {
+    const pins = applyPinOp([], { op: 'pin', pin: target(1) }, T0);
+    expect(touchChat(pins, target(1).groupId, T0 + QUIET)).toBe(pins);
+    expect(touchChat(pins, target(1).groupId, T0 + QUIET - 1)[0]?.touchedAt).toBe(T0 + QUIET - 1);
+  });
+
+  it('a name is cut to the schema’s 64 UTF-16 units, never through a surrogate pair', () => {
+    const meta = { groupId: target(1).groupId, fanId: target(1).fanId, kind: 'direct' as const, customName: '💋'.repeat(40), displayName: null, username: null };
+    const pinned = pinTargetOf(meta, 'Чат');
+    expect(pinned.name.length).toBeLessThanOrEqual(FANSLY_PIN_LIMITS.nameMaxChars);
+    expect(pinned.name.endsWith('💋…')).toBe(true);
+    expect(FanslyPinTargetSchema.safeParse(pinned).success).toBe(true);
+    expect(cutPinName('a'.repeat(62) + '💋x', 64)).toBe(`${'a'.repeat(62)}…`);
+  });
+
+  it('past the budget the quietest other creator goes, never the one just written', () => {
+    const creators = Array.from({ length: 60 }, (_, n) => `70000000000000${String(1000 + n)}`);
+    const accounts: Record<string, readonly FanslyPin[]> = {};
+    creators.forEach((creator, n) => {
+      let pins: readonly FanslyPin[] = [];
+      for (let k = 1; k <= FANSLY_PIN_LIMITS.max; k += 1) pins = applyPinOp(pins, { op: 'pin', pin: { ...target(k), name: 'Ф'.repeat(64) } }, T0 + n * 1000 + k);
+      accounts[creator] = pins;
+    });
+    const keep = creators[0] as string;
+    const store = pinStoreOf('https://hub.example|7', accounts, T0 + HOUR, keep, 64 * 1024);
+    const kept = Object.keys(store.accounts);
+    expect(kept).toContain(keep);
+    expect(kept.length).toBeLessThan(creators.length);
+    // Those that went are the quietest: every creator kept other than `keep` spoke later than every one dropped.
+    const dropped = creators.filter((creator) => !kept.includes(creator));
+    const lastSpoke = (creator: string): number => Math.max(...(accounts[creator] ?? []).map((pin) => pin.touchedAt));
+    expect(Math.min(...kept.filter((creator) => creator !== keep).map(lastSpoke))).toBeGreaterThan(Math.max(...dropped.map(lastSpoke)));
+    // Forty creators with six long names fit whole.
+    expect(Object.keys(pinStoreOf('https://hub.example|7', Object.fromEntries(creators.slice(0, 40).map((creator) => [creator, accounts[creator] ?? []])), T0 + HOUR, keep, 64 * 1024).accounts)).toHaveLength(40);
+  });
+});
+
+describe('the strip’s chips', () => {
+  const pin = (n: number): FanslyPin => ({ ...target(n), pinnedAt: T0 + n, touchedAt: T0 + n });
+  const states = (shown: readonly ShownPin[]): string[] => shown.map((entry) => `${entry.pin.groupId.slice(-1)}:${entry.state}`);
+
+  it('frozen: a chip taken off is a placeholder of its place, a new one waits, names stay; then it closes and goes', () => {
+    let shown = layPinChips([], [pin(1), pin(2), pin(3)], false, false).shown;
+    expect(states(shown)).toEqual(['1:shown', '2:shown', '3:shown']);
+    const renamed = { ...pin(2), name: 'Other' };
+    const frozen = layPinChips(shown, [renamed, pin(3), pin(4)], true, true);
+    expect(states(frozen.shown)).toEqual(['1:tombstone', '2:shown', '3:shown']);
+    expect(frozen.shown[1]?.pin.name).toBe('Fan 2');
+    expect(frozen.closing).toEqual([]);
+    const free = layPinChips(frozen.shown, [renamed, pin(3), pin(4)], false, true);
+    expect(states(free.shown)).toEqual(['1:closing', '2:shown', '3:shown', '4:in']);
+    expect(free.closing).toEqual([pin(1).groupId]);
+    expect(free.entering).toEqual([pin(4).groupId]);
+    expect(free.shown[1]?.pin.name).toBe('Other');
+    shown = pinChipEntered(pinChipClosed(free.shown, pin(1).groupId), pin(4).groupId);
+    expect(states(shown)).toEqual(['2:shown', '3:shown', '4:shown']);
+  });
+
+  it('a chip pinned again while its place closes takes it back; a strip that does not stand gets no entering chips', () => {
+    const closing = layPinChips(layPinChips([], [pin(1), pin(2)], false, false).shown, [pin(2)], false, true);
+    expect(states(closing.shown)).toEqual(['1:closing', '2:shown']);
+    const back = layPinChips(closing.shown, [pin(1), pin(2)], false, true);
+    expect(states(back.shown)).toEqual(['1:shown', '2:shown']);
+    expect(states(pinChipClosed(back.shown, pin(1).groupId))).toEqual(['1:shown', '2:shown']);
+    expect(layPinChips([], [pin(1)], false, false).entering).toEqual([]);
   });
 });
