@@ -79,11 +79,14 @@ export interface FanslyPinChip {
 export interface FanslyPinsView {
   /** The strip is mounted: there is a pin, or the strip still stands while the pointer is over the list. */
   readonly visible: boolean;
-  /** The strip's height now: it changes only while the pointer is not over the list. */
-  readonly height: 0 | 44;
+  /** The strip's height now (`FANSLY_PIN_LIMITS.stripPx` while it stands): it changes only while the pointer is not over the list. */
+  readonly height: 0 | typeof FANSLY_PIN_LIMITS.stripPx;
   readonly chips: readonly FanslyPinChip[];
-  /** The open chat in the header: whether it is pinned; null — no direct chat open, or the switch is off. */
-  readonly header: { readonly pinned: boolean } | null;
+  /**
+   * The open chat in the header: whether it is pinned, and whether the switch is known yet (until then the button keeps
+   * its place unseen); null — no chat that can be pinned is open, or the switch is off.
+   */
+  readonly header: { readonly pinned: boolean; readonly settled: boolean } | null;
 }
 
 /** What the strip and the header button act through (core application/hosts/fansly/pins.ts). */

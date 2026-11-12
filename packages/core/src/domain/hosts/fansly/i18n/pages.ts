@@ -5,11 +5,16 @@
 // chatter's vocabulary.
 
 import type { I18nKey } from '@cg/contracts/errors';
+import { FANSLY_PIN_LIMITS } from '@cg/contracts/fansly-pins';
 import type { Locale } from '@cg/contracts/i18n/keys';
 import type { FanslyPageTextKey } from '@cg/contracts/pages-fansly';
 import type { I18n } from '@cg/contracts/vm';
 
 import { createLiveI18n } from '../../../i18n/live';
+
+/** «Закрепы чатов»: the quiet time and the limit, as the rules have them. */
+const PIN_HOURS = FANSLY_PIN_LIMITS.quietMs / (60 * 60 * 1000);
+const PIN_MAX = FANSLY_PIN_LIMITS.max;
 
 export type FanslyPageCatalog = Readonly<Record<FanslyPageTextKey, string>>;
 
@@ -46,7 +51,7 @@ const RU: FanslyPageCatalog = {
   'fansly.pages.inboxMarkWe': '«Мы:» перед ответом',
   'fansly.pages.inboxMarkOff': 'Не показывать',
   'fansly.pages.pins': 'Закрепы чатов',
-  'fansly.pages.pinsHint': 'Над списком чатов Fansly: чат закрепляется кнопкой в строке или в шапке открытого чата. Снимается сам через 6 часов тишины, до 6 чатов, видите только вы',
+  'fansly.pages.pinsHint': `Над списком чатов Fansly: чат закрепляется кнопкой в строке или в шапке открытого чата. Снимается сам через ${PIN_HOURS} часов тишины, до ${PIN_MAX} чатов, видите только вы`,
   'fansly.pages.readFailed': 'Настройки Fansly не прочитались.',
   'fansly.pages.tones': 'Тон звука на Fansly',
   'fansly.pages.tonesHint': 'Тон на Fansly; вкл/выкл и громкость общие',
@@ -101,7 +106,7 @@ const EN: FanslyPageCatalog = {
   'fansly.pages.inboxMarkWe': '«Мы:» before a reply',
   'fansly.pages.inboxMarkOff': 'Off',
   'fansly.pages.pins': 'Chat pins',
-  'fansly.pages.pinsHint': 'Over Fansly’s list of chats: a chat is pinned by the button in its row or in the open chat’s header. It unpins itself after 6 hours of quiet, up to 6 chats, only you see them',
+  'fansly.pages.pinsHint': `Over Fansly’s list of chats: a chat is pinned by the button in its row or in the open chat’s header. It unpins itself after ${PIN_HOURS} hours of quiet, up to ${PIN_MAX} chats, only you see them`,
   'fansly.pages.readFailed': 'Fansly’s settings could not be read.',
   'fansly.pages.tones': 'Sound tone on Fansly',
   'fansly.pages.tonesHint': 'The tone on Fansly; on/off and volume are shared',
