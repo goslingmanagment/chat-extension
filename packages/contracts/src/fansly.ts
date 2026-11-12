@@ -312,6 +312,34 @@ export interface FanslyMessageAuthorsView {
   readonly onUnknownLive?: (ids: readonly string[]) => void;
 }
 
+/**
+ * 2026-11-12: a chat as MAIN knows it from the page's answers (`fx.windowMeta`), for a pin made from a row of the list
+ * of chats: its fan, its kind and the names the chip shows. Never a message text.
+ */
+export interface FanslyChatMeta {
+  readonly groupId: string;
+  /** The direct chat's one fan; null — a group chat, or not known. */
+  readonly fanId: string | null;
+  readonly kind: 'direct' | 'group' | null;
+  readonly customName: string | null;
+  readonly displayName: string | null;
+  readonly username: string | null;
+}
+
+/** 2026-11-12: the pins drawn on the rows of Fansly's list of chats; null — the feature is off (no buttons, no marks). */
+export interface FanslyRowPinsState {
+  readonly pinned: ReadonlySet<string>;
+  /** The button's words in the tab's language: to pin a row's chat, and to unpin a pinned one. */
+  readonly words: { readonly pin: string; readonly unpin: string };
+}
+
+/** 2026-11-12: activity in a chat the page saw: a message of a person (either side, never an automated one) or a send of the page. */
+export interface FanslyChatActivity {
+  readonly groupId: string;
+  /** Epoch ms of the message (its own time when MAIN knows it, else when it was heard), never after now. */
+  readonly at: number;
+}
+
 export interface FanslyPagePort {
   /** §7.4: the header slot of the open chat, re-made idempotently each time Fansly re-creates the contact block. */
   headerSlot(): FanslyHeaderSlot;
@@ -337,4 +365,30 @@ export interface FanslyPagePort {
   setMessageAuthors(view: FanslyMessageAuthorsView | null): void;
   /** 2026-11-03: a message of the open chat was deleted (the fan's or the model's), by the chat's group id: «Фан удалил» asks again. */
   onDeleted(cb: (groupId: string) => void): Unsubscribe;
+  /**
+   * 2026-11-12, temporary pins: the rows of the list of chats — a pinned row's mark on its avatar from its first frame,
+   * and a pin button that fades in on hover (a direct chat whose fan MAIN knows). `onToggle` — the person's trusted
+   * click on a row's button: its chat as MAIN knows it; the chat is not opened and the focus stays where it was.
+   */
+  readonly rowPins: {
+    set(state: FanslyRowPinsState | null): void;
+    onToggle(listener: (meta: FanslyChatMeta & { readonly fanId: string }) => void): Unsubscribe;
+  };
+  /** 2026-11-12: a chat as MAIN knows it (`fx.windowMeta`), kept per group until MAIN's state or the creator changes; null — not known. */
+  chatMeta(groupId: string): Promise<FanslyChatMeta | null>;
+  /**
+   * 2026-11-12: whose is the last word of each chat (MAIN's `fx.lastWord`); null — not known. All of them unknown again
+   * after MAIN's new state, a loss of its stream or another creator; `onChange` is said once for a batch of them.
+   */
+  readonly words: {
+    get(groupId: string): 'fan' | 'model' | null;
+    onChange(listener: () => void): Unsubscribe;
+  };
+  /** 2026-11-12: a chat's activity as the page saw it (MAIN's live `fx.incoming` of a person, the page's own send), under the current creator. */
+  onActivity(listener: (activity: FanslyChatActivity) => void): Unsubscribe;
+  /** 2026-11-12: whether the pointer is over the column of the list of chats (`div.messages-list-wrapper` of the route). */
+  readonly inboxPointer: {
+    inside(): boolean;
+    onChange(listener: () => void): Unsubscribe;
+  };
 }

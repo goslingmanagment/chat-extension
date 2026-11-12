@@ -44,13 +44,17 @@ export interface StartedFanslyTab extends StartedFanslyHost {
   /**
    * The application is wanted without a composer (R20 P13b): on `/creator/vault` the vault's entry has its place, so
    * the application loads as for the dock's — and with it, if the page's owner switched the vault on, the entry. And
-   * from the first click on the floating launcher on (X46): the window it asked for comes with the application.
+   * from the first click on the floating launcher on (X46): the window it asked for comes with the application. And
+   * (2026-11-12, temporary chat pins) on the list of chats, `/messages` and `/messages/<id>`: the strip comes with it,
+   * an SPA move there from another page included.
    */
   readonly wantsApp: { current(): boolean; onChange(listener: () => void): () => void };
 }
 
 /** The vault's page (isolated/vault/dom.ts `isVaultPath`, which this early bundle does not carry). */
 const onVault = (path: string): boolean => path === '/creator/vault' || path === '/creator/vault/';
+/** The list of chats, with a chat open or none (route.ts `groupIdOfPath`'s addresses). */
+const onMessages = (path: string): boolean => /^\/messages(?:\/\d+)?\/?$/.test(path);
 
 export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
   const staleHosts = removeStaleHosts(env.win.document);
@@ -65,10 +69,10 @@ export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
   });
   const { launcher } = started;
   const wantsApp = {
-    current: () => launcher.wanted() || onVault(started.route.current().path),
+    current: () => launcher.wanted() || onVault(started.route.current().path) || onMessages(started.route.current().path),
     onChange(listener: () => void) {
       const offRoute = started.route.onChange((change) => {
-        if (onVault(change.route.path) !== onVault(change.previous.path)) listener();
+        if (onVault(change.route.path) !== onVault(change.previous.path) || onMessages(change.route.path) !== onMessages(change.previous.path)) listener();
       });
       // Every click: an application whose load failed is asked for again (UP-016: nothing reloads by itself).
       const offLauncher = launcher.onWanted(listener);

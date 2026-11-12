@@ -53,6 +53,11 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 //   run of them (message-authors.ts, `fansly.setMessageAuthors`): the
 //   application's view, lined up with the bubbles by MAIN's order of the chat
 //   (`fx.order`), looked at again when MAIN hears a message of it come or go.
+// - Temporary chat pins (2026-11-12): the strip's place in the route's list of chats (`inbox`, inbox-slot.ts), the pins
+//   on its rows (`fansly.rowPins`, inbox-marks.ts), a chat as MAIN knows it for a pin made from a row
+//   (`fansly.chatMeta`, `fx.windowMeta`), whose word is last in each chat (`fansly.words`), a chat's activity
+//   (`fansly.onActivity`: MAIN's live `fx.incoming` of a person, the page's own send) and whether the pointer is over
+//   the list's column (`fansly.inboxPointer`). No request of ours to Fansly, no message text.
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -66,7 +71,7 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 import type { SoundBatch, SoundStreamEvent } from '@cg/contracts/sound';
 import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, FromMainFansly } from '@cg/contracts/bridge-messages-fansly';
 import type { CgCode } from '@cg/contracts/errors';
-import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
+import type { FanslyChatActivity, FanslyChatMeta, FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
 import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { AttachIntent, AttachReceipt, ChatWindow, ComposerState, DraftMedia, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
@@ -83,6 +88,7 @@ import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
 import { createHeaderSlots, type HeaderSlots } from './header-slot';
 import { createInboxMarks } from './inbox-marks';
+import { createInboxSlots, type InboxSlots } from './inbox-slot';
 import { createMessageAuthors } from './message-authors';
 import { createTabLabel } from './tab-label';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
@@ -149,6 +155,8 @@ export interface FanslyVaultFacts {
 export interface FanslyPort extends FanslyHostPort {
   /** P11a: ordered closed roots under the contact; kept by the existing narrow observers. */
   readonly header: HeaderSlots;
+  /** 2026-11-12: ordered closed roots right after the filter chips of the route's list of chats (the strip of pins). */
+  readonly inbox: InboxSlots;
   /** Bounded early backlog; the tab's transport subscribes before its first presence. */
   onSoundBatch(listener: (batch: SoundBatch) => void): Unsubscribe;
   /** Resolves once MAIN's first state was taken (or asked in vain, or at once without MAIN). */
@@ -218,7 +226,14 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const doc = win.document;
   const header = createHeaderSlots(doc, mounts.registry);
   const wholeName = createWholeName(FANSLY_SELECTORS.headerName);
-  const inboxMarks = createInboxMarks(doc);
+  const inbox = createInboxSlots(doc, mounts.registry);
+  // The rows' pins ask MAIN for a row's chat and hand a person's click to the application.
+  const inboxMarks = createInboxMarks(doc, {
+    meta: (groupId) => chatMeta(groupId),
+    toggle: (meta) => {
+      for (const listener of [...toggleListeners]) listener(meta);
+    },
+  });
   // MAIN's order of a group's messages, for «кто написал»; nothing without MAIN, or for an answer of another generation.
   const messageAuthors = createMessageAuthors(doc, {
     order: async (groupId) => {
@@ -336,6 +351,57 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const slotListeners = new Set<(slot: FanslyHeaderSlot) => void>();
   /** «Фан удалил»: a message of the focused chat went (MAIN's `fx.deleted`). */
   const deletedListeners = new Set<(groupId: string) => void>();
+  // ── temporary chat pins (2026-11-12) ──
+  const toggleListeners = new Set<(meta: FanslyChatMeta & { readonly fanId: string }) => void>();
+  const activityListeners = new Set<(activity: FanslyChatActivity) => void>();
+  /** MAIN's chats as `fx.windowMeta` named them, by group: until MAIN's next state or another creator. */
+  const metas = new Map<string, FanslyChatMeta>();
+  /** Whose is the last word of each chat, as MAIN said it; told once for a batch of words. */
+  const lastWords = new Map<string, 'fan' | 'model'>();
+  const wordListeners = new Set<() => void>();
+  let wordsOwed = false;
+  const wordsChanged = (): void => {
+    if (wordsOwed) return;
+    wordsOwed = true;
+    queueMicrotask(() => {
+      wordsOwed = false;
+      if (!disposed) for (const listener of [...wordListeners]) listener();
+    });
+  };
+  const setWord = (groupId: string, word: 'fan' | 'model' | null): void => {
+    if ((lastWords.get(groupId) ?? null) === word) return;
+    if (word === null) lastWords.delete(groupId);
+    else lastWords.set(groupId, word);
+    wordsChanged();
+  };
+  const forgetWords = (): void => {
+    if (lastWords.size === 0) return;
+    lastWords.clear();
+    wordsChanged();
+  };
+  const sayActivity = (groupId: string, at: number): void => {
+    for (const listener of [...activityListeners]) listener({ groupId, at });
+  };
+  /** The pointer over the route's list column: its own enter and leave, read at once when the column comes. */
+  let pointerList: Element | null = null;
+  let pointerInside = false;
+  const pointerListeners = new Set<() => void>();
+  const setPointer = (inside: boolean): void => {
+    if (inside === pointerInside) return;
+    pointerInside = inside;
+    for (const listener of [...pointerListeners]) listener();
+  };
+  const onPointerEnter = (): void => setPointer(true);
+  const onPointerLeave = (): void => setPointer(false);
+  const followPointer = (list: Element | null): void => {
+    if (list === pointerList) return;
+    pointerList?.removeEventListener('pointerenter', onPointerEnter);
+    pointerList?.removeEventListener('pointerleave', onPointerLeave);
+    pointerList = list;
+    list?.addEventListener('pointerenter', onPointerEnter, { passive: true });
+    list?.addEventListener('pointerleave', onPointerLeave, { passive: true });
+    setPointer(list !== null && list.matches(':hover'));
+  };
   const emit = (event: HostEvent): void => {
     for (const listener of [...eventListeners]) listener(event);
   };
@@ -477,7 +543,11 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     // the creator's custom name for the fan first, else the display name, else the handle (its `getDisplayName`).
     const account = routeState.chat === null ? null : (conversation?.contact?.querySelector(FANSLY_SELECTORS.headerAccount) ?? null);
     wholeName.sync(account, chatWire?.fanCustomName ?? chatWire?.fanDisplayName ?? chatWire?.fanUsername ?? null);
-    inboxMarks.place([...inboxes].find((element) => element.tagName === 'DIV') ?? null);
+    // The route's own list first: the mini chat's lookalike never gets the strip, nor the pins (2026-11-12).
+    const routeList = [...inboxes].find((element) => element.tagName === 'DIV' && element.closest('app-messages-route') !== null) ?? null;
+    inboxMarks.place(routeList ?? [...inboxes].find((element) => element.tagName === 'DIV') ?? null);
+    inbox.sync(routeList);
+    followPointer(routeList);
     // «Кто написал»: like the field above, a container still on the page when the route moved is the old chat's.
     const chatBox = routeState.name === 'chat' ? (conversation?.container ?? null) : null;
     if (chatBox !== null && owner !== null && !owners.has(chatBox)) owners.set(chatBox, owner);
@@ -504,6 +574,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (next === creator) return false;
     fanLabels.clear();
     inboxMarks.clear();
+    forgetWords();
+    metas.clear();
     // Another creator's chats: what the application said of the old one's goes until it says again.
     messageAuthors.set(null);
     // Identity may change between two facts of one batch: none of the old
@@ -559,6 +631,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     network = state.contract;
     // MAIN says every last word again right after this answer: the words held are the old stream's.
     inboxMarks.clear();
+    forgetWords();
+    metas.clear();
     const renamed = takeNames(state.identity);
     const changed = changeCreator(state.identity.creatorId);
     setChat(state.chat !== null && chatFits(routeNow(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
@@ -594,6 +668,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         const p = event.p;
         messageAuthors.changed(p.groupId, p.msgId);
         if (creator === null || p.accountId !== creator || p.fanId === creator) return;
+        sayActivity(p.groupId, clock());
         emit({ type: 'pageSent', fact: { chat: { host: FANSLY_KIND, hostAccountId: creator, platformFanId: p.fanId }, conversationRef: p.groupId, platformMessageId: p.msgId, media: p.media } });
         return;
       }
@@ -604,6 +679,11 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         messageAuthors.changed(p.groupId, p.fromFan || p.automated ? undefined : p.msgId);
         // The account at capture time survives a backed-up MAIN stream and a login switch.
         // Older facts lacking attribution are not enough to classify our own aliases.
+        // A person's message of either side is a chat's activity (2026-11-12, the pins' six hours); a mass send is not.
+        if (!p.automated && creator !== null && p.accountId === creator) {
+          const said = p.createdAt === null ? Number.NaN : Date.parse(p.createdAt);
+          sayActivity(p.groupId, Number.isFinite(said) ? Math.min(said, clock()) : clock());
+        }
         if (p.senderId !== undefined && creator !== null && p.accountId === creator) soundEvents.push({ kind: 'message', id: p.msgId, conversationRef: p.groupId, senderId: p.senderId, fromFan: p.fromFan, automatic: p.automated, tip: p.tip, sentAt: p.createdAt });
         return;
       }
@@ -612,6 +692,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         return;
       case 'fx.lastWord':
         inboxMarks.word(event.p.groupId, event.p.word);
+        setWord(event.p.groupId, event.p.word);
         return;
       case 'fx.deleted':
         messageAuthors.changed(event.p.groupId);
@@ -640,8 +721,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
               // Every chat unknown until the next state (FS-TAIL-5): the window the tab holds says so at once — and a
               // proven start no longer stands, its unbroken observation is broken.
               if (chatWire !== null) setChat({ ...chatWire, window: { ...chatWire.window, completeness: 'unknown', startProven: false } });
-              // Which album the page loaded meanwhile is not known either.
+              // Which album the page loaded meanwhile is not known either; nor whose word is last in a chat.
               vaultLoad = null;
+              forgetWords();
               for (const listener of [...vaultLosses]) listener();
             },
             fault(source, count) {
@@ -741,6 +823,29 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     return taken.ok && taken.fresh() && creator === creatorId && !disposed ? taken.value.groupId : null;
   };
 
+  /**
+   * A chat as MAIN knows it (`fx.windowMeta`, 2026-11-12): asked under the port's generation, taken only for the creator
+   * it was asked for; a known kind is kept until MAIN's next state or another creator. No site request.
+   */
+  const chatMeta = async (groupId: string): Promise<FanslyChatMeta | null> => {
+    const kept = metas.get(groupId);
+    if (kept !== undefined) return kept;
+    const asked = creator;
+    if (bridge === null || asked === null || disposed) return null;
+    const taken = await generation.under(() => bridge.request('fx.windowMeta', { groupId }));
+    if (!taken.ok || !taken.fresh() || disposed || creator !== asked || taken.value === null || taken.value.groupId !== groupId) return null;
+    const wire = taken.value;
+    const meta: FanslyChatMeta = { groupId, fanId: wire.fanId, kind: wire.kind, customName: wire.fanCustomName ?? null, displayName: wire.fanDisplayName ?? null, username: wire.fanUsername ?? null };
+    if (meta.kind !== null) {
+      metas.set(groupId, meta);
+      if (metas.size > 512) {
+        const oldest = metas.keys().next().value;
+        if (oldest !== undefined) metas.delete(oldest);
+      }
+    }
+    return meta;
+  };
+
   const navigator = createNavigator({
     win,
     creator: () => creator,
@@ -820,6 +925,42 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         deletedListeners.delete(cb);
       };
     },
+    rowPins: {
+      set: (state) => {
+        if (!disposed) inboxMarks.setPins(state);
+      },
+      onToggle(listener): Unsubscribe {
+        toggleListeners.add(listener);
+        return () => {
+          toggleListeners.delete(listener);
+        };
+      },
+    },
+    chatMeta: (groupId) => chatMeta(groupId),
+    words: {
+      get: (groupId) => lastWords.get(groupId) ?? null,
+      onChange(listener): Unsubscribe {
+        wordListeners.add(listener);
+        return () => {
+          wordListeners.delete(listener);
+        };
+      },
+    },
+    onActivity(listener): Unsubscribe {
+      activityListeners.add(listener);
+      return () => {
+        activityListeners.delete(listener);
+      };
+    },
+    inboxPointer: {
+      inside: () => pointerInside,
+      onChange(listener): Unsubscribe {
+        pointerListeners.add(listener);
+        return () => {
+          pointerListeners.delete(listener);
+        };
+      },
+    },
   };
 
   const dispose = (): void => {
@@ -838,6 +979,14 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     anchors.dispose();
     mounts.dispose();
     header.dispose();
+    inbox.dispose();
+    pointerListeners.clear();
+    followPointer(null);
+    toggleListeners.clear();
+    activityListeners.clear();
+    wordListeners.clear();
+    lastWords.clear();
+    metas.clear();
     wholeName.dispose();
     inboxMarks.dispose();
     messageAuthors.dispose();
@@ -882,6 +1031,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     },
     kind: FANSLY_KIND,
     header,
+    inbox,
     platform: FANSLY_PLATFORM,
     ready,
     identity,
