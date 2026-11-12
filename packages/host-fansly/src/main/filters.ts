@@ -5,8 +5,10 @@
 //   and the pinned lists (`/settings?categoryIds=4000`: the entry 4000/100, `JSON.parse(metadata).pinnedLists[]`).
 // - The unread of the loaded chats, as the page's group service counts them (main:27061-27131): the unread message ids
 //   of `/message/unread` (a first page — no `before` — starts them over), a new message of anyone but the creator, the
-//   creator's own read marks (`4/2` of types 2 and 3) and «all read» (`/message/ack/all`), a deleted message, and the
-//   chat opened (marked read at once). Only the chats the page loaded count (`/messaging/groups`, `/group/<id>`).
+//   creator's own read marks (`4/2` of types 2 and 3), a deleted message, and the chat opened (marked read at once).
+//   Only the chats the page loaded count (`/messaging/groups`, `/group/<id>`). Fansly's «Mark as read» of every chat
+//   is not followed (its address is not ours to name, gate `message-ack`): the copy differs from the badges until the
+//   page reads its unread again (its refresh), and the strips show dots meanwhile.
 // - Each chat's fan by what decides a filter: `subscriber`, `subscriberSubscription.subscriptionTierId`,
 //   `containingLists` — as every account of an answer sets them in the page's cache (main:24389, 24471).
 // Any limit passed and the part is null: the strips show Fansly's numbers only, never a guess.
@@ -43,7 +45,6 @@ export interface FilterFacts {
   read(userId: string | null, ids: readonly string[], type: number | null, creator: string | null): void;
   deleted(messageId: string): void;
   opened(groupId: string): void;
-  allRead(): void;
   /** The payload when anything said changed since the last call; null — nothing new. */
   take(force: boolean): Plain | null;
 }
@@ -89,7 +90,7 @@ export function createFilterFacts(stringify: (value: unknown) => string): Filter
     settings(response, parse) {
       for (const entry of Array.isArray(response) ? (response as unknown[]) : [response]) {
         if (!isPlain(entry) || String(entry['categoryId']) !== GROUP_SETTINGS || String(entry['keyId']) !== PINNED_LISTS) continue;
-        let metadata: unknown = null;
+        let metadata: unknown;
         try {
           metadata = typeof entry['metadata'] === 'string' ? parse(entry['metadata']) : null;
         } catch {
@@ -159,10 +160,6 @@ export function createFilterFacts(stringify: (value: unknown) => string): Filter
         ids.clear();
         dirty = true;
       }
-    },
-    allRead() {
-      unread.clear();
-      dirty = true;
     },
     take(force) {
       if (!dirty && !force) return null;

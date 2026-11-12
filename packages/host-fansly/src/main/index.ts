@@ -1,6 +1,6 @@
 // host-fansly/main — Fansly's MAIN world, at document_start (docs/project-unite/
 // architecture.md §5, §3.1, §6): one self-contained bundle, `fansly-main.js`
-// (≤ 16 KiB gzip, ≤ 1 ms at document_start). The shared boot of host-kit — the
+// (≤ 20 KiB gzip since 2026-11-13 and the filters' facts, ≤ 1 ms at document_start). The shared boot of host-kit — the
 // handshake with the isolated script, the MessagePort, `probe`, `guard` —
 // with Fansly's runtime attached at once, so both traps stand before the
 // first script of the page (§5.1):
@@ -594,9 +594,6 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         return;
       case 'settings':
         filters.settings(r, parse);
-        return;
-      case 'ackAll':
-        filters.allRead();
         return;
       case 'vault':
         emitter.event(EVT_VAULT, { seq: stamp?.seq ?? seq });

@@ -101,7 +101,7 @@ function parse(nav: Element): Parsed | FanslyFilterRefusal {
   const base = { all: read(all), subscribers: read(subscribers), staff: read(staff), vips: read(vips), followers: read(followers) };
   const tierChips = tiers.map((chip) => {
     const read = chipOf(chip);
-    const color = (chip.querySelector('i.fa-star') as HTMLElement | null)?.style.color ?? '';
+    const color = chip.querySelector<HTMLElement>('i.fa-star')?.style.color ?? '';
     return read === null ? null : { ...read, color: color === '' ? null : color };
   });
   const listChips = lists.map(chipOf);

@@ -341,7 +341,7 @@ const ROUTES: readonly Route[] = [
     run: ({ world, body }) => {
       const entry = asRecord(body);
       if (entry === null || String(entry['categoryId']) !== '4000' || String(entry['keyId']) !== '100' || typeof entry['metadata'] !== 'string') return { response: entry ?? {} };
-      let pinned: unknown = null;
+      let pinned: unknown;
       try {
         pinned = asRecord(JSON.parse(entry['metadata']))?.['pinnedLists'] ?? null;
       } catch {

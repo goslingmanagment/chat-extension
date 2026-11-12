@@ -117,7 +117,7 @@ export class XhrBackend implements StandBackend, VaultApi {
     pinned: (done) => {
       this.http.request<WireSetting[]>('GET', '/settings?categoryIds=4000', null, (error, response) => {
         const entry = error === null ? (response ?? []).find((item) => item.categoryId === '4000' && item.keyId === '100') : undefined;
-        let lists: Array<{ id: string; label: string }> = [];
+        let lists: Array<{ id: string; label: string }>;
         try {
           lists = entry === undefined ? [] : ((JSON.parse(entry.metadata) as { pinnedLists?: Array<{ id: string; label: string }> }).pinnedLists ?? []);
         } catch {

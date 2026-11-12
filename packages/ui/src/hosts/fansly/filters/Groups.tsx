@@ -246,7 +246,7 @@ export function Groups({ client, copy }: { readonly client: FanslyFiltersClient;
       setTip({ text, sub: target.dataset['tip2'] ?? null, x, y });
     };
     if (now) place();
-    else tipTimer.current = setTimeout(place, TIP_DELAY_MS) as unknown as number;
+    else tipTimer.current = setTimeout(place, TIP_DELAY_MS);
   };
   const tipped = (event: Event): HTMLElement | null => (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-tip]') ?? null;
 
