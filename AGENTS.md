@@ -14,7 +14,7 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
 - `packages/hub` — the hub facade over the SDK (background only). `packages/ui` — Preact surfaces, data only through `AppClient`.
 - `packages/host-kit`, `host-chatspace`, `host-fansly`, `host-telegram`, `fansly-api` — the page machinery of the sites and their adapters.
 - `packages/testing` — the stand, the fake hub, e2e; never ships.
-- `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`: never edit by hand, re-vendor with the hub's scripts (`scripts/vendor-*.mjs`).
+- `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`, `@hub/look` (Hub's formats, words and token values): never edit by hand, re-vendor with the hub's scripts (`scripts/vendor-*.mjs`).
 - `tools/` — gates, archive check, `dev`, the release (`release`), e2e in CI (`ci`). `site/` — the extension's site.
 
 `pnpm lint` (ESLint + dependency-cruiser) holds the package graph: crossing a boundary is a design question, not a lint exception.

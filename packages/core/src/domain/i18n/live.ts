@@ -28,6 +28,7 @@ import {
   type TimeStyle,
 } from '@cg/contracts/vm';
 import { type I18nKey } from '@cg/contracts/errors';
+import { formatBusinessDateShort } from '@hub/look';
 
 /**
  * A site's whole phrases in every language (R20 F9b; contracts vm/host-profile.ts): the shared texts name no site and
@@ -160,12 +161,13 @@ function durationParts(ms: number): { h: number; m: number; s: number; total: nu
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
 
 /**
- * Month abbreviations as the copy deck writes them («4 сен», «3 окт», «14 мар
- * 2024»; «4 Sep»). Fixed lists, not Intl: ICU versions disagree («сент.»,
- * «Sept») and one notation must not depend on the browser build.
+ * Month abbreviations («4 сент.», «12 нояб., 06:27», «14 мар. 2024»; «4 Sep»).
+ * Fixed lists, not Intl: ICU versions disagree and one notation must not
+ * depend on the browser build. The Russian one is Hub's, from the vendored
+ * look: its own fixed list, read through its day formatter («1 нояб.»).
  */
 const MONTHS: Record<Locale, readonly string[]> = {
-  ru: ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'],
+  ru: Array.from({ length: 12 }, (_, index) => formatBusinessDateShort(`2000-${String(index + 1).padStart(2, '0')}-01`).replace(/^1 /, '')),
   en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
 };
 

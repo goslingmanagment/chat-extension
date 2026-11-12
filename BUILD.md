@@ -31,7 +31,7 @@ of that folder.
 - `apps/extension` — entry points, the manifest policy (`build/manifest.ts`)
   and the WXT configuration.
 - `packages/*` — the extension's own code.
-- `vendor/kernel-sdk`, `vendor/chatgoose-hotkeys` — two packages of ours,
+- `vendor/kernel-sdk`, `vendor/chatgoose-hotkeys`, `vendor/hub-look` — three packages of ours,
   generated from our server's repository and committed as built JavaScript
   with type declarations; they are not minified. Each carries a
   `*.vendor.json` with the commit it was generated from.

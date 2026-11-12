@@ -21,6 +21,8 @@ const npm = (name) => `(^|/)node_modules/${name}/`;
 const ZOD = npm('zod');
 const PREACT = [npm('preact'), npm('@preact/signals'), npm('@preact/signals-core')];
 const HOTKEYS = '^vendor/chatgoose-hotkeys/';
+/** Hub's look (formats, words, token values): pure, dependency-free, vendored like the hotkeys. */
+const LOOK = '^vendor/hub-look/';
 const SDK = '^vendor/kernel-sdk/';
 const WXT_BROWSER = npm('@wxt-dev/browser');
 
@@ -116,8 +118,8 @@ module.exports = {
     only(
       'core-domain-pure',
       pkg('core/src/domain'),
-      [pkg('contracts'), HOTKEYS],
-      '`core/domain`: contracts and the vendored hotkey engine only (§4).',
+      [pkg('contracts'), HOTKEYS, LOOK],
+      '`core/domain`: contracts, the vendored hotkey engine and Hub\'s look only (§4).',
     ),
     only(
       'core-services',

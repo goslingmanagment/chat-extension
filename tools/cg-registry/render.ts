@@ -20,7 +20,7 @@ const RECOVERY: Readonly<Record<CgRecovery, string>> = {
   'reload-tab': 'перезагрузить вкладку',
   'update-extension': 'обновить расширение',
   'open-chat': 'открыть чат',
-  'contact-owner': 'к тимлиду',
+  'contact-owner': 'к владельцу',
 };
 
 const TELEMETRY: Readonly<Record<CgTelemetryClass, string>> = { count: 'счётчик', 'count+sample': 'счётчик + образец', p1: '**P1**' };
