@@ -18,6 +18,7 @@ export * from './read-state';
 export { traceFanslyTransport } from './http-trace';
 export * from './pacer';
 export * from './transport';
+export type { FanslyObservation, FanslyObserver } from './observe';
 
 /** The core's session owner as the API needs it: its templates and its 429 facts (`BackgroundKit.networkSession`). */
 export interface FanslyNetworkSession extends FanslySessionPort {
@@ -38,7 +39,10 @@ export interface FanslyApi {
   readonly pacer: FanslyPacer;
 }
 
-/** The pacer over the core's facts and the client over the core's session: one of each per realm of the event page. */
+/**
+ * The pacer over the core's facts and the client over the core's session: one of each per realm of the event page.
+ * `observe` hears both (observe.ts): the client's requests and refusals, the pacer's 429s.
+ */
 export function createFanslyApi(deps: FanslyApiDeps): FanslyApi {
   const pacer = createFanslyPacer({
     storage: deps.storage,
@@ -48,6 +52,7 @@ export function createFanslyApi(deps: FanslyApiDeps): FanslyApi {
     ...(deps.now === undefined ? {} : { now: deps.now }),
     ...(deps.random === undefined ? {} : { random: deps.random }),
     ...(deps.sleep === undefined ? {} : { sleep: deps.sleep }),
+    ...(deps.observe === undefined ? {} : { observe: deps.observe }),
   });
   const { session, storage: _storage, random: _random, ...rest } = deps;
   return { pacer, client: createFanslyClient({ ...rest, session, pacer }) };

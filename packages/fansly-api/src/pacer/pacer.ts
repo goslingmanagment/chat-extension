@@ -8,7 +8,10 @@
 //   and the cooldown; `queue-or-refuse` waits its turn and the gaps, but a
 //   cooldown refuses it (`POST /group`); `check` and `dispatch` never wait —
 //   refused while the creator cools down, otherwise at once (their starts
-//   still count for the gaps of the queued calls).
+//   still count for the gaps of the queued calls); `poll` (2026-11-12) never
+//   waits either and is refused as `check` is, and also refused `early` while
+//   the key's spacing or the lane gap has not passed — at `enter` and again,
+//   synchronously, at `start` — with the moment it may start.
 // - A cooldown comes from OUR OWN 429 only, as in the old extension: the client
 //   tells the pass, or the core's `webRequest.onCompleted` recorded it as a
 //   fact `own` (even while this chunk was not loaded). A 429 of the page or a
@@ -18,7 +21,9 @@
 //   page lost track of) cools every creator of the profile.
 // - One response is one limit: our own 429 is seen by the client and, as a
 //   fact `own`, by the listener; the two sightings pair up whichever comes
-//   first, by the opaque client request id, across a sleep of the event page too.
+//   first, by the opaque client request id, across a sleep of the event page too;
+//   the first sighting alone is told to the owner's counters (observe.ts), and
+//   each 429 of the page or another as its fact is applied.
 // - The state lives in memory and in `storage.session` (it survives the event
 //   page, it goes with the browser's session, like the facts it is made
 //   from). After the event page wakes, a call waits until it is loaded and the
@@ -39,7 +44,8 @@ import {
   worthKeeping,
   type LaneState,
 } from './lane';
-import type { PacerMode } from '../allowlist';
+import { isFanslyPurpose, type FanslyPurpose, type PacerMode } from '../allowlist';
+import { tell, type FanslyObserver } from '../observe';
 
 /** The creator a request is paced for: the ids its session template carries. */
 export interface PacerCreator {
@@ -75,6 +81,8 @@ export interface PacerDeps {
   readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** The storage.session key of the pacer's state. */
   readonly key?: string;
+  /** Told of each 429 once, whoever saw it first (observe.ts `limited`). */
+  readonly observe?: FanslyObserver;
 }
 
 export const PACER_KEY = 'fansly.pacer';
@@ -92,6 +100,19 @@ export class PacerCooling extends Error {
   }
 }
 
+/**
+ * A poll came before the key's spacing or the lane gap since the creator's last start ran out: not made, and it may start
+ * at `until` (epoch ms). Not a cooldown and not a limit: nothing of the creator's pace changes.
+ */
+export class PacerEarly extends Error {
+  override readonly name = 'PacerEarly';
+  readonly until: number;
+  constructor(until: number) {
+    super('fansly pacer: too early for a poll');
+    this.until = until;
+  }
+}
+
 /** The caller gave up while the call waited: it was not made. */
 export class PacerAborted extends Error {
   override readonly name = 'PacerAborted';
@@ -99,8 +120,11 @@ export class PacerAborted extends Error {
 
 /** One admitted start. `release` when the attempt is over (the next queued call may then start). */
 export interface PacerPass {
-  /** Final synchronous check and actual dispatch accounting. Once, immediately before fetch. */
-  start(requestId?: string): void;
+  /**
+   * Final synchronous check and actual dispatch accounting. Once, immediately before fetch. `purpose` — the call's, for
+   * the count of a 429 that only `webRequest` sees.
+   */
+  start(requestId?: string, purpose?: FanslyPurpose): void;
   release(): void;
   /** Fansly answered with a valid envelope. */
   served(): void;
@@ -120,6 +144,8 @@ interface OwnRequest {
   paceKey: string | null;
   at: number;
   limitedAt: number | null;
+  /** The call's purpose, for the counters (absent in a state saved before it was kept). */
+  purpose?: FanslyPurpose;
 }
 
 interface Lane extends LaneState {
@@ -226,7 +252,7 @@ export function createFanslyPacer(deps: PacerDeps) {
       for (const item of value['requests']) {
         if (typeof item !== 'object' || item === null) throw new Error('invalid request');
         const r = item as OwnRequest;
-        if (typeof r.id !== 'string' || !/^[a-zA-Z0-9-]{1,64}$/.test(r.id) || !Array.isArray(r.aliases) || !r.aliases.every((id) => typeof id === 'string' && /^[1-9][0-9]{0,39}$/.test(id)) || (r.paceKey !== null && (typeof r.paceKey !== 'string' || r.paceKey.length > 80)) || !Number.isFinite(r.at) || (r.limitedAt !== null && !Number.isFinite(r.limitedAt))) throw new Error('invalid request');
+        if (typeof r.id !== 'string' || !/^[a-zA-Z0-9-]{1,64}$/.test(r.id) || !Array.isArray(r.aliases) || !r.aliases.every((id) => typeof id === 'string' && /^[1-9][0-9]{0,39}$/.test(id)) || (r.paceKey !== null && (typeof r.paceKey !== 'string' || r.paceKey.length > 80)) || !Number.isFinite(r.at) || (r.limitedAt !== null && !Number.isFinite(r.limitedAt)) || (r.purpose !== undefined && !isFanslyPurpose(r.purpose))) throw new Error('invalid request');
         if (at - r.at < PACE_RULES.badMemoryMs) requests.set(r.id, r);
       }
       if (lanes.length > MAX_LANES || requests.size > MAX_APPLIED) throw new Error('state too large');
@@ -335,10 +361,15 @@ export function createFanslyPacer(deps: PacerDeps) {
       appliedSet.add(fact.requestId);
       changed = true;
       // Only our own 429 cools us (the old extension's rule): the page's or a neighbour's is theirs.
-      if (fact.source !== 'own') continue;
+      if (fact.source !== 'own') {
+        tell(deps.observe, { kind: 'limited', source: fact.source, purpose: null });
+        continue;
+      }
       const id = fact.clientRequestId;
       let own = id === undefined ? undefined : requests.get(id);
+      // The client saw this very answer first: limited and counted then.
       if (own?.limitedAt !== null && own?.limitedAt !== undefined) continue;
+      tell(deps.observe, { kind: 'limited', source: 'own', purpose: own?.purpose ?? null });
       const ids = [...(own?.aliases ?? []), ...(fact.accountId === null ? [] : [fact.accountId])];
       const lane = ids.length === 0 ? profile : laneFor(ids);
       restIfIdle(lane, fact.at);
@@ -382,7 +413,7 @@ export function createFanslyPacer(deps: PacerDeps) {
     let dispatched = false;
     let request: OwnRequest | null = null;
     return {
-      start(id = crypto.randomUUID()) {
+      start(id = crypto.randomUUID(), purpose) {
         if (released || dispatched) throw new PacerAborted();
         if (applyFacts()) void save();
         const lane = root(initial);
@@ -390,12 +421,21 @@ export function createFanslyPacer(deps: PacerDeps) {
         // old tails cannot revoke them: claim the merged lane synchronously here.
         if (unlock !== null && lane.inFlight > 0) throw new PacerAborted();
         const at = now();
-        const until = Math.max(coolingOf(lane), mode === 'queue' || mode === 'queue-or-refuse' ? spacingDeadline(lane, paceKey) : 0);
-        if (until > at) throw new PacerCooling(until);
+        if (mode === 'poll') {
+          // Between `enter` and here the client awaited its route: another call (a poll prepared beside it, a click)
+          // may have started meanwhile. Checked again with nothing awaited before the request.
+          const cooling = coolingOf(lane);
+          if (cooling > at) throw new PacerCooling(cooling);
+          const spacing = spacingDeadline(lane, paceKey);
+          if (spacing > at) throw new PacerEarly(spacing);
+        } else {
+          const until = Math.max(coolingOf(lane), mode === 'queue' || mode === 'queue-or-refuse' ? spacingDeadline(lane, paceKey) : 0);
+          if (until > at) throw new PacerCooling(until);
+        }
         dispatched = true;
         if (unlock !== null) lane.inFlight += 1;
         started(lane, paceKey, at);
-        request = { id, aliases: [...lane.aliases], paceKey, at, limitedAt: null };
+        request = { id, aliases: [...lane.aliases], paceKey, at, limitedAt: null, ...(purpose === undefined ? {} : { purpose }) };
         remember(request);
         void save();
       },
@@ -419,7 +459,9 @@ export function createFanslyPacer(deps: PacerDeps) {
           limitLane(lane, paceKey, at, retryAfterMs);
           request.limitedAt = at;
           remember(request);
+          tell(deps.observe, { kind: 'limited', source: 'own', purpose: request.purpose ?? null });
         } else {
+          // `webRequest` saw this very answer first: limited and counted then.
           extendCooldown(lane, request.limitedAt, retryAfterMs);
         }
         await save();
@@ -429,17 +471,24 @@ export function createFanslyPacer(deps: PacerDeps) {
   }
 
   /**
-   * Admits one call of `creator` on `paceKey` by `mode`. Rejects with PacerCooling (refused: the creator cools down)
-   * or PacerAborted (the signal fired while it waited); either way no request is made.
+   * Admits one call of `creator` on `paceKey` by `mode`. Rejects with PacerCooling (refused: the creator cools down),
+   * PacerEarly (a poll before the key's spacing or the lane gap) or PacerAborted (the signal fired while it waited);
+   * either way no request is made.
    */
   async function enter(creator: PacerCreator, paceKey: string, mode: PacerMode, signal?: AbortSignal): Promise<PacerPass> {
     if (signal?.aborted === true) throw new PacerAborted();
     await sync();
     let lane = laneFor(idsOf(creator));
     freshen(lane, now());
-    if (mode === 'check' || mode === 'dispatch' || mode === 'queue-or-refuse') {
+    if (mode === 'check' || mode === 'dispatch' || mode === 'queue-or-refuse' || mode === 'poll') {
       const until = coolingOf(lane);
       if (until > now()) throw new PacerCooling(until);
+    }
+    if (mode === 'poll') {
+      // Never the FIFO, never a wait: the caller is told when it may start and asks again itself.
+      const until = spacingDeadline(lane, paceKey);
+      if (until > now()) throw new PacerEarly(until);
+      return passOf(lane, paceKey, mode, null);
     }
     if (mode === 'check' || mode === 'dispatch') {
       return passOf(lane, paceKey, mode, null);

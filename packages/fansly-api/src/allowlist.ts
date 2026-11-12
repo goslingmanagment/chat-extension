@@ -117,9 +117,13 @@ export type FanslyPurpose = (typeof FANSLY_PURPOSES)[number];
  * - `queue-or-refuse` — the FIFO and its gaps, but a cooldown refuses it at once instead of being waited out
  *   (`POST /group`);
  * - `check` — no queue and no wait: refused while the creator cools down, otherwise at once (a click's read);
- * - `dispatch` — a write after the hub's custody: never waits; a cooldown refuses it before the custody.
+ * - `dispatch` — a write after the hub's custody: never waits; a cooldown refuses it before the custody;
+ * - `poll` — a read the extension repeats on its own (2026-11-12): no queue and no wait either, refused while the creator
+ *   cools down, and also refused (`early`, with the moment it may start) while the key's spacing or the lane gap since
+ *   the creator's last start has not passed — its caller asks again then. A click never waits behind it, nor it behind
+ *   a pass; its starts count for the gaps of everyone else.
  */
-export type PacerMode = 'queue' | 'queue-or-refuse' | 'check' | 'dispatch';
+export type PacerMode = 'queue' | 'queue-or-refuse' | 'check' | 'dispatch' | 'poll';
 
 export interface FanslyAdmission {
   readonly mode: PacerMode;
@@ -135,8 +139,10 @@ const CLICK_READ: FanslyAdmission = { mode: 'check', attempts: 1 };
  * A read an open window repeats on its own (at most once a minute per creator, its caller's rule): never in the creator's
  * FIFO — a person's click never waits behind it, nor it behind a pass —, once, and not at all while the creator cools
  * down (the window keeps what it had). Not a pass's read: a cooldown is never waited out, a failure never asked again.
+ * 2026-11-12: it also keeps the key's spacing and the lane gap (a `/account*` read 5 s after the creator's last one):
+ * refused `early` before them, and its caller asks again at the moment it is told (bg/fansly badges.ts, online.ts).
  */
-const POLL_READ: FanslyAdmission = { mode: 'check', attempts: 1 };
+const POLL_READ: FanslyAdmission = { mode: 'poll', attempts: 1 };
 /** `POST /group` (get-or-create by identity): its turn in the FIFO, refused at once during a cooldown, one attempt. */
 const GROUP_WRITE: FanslyAdmission = { mode: 'queue-or-refuse', attempts: 1 };
 /** A write the person asked for: one attempt, no wait (the hub's custody is already taken for a greeting). */
@@ -185,11 +191,12 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   // bar or «Обновить» asks once which copied items are bundles: Fansly's own reload files them as media.
   outreach: { 'message.send': WRITE, 'media.bundles': CLICK_READ },
   // «Онлайн»: who of the creator's followers was active lately — `followersnew?lastSeenAfter=`, the read FBuddy makes —,
-  // while a window or the bar's count needs it, at most once a minute per creator; never queued, never during a cooldown.
+  // while a window or the bar's count needs it, at most once a minute per creator; never queued, never during a cooldown,
+  // never before the `/account*` spacing.
   online: { 'followers.new': POLL_READ },
   // The fans' badges in «Онлайн», Spenders, «Рассылка» and «Новые» (2026-10-28): the shown fans' accounts
-  // (`GET /account?ids=`, their blue card «Recent Spender»), each fan at most once in ten minutes. Never queued, never
-  // during a cooldown.
+  // (`GET /account?ids=`, their blue card «Recent Spender»), each fan at most once in thirty minutes (2026-11-12). Never
+  // queued, never during a cooldown, never before the `/account*` spacing.
   badges: { 'account.byIds': POLL_READ },
   // The vault's upload of a set (2026-11-03), started by the person's «Начать»: the album's rows read again after each
   // part the page uploaded (a pass's read), the set added again in its order and a member renamed to its file — writes,

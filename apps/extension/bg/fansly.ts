@@ -127,6 +127,7 @@ import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer, SiteTabRegistration } from '../src/composition/background/host-module';
 import { fanslyStandClient, standFanslyClient, standFbuddyBase, startFanslyApiProbe } from './fansly/api-probe';
+import { fanslyObserver } from './fansly/counters';
 import { createDeletedMessagesReader } from './fansly/deleted';
 import { createFanMarksReader } from './fansly/fan-marks';
 import { createNotesService } from './fansly/notes';
@@ -254,8 +255,10 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   // (a route asks the settings once more first, and refuses if they still cannot be read).
   const viaTab = (): boolean | null => (kit.settingsExt === undefined ? false : settingsReady ? kit.settingsExt.current().hosts['fansly-web'].viaTab : null);
   const relay = createRelayService(kit, viaTab, { settled: refreshSettings });
+  // 2026-11-12: our requests, the 429s and whose, a chatter's action refused with CG-FAN-RATE-LIMIT — Fansly's health window.
+  const observe = fanslyObserver((name) => kit.telemetry.count(name));
   // Fansly's API over the core's session owner; none without it (a kit without P9a's session asks Fansly nothing).
-  const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, transport: relay.hub, now: () => kit.clock.now(), warn: (reason) => kit.log.service({ level: 'warn', scope: 'fansly.pacer', msg: 'request pacing state unavailable; cooling all creators', fields: { reason } }) });
+  const api: FanslyApi | null = session === undefined ? null : createFanslyApi({ session, storage: kit.storage.session, transport: relay.hub, now: () => kit.clock.now(), observe, warn: (reason) => kit.log.service({ level: 'warn', scope: 'fansly.pacer', msg: 'request pacing state unavailable; cooling all creators', fields: { reason } }) });
   await api?.pacer.ready;
   const unprobe = __CG_TEST_HOSTS__ && session !== undefined && api !== null ? startFanslyApiProbe(kit, session, api, relay.hub) : () => undefined;
   const spenders = api === null ? null : createSpendersLookup(__CG_TEST_HOSTS__ && session !== undefined ? fanslyStandClient(kit, session, api) : api.client, () => kit.clock.now(), kit.storage.local);
@@ -560,7 +563,7 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
         const transport = traceFanslyTransport(api.client.transport, (event, fields) => trace(event, { ...fields, route: call.route }));
         asking = __CG_TEST_HOSTS__
           ? fanslyStandClient(kit, session, api, transport)
-          : createFanslyClient({ session, pacer: api.pacer, now: () => kit.clock.now(), transport });
+          : createFanslyClient({ session, pacer: api.pacer, now: () => kit.clock.now(), transport, observe: fanslyObserver((name) => kit.telemetry.count(name)) });
       }
       const abort = new AbortController();
       const cut = (): void => abort.abort();

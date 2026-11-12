@@ -9,6 +9,10 @@
 // flight joins it. A call that provably asked Fansly nothing (no session, no frame of the tab in time, the creator
 // cooling down) is not a read and does not hold the minute. Neither the read nor the report is repeated by itself: a
 // report the hub refused is answered as its failure and goes again only with the next read. No name or text is kept.
+//
+// 2026-11-12: the read keeps the creator's `/account*` spacing (5 s; the pacer's `poll`). One the pacer finds too early
+// (`early`: it sends nothing) is asked again at the moment it names, again and again until that minute's turn ends —
+// then it was not a read either. Never during a cooldown, and never after `clear()`.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import type { FeatureSlice } from '@cg/contracts/features/types';
@@ -31,6 +35,8 @@ export const ONLINE_SEEN = {
   everyMs: 60_000,
   /** The newest hundred followers seen in the window: one page, never walked further. */
   page: 100,
+  /** A read told `early` is asked again up to this much after the moment the pacer named (another poll may aim at it too). */
+  jitterMs: 250,
 } as const;
 
 /** The read's query: the head of the list (`before` and `after` 0, no search), the followers seen since `since` (epoch ms, as FBuddy sends it). */
@@ -61,24 +67,54 @@ const fail = (error: CgAnyErrorWire): Answer => ({ ok: false, error });
 
 type Admitted = { readonly ok: true; readonly creator: string; readonly pageLabel: string } | { readonly ok: false; readonly error: CgAnyErrorWire };
 
-export function createOnlineSeen(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'networkSession' | 'log'>, slice: FeatureSlice, clientNow: () => Promise<Pick<FanslyClient, 'call'> | null>): OnlineSeen {
+export function createOnlineSeen(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'networkSession' | 'log'>, slice: FeatureSlice, clientNow: () => Promise<Pick<FanslyClient, 'call'> | null>, random: () => number = Math.random): OnlineSeen {
   const last = new Map<string, Held>();
+  /** Fired by `clear()`: a read waiting for the pacer's moment asks nothing more. */
+  let stop = new AbortController();
+
+  /** Waits until `at` (epoch ms) unless `clear()` comes first: true — the moment came. */
+  function pause(at: number, signal: AbortSignal): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (signal.aborted) {
+        resolve(false);
+        return;
+      }
+      const abort = (): void => {
+        kit.clock.clearTimer(timer);
+        resolve(false);
+      };
+      const timer = kit.clock.setTimer(Math.max(0, at - kit.clock.now()), () => {
+        signal.removeEventListener('abort', abort);
+        resolve(true);
+      });
+      signal.addEventListener('abort', abort, { once: true });
+    });
+  }
 
   async function read(held: Held, creator: string, account: string, pageLabel: string): Promise<Answer> {
+    const signal = stop.signal;
     const client = await clientNow().catch(() => null);
     if (client === null) return fail({ code: 'CG-FAN-SESSION' });
-    const since = kit.clock.now() - ONLINE_SEEN.windowMs;
     let found: ReturnType<typeof readFollowersSeen>;
-    try {
-      const answer = await client.call({ purpose: 'online', route: 'followers.new', account, path: { account: creator }, query: onlineQuery(since) });
-      held.read = true;
-      found = readFollowersSeen(answer.response, creator, since, kit.clock.now());
-    } catch (error) {
-      // Refused before anything left (no session, no frame, a cooldown): not a read. Anything else may have reached Fansly.
-      held.read = !(error instanceof FanslyApiError) || error.sent;
-      const wire = error instanceof FanslyApiError ? error.toWire() : { code: 'CG-FAN-REQUEST' as const };
-      kit.log.service({ level: 'warn', scope: 'fansly.online', msg: 'followers not read', fields: { code: wire.code } });
-      return fail(wire);
+    for (;;) {
+      const since = kit.clock.now() - ONLINE_SEEN.windowMs;
+      try {
+        const answer = await client.call({ purpose: 'online', route: 'followers.new', account, path: { account: creator }, query: onlineQuery(since) });
+        held.read = true;
+        found = readFollowersSeen(answer.response, creator, since, kit.clock.now());
+        break;
+      } catch (error) {
+        // Too early for the creator's `/account*` spacing (nothing left): asked again at the pacer's moment, within this minute.
+        if (error instanceof FanslyApiError && error.kind === 'early' && error.retryAt !== undefined) {
+          const at = error.retryAt + Math.floor(random() * (ONLINE_SEEN.jitterMs + 1));
+          if (at < held.at + ONLINE_SEEN.everyMs && (await pause(at, signal))) continue;
+        }
+        // Refused before anything left (no session, no frame, a cooldown, too early): not a read. Anything else may have reached Fansly.
+        held.read = !(error instanceof FanslyApiError) || error.sent;
+        const wire = error instanceof FanslyApiError ? error.toWire() : { code: 'CG-FAN-REQUEST' as const };
+        if (!signal.aborted) kit.log.service({ level: 'warn', scope: 'fansly.online', msg: 'followers not read', fields: { code: wire.code } });
+        return fail(wire);
+      }
     }
     if (found === null) {
       kit.log.service({ level: 'warn', scope: 'fansly.online', msg: 'followers page malformed', fields: {} });
@@ -130,6 +166,8 @@ export function createOnlineSeen(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'net
     },
     clear() {
       last.clear();
+      stop.abort();
+      stop = new AbortController();
     },
   };
 }

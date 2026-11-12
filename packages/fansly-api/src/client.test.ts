@@ -10,6 +10,7 @@ import type { FanslyCall, FanslySessionTemplate } from './client';
 import type { FanslyFetch, FanslyHttpResponse } from './transport';
 import { FanslyApiError } from './errors';
 import { createFanslyApi, type FanslyNetworkSession } from './index';
+import type { FanslyObservation } from './observe';
 import type { RateLimitFactLike } from './pacer';
 
 const T0 = Date.UTC(2026, 9, 15, 12, 0, 0);
@@ -94,9 +95,11 @@ function world() {
     reply.beforeResponse?.();
     return Promise.resolve(answer(reply));
   };
-  const api = createFanslyApi({ session, storage, fetch, random: () => 0 });
+  const told: FanslyObservation[] = [];
+  const api = createFanslyApi({ session, storage, fetch, random: () => 0, observe: (observation) => told.push(observation) });
   return {
     api,
+    told,
     facts,
     replies,
     sent,
@@ -249,6 +252,36 @@ describe('repeats and parallelism (RB-023)', () => {
     made.facts.push({ requestId: 'own-1', at: Date.now(), accountId: CREATOR, source: 'own' });
     expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'cooling', sent: false });
     expect(made.sent).toHaveLength(1);
+  });
+});
+
+describe('a poll and the counters (2026-11-12)', () => {
+  const badges: FanslyCall = { purpose: 'badges', route: 'account.byIds', account: CREATOR, query: { ids: GROUP } };
+
+  it('[FS-NET-3] a poll before the /account* spacing is `early`: nothing sent, its moment told, no rate limit; the counters hear each request and each refused call once', async () => {
+    const made = world();
+    made.replies.push({ status: 200, body: JSON.stringify({ success: true, response: [] }) });
+    await settle(made.api.client.call(badges));
+    const early = await failure(made.api.client.call(badges));
+    expect(early).toMatchObject({ kind: 'early', sent: false, retryAt: T0 + 5000 });
+    expect(early.code).not.toBe('CG-FAN-RATE-LIMIT');
+    expect(made.sent).toHaveLength(1);
+    // A pass's read of the same family waits the spacing out in its queue and goes.
+    made.replies.push({ status: 200 });
+    await settle(made.api.client.call({ purpose: 'newcomers', route: 'account.byIds', account: CREATOR, query: { ids: GROUP } }));
+    expect(made.sent[1]?.at).toBe(T0 + 5000);
+    // Our own 429 cools the creator: a click is then refused, through `call` and through `prepare` alike.
+    made.replies.push({ status: 429 });
+    expect(await failure(made.api.client.call(registration))).toMatchObject({ kind: 'rate-limited', code: 'CG-FAN-RATE-LIMIT' });
+    expect(await failure(made.api.client.prepare(greeting()))).toMatchObject({ kind: 'cooling', code: 'CG-FAN-RATE-LIMIT' });
+    expect(made.told).toEqual([
+      { kind: 'sent', purpose: 'badges' },
+      { kind: 'sent', purpose: 'newcomers' },
+      { kind: 'sent', purpose: 'registration' },
+      { kind: 'limited', source: 'own', purpose: 'registration' },
+      { kind: 'refused', purpose: 'registration' },
+      { kind: 'refused', purpose: 'greeting' },
+    ]);
   });
 });
 

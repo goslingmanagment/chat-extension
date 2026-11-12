@@ -10,7 +10,8 @@
 //    a creator asks `/account/me` first (X62, AU-032); still none, `session`
 //    (no old headers, no fallback, §8.2);
 // 2. the pacer, by the call's mode (pacer/pacer.ts): it may wait (a queued
-//    read) or refuse (`cooling`) — no request then;
+//    read) or refuse (`cooling`; a poll before the key's spacing, `early`, with
+//    the moment it may start) — no request then;
 // 3. the request, built synchronously from the template as it is NOW: its
 //    `authorization`, `fansly-client-id`, `fansly-session-id`, a fresh
 //    `fansly-client-ts` and the accepted `fansly-client-check` of the route's
@@ -39,10 +40,15 @@
 // tab, document and session) right before it sends; the route dispatches before
 // it yields. A direct request with no answer is told to the transport, which
 // then tries the tab until the browser restarts (transport.ts).
+//
+// 2026-11-12: the owner's counters hear of each request that left (`sent`) and
+// of each call that ends in CG-FAN-RATE-LIMIT for its caller (`refused`, once
+// per call, after its last attempt) — observe.ts; the pacer tells the 429s.
 
 import { admit, addressOf, FANSLY_API_BASE, FANSLY_ROUTES, type FanslyAddressParts, type FanslyPurpose, type FanslyRouteName, type FanslyRouteSpec } from './allowlist';
 import { FanslyApiError, readEnvelope, retryAfterMs } from './errors';
-import { PacerAborted, PacerCooling, type FanslyPacer, type PacerCreator, type PacerPass } from './pacer/pacer';
+import { tell, type FanslyObserver } from './observe';
+import { PacerAborted, PacerCooling, PacerEarly, type FanslyPacer, type PacerCreator, type PacerPass } from './pacer/pacer';
 import { REQUEST_RULES } from './pacer/rules';
 import { FanslyRouteRefused, FanslyRouteUnavailable, directTransport, type FanslyFetch, type FanslyHttpResponse, type FanslyRoute, type FanslyTransport, type FanslyTransportLabel } from './transport';
 
@@ -118,6 +124,8 @@ export interface FanslyClientDeps {
   readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   readonly setTimer?: (callback: () => void, ms: number) => unknown;
   readonly clearTimer?: (handle: unknown) => void;
+  /** The owner's counters (observe.ts): `sent` and `refused` from here. */
+  readonly observe?: FanslyObserver;
 }
 
 /** The session headers a request carries from the template (the page's own names, lower case). */
@@ -188,8 +196,32 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     return null;
   }
 
-  /** Admission, the session and the pacer: everything that may wait or refuse before a request. */
+  /** A call that ends in CG-FAN-RATE-LIMIT for its caller: told once, at its end (observe.ts `refused`). */
+  const ended = (purpose: FanslyPurpose, error: unknown): void => {
+    if (error instanceof FanslyApiError && error.code === 'CG-FAN-RATE-LIMIT') tell(deps.observe, { kind: 'refused', purpose });
+  };
+
+  /** The caller's `prepare`: its refusal, and its start's, end the call. */
   async function prepare(call: FanslyCall): Promise<PreparedFanslyCall> {
+    let prepared: PreparedFanslyCall;
+    try {
+      prepared = await admitted(call);
+    } catch (error) {
+      ended(call.purpose, error);
+      throw error;
+    }
+    return {
+      ...prepared,
+      start: () =>
+        prepared.start().catch((error: unknown) => {
+          ended(call.purpose, error);
+          throw error;
+        }),
+    };
+  }
+
+  /** Admission, the session and the pacer: everything that may wait or refuse before a request. */
+  async function admitted(call: FanslyCall): Promise<PreparedFanslyCall> {
     const admission = admit(call.purpose, call.route);
     if (admission === null) throw notSent('not-admitted');
     const spec: FanslyRouteSpec = FANSLY_ROUTES[call.route];
@@ -212,6 +244,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
       pass = await deps.pacer.enter(creatorOf(template), spec.pace, admission.mode, call.signal);
     } catch (error) {
       if (error instanceof PacerCooling) throw new FanslyApiError('cooling', { sent: false, retryAt: error.until });
+      if (error instanceof PacerEarly) throw new FanslyApiError('early', { sent: false, retryAt: error.until });
       if (error instanceof PacerAborted) throw notSent('aborted');
       throw error;
     }
@@ -277,11 +310,13 @@ export function createFanslyClient(deps: FanslyClientDeps) {
         try {
           const until = deps.pacer.coolingUntil(creatorOf(live));
           if (until > now()) throw new PacerCooling(until);
-          pass.start(requestId);
+          pass.start(requestId, call.purpose);
         } catch (error) {
           finish();
           pass.release();
-          return Promise.reject(error instanceof PacerCooling ? new FanslyApiError('cooling', { sent: false, retryAt: error.until }) : notSent('aborted'));
+          if (error instanceof PacerCooling) return Promise.reject(new FanslyApiError('cooling', { sent: false, retryAt: error.until }));
+          if (error instanceof PacerEarly) return Promise.reject(new FanslyApiError('early', { sent: false, retryAt: error.until }));
+          return Promise.reject(notSent('aborted'));
         }
         let request: Promise<FanslyHttpResponse>;
         try {
@@ -290,7 +325,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
         } catch {
           request = Promise.reject(new TypeError('send threw'));
         }
-        return answerOf(request, () => timedOut, live, pass, spec, route.transport === 'direct', call.signal).finally(() => {
+        return answerOf(request, () => timedOut, live, pass, spec, call.purpose, route.transport === 'direct', call.signal).finally(() => {
           finish();
           pass.release();
         });
@@ -299,7 +334,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
   }
 
   /** Reads the answer of a request; the pass learns what Fansly said of the pace. */
-  async function answerOf(request: Promise<FanslyHttpResponse>, timedOut: () => boolean, template: FanslySessionTemplate, pass: PacerPass, spec: FanslyRouteSpec, direct: boolean, signal?: AbortSignal): Promise<FanslyAnswer> {
+  async function answerOf(request: Promise<FanslyHttpResponse>, timedOut: () => boolean, template: FanslySessionTemplate, pass: PacerPass, spec: FanslyRouteSpec, purpose: FanslyPurpose, direct: boolean, signal?: AbortSignal): Promise<FanslyAnswer> {
     let response: FanslyHttpResponse;
     let text: string;
     /** No answer: the direct route tells its transport (the next requests try the tab), unless the caller gave up. */
@@ -312,8 +347,10 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     } catch (error) {
       // The route took nothing (no frame took the post, or the frame's own check refused): provably no request.
       if (error instanceof FanslyRouteRefused) throw notSent('tab');
+      tell(deps.observe, { kind: 'sent', purpose });
       throw unanswered();
     }
+    tell(deps.observe, { kind: 'sent', purpose });
     const status = response.status;
     if (status === 429) {
       const retryAt = await pass.limited(retryAfterMs(response.headers.get('retry-after'), now()));
@@ -343,9 +380,12 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     const attempts = FANSLY_ROUTES[request.route].write ? 1 : admission.attempts;
     for (let attempt = 0; ; attempt++) {
       try {
-        return await (await prepare(request)).start();
+        return await (await admitted(request)).start();
       } catch (error) {
-        if (!(error instanceof FanslyApiError) || attempt + 1 >= attempts) throw error;
+        if (!(error instanceof FanslyApiError) || attempt + 1 >= attempts) {
+          ended(request.purpose, error);
+          throw error;
+        }
         // A 429: the next turn waits out the cooldown in the queue. A 5xx: a short pause first.
         if (error.kind === 'http' && (error.httpStatus ?? 0) >= 500) {
           try {
@@ -356,7 +396,10 @@ export function createFanslyClient(deps: FanslyClientDeps) {
           }
           continue;
         }
-        if (error.kind !== 'rate-limited') throw error;
+        if (error.kind !== 'rate-limited') {
+          ended(request.purpose, error);
+          throw error;
+        }
       }
     }
   }

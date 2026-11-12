@@ -1072,7 +1072,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const kitOf = (host: HostKind): BackgroundKit => ({
     ...kit,
     log: { ...kit.log, ...(passJournals.has(host) ? { passJournal: passJournals.get(host)! } : {}) },
-    telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code) },
+    telemetry: { report: (kind, view, opId, position, proof) => telemetry.report(kind, view, opId, position, proof), countCode: (code) => telemetry.health.countCode(host, code), count: (name) => telemetry.health.count(host, name) },
     // The site's own registry (`fansly.*`, R20 P13b): its module plugs it, the core keeps checking sender and envelope;
     // its events to the site's receivers, or one tab session — the tab or its relay frames (R20 P9c).
     site: { plug: (registry) => rpc.site({ ...registry, host }), emit: (type, payload, target) => rpc.emitSite(host, type, payload, target) },

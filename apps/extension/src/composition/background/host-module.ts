@@ -139,6 +139,11 @@ export interface TelemetryPort {
   report(kind: AcceptanceEvent['payload']['lifecycle'], view: LinkSource | null, opId: string, position: PartPosition, proof?: SentProof): boolean;
   /** One more of a CG code in the `client_health` window. */
   countCode(code: CgCode): void;
+  /**
+   * One more of a named counter in the `client_health` window (2026-11-12): a machine token of the health vocabulary
+   * (`HEALTH_CODE_PATTERN`; `fansly.req.own.badges`, a Fansly code), never a text or an id — as the tabs' `router.refused`.
+   */
+  count(name: string): void;
 }
 
 /** The registered tabs and the events to them. */

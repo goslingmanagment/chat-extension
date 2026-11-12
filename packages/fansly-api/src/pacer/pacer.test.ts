@@ -5,7 +5,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createFanslyPacer, PacerCooling, type PacerCreator, type PacerStorage, type RateLimitFactLike } from './pacer';
+import type { FanslyObservation } from '../observe';
+import { createFanslyPacer, PacerCooling, PacerEarly, type PacerCreator, type PacerStorage, type RateLimitFactLike } from './pacer';
 
 const T0 = Date.UTC(2026, 9, 15, 12, 0, 0);
 const A: PacerCreator = { legacyId: '300000000000000001', canonicalId: null };
@@ -37,13 +38,15 @@ interface Rig {
   wake(): ReturnType<typeof createFanslyPacer>;
 }
 
-function rig(random = (): number => 0): Rig {
+function rig(random = (): number => 0): Rig & { readonly told: FanslyObservation[] } {
   const storage = memoryStorage();
   const facts: RateLimitFactLike[] = [];
-  const make = (): ReturnType<typeof createFanslyPacer> => createFanslyPacer({ storage, facts: () => facts, settle: () => Promise.resolve(), random });
-  const made: Rig = {
+  const told: FanslyObservation[] = [];
+  const make = (): ReturnType<typeof createFanslyPacer> => createFanslyPacer({ storage, facts: () => facts, settle: () => Promise.resolve(), random, observe: (observation) => told.push(observation) });
+  const made: Rig & { readonly told: FanslyObservation[] } = {
     storage,
     facts,
+    told,
     pacer: make(),
     wake() {
       made.pacer = make();
@@ -57,7 +60,7 @@ let factSeq = 0;
 const fact = (accountId: string | null, source: RateLimitFactLike['source'], at = Date.now()): RateLimitFactLike => ({ requestId: `r${++factSeq}`, at, accountId, source });
 
 /** Starts of a call, run to its pass, then released at once: the moment it started. */
-async function startedAt(pacer: Rig['pacer'], creator: PacerCreator, key: string, mode: 'queue' | 'check' | 'dispatch' | 'queue-or-refuse' = 'queue'): Promise<number> {
+async function startedAt(pacer: Rig['pacer'], creator: PacerCreator, key: string, mode: 'queue' | 'check' | 'dispatch' | 'queue-or-refuse' | 'poll' = 'queue'): Promise<number> {
   const pass = await pacer.enter(creator, key, mode);
   pass.start();
   const at = Date.now();
@@ -113,12 +116,12 @@ describe('the pace (E130, E133)', () => {
 });
 
 describe('the cooldown (E133)', () => {
-  it('[NF-037] modes during a cooldown: check, dispatch and POST /group are refused at once with its end; a queued read waits it out', async () => {
+  it('[NF-037] modes during a cooldown: check, dispatch, a poll and POST /group are refused at once with its end; a queued read waits it out', async () => {
     const { pacer } = rig();
     const pass = await pacer.enter(A, GROUP, 'queue');
     const until = await pass.limited();
     pass.release();
-    for (const mode of ['check', 'dispatch', 'queue-or-refuse'] as const) {
+    for (const mode of ['check', 'dispatch', 'queue-or-refuse', 'poll'] as const) {
       const refused = await pacer.enter(A, GROUP, mode).catch((error: unknown) => error);
       expect(refused).toBeInstanceOf(PacerCooling);
       expect((refused as PacerCooling).until).toBe(until);
@@ -159,5 +162,100 @@ describe('a cooldown from our own 429 (§8.4)', () => {
     facts.push(fact(A.legacyId, 'own'));
     refusing.release();
     await expect(settle(queued)).rejects.toBeInstanceOf(PacerCooling);
+  });
+});
+
+describe('a poll (2026-11-12: badges, «Онлайн»)', () => {
+  const earlyOf = async (work: Promise<unknown>): Promise<number> => {
+    const error = await work.then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(PacerEarly);
+    return (error as PacerEarly).until;
+  };
+
+  it('[NF-037] is refused early, with the moment it may start, by the key\'s spacing and by the lane gap; then it starts', async () => {
+    const { pacer } = rig();
+    expect(await startedAt(pacer, A, ACCOUNT, 'poll')).toBe(T0);
+    // The /account* family: 5 s since its last start.
+    expect(await earlyOf(pacer.enter(A, ACCOUNT, 'poll'))).toBe(T0 + 5000);
+    await vi.advanceTimersByTimeAsync(5000);
+    // A click of another key starts at once; the lane gap (400 ms) since it now binds the poll.
+    expect(await startedAt(pacer, A, GROUP, 'check')).toBe(T0 + 5000);
+    expect(await earlyOf(pacer.enter(A, ACCOUNT, 'poll'))).toBe(T0 + 5400);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await startedAt(pacer, A, ACCOUNT, 'poll')).toBe(T0 + 5400);
+    // Another creator's lane is its own.
+    expect(await startedAt(pacer, B, ACCOUNT, 'poll')).toBe(T0 + 5400);
+  });
+
+  it('[NF-037] the check is made again in start(), synchronously: of two polls admitted side by side only the first starts', async () => {
+    const { pacer } = rig();
+    const first = await pacer.enter(A, ACCOUNT, 'poll');
+    const second = await pacer.enter(A, ACCOUNT, 'poll');
+    first.start();
+    let refused: unknown = null;
+    try {
+      second.start();
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toBeInstanceOf(PacerEarly);
+    expect((refused as PacerEarly).until).toBe(T0 + 5000);
+    first.release();
+    second.release();
+  });
+
+  it('[NF-037] a click never waits for a poll and moves the key\'s last start: the poll after it counts from the click', async () => {
+    const { pacer } = rig();
+    expect(await startedAt(pacer, A, ACCOUNT, 'poll')).toBe(T0);
+    await vi.advanceTimersByTimeAsync(1000);
+    // «Заметки» reads the same family by a click: at once, 1 s after the poll.
+    expect(await startedAt(pacer, A, ACCOUNT, 'check')).toBe(T0 + 1000);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(await earlyOf(pacer.enter(A, ACCOUNT, 'poll'))).toBe(T0 + 6000);
+  });
+
+  it('[NF-037] is never in the creator\'s FIFO: a queued call in flight does not hold it, and a queued call waits only the gaps after it', async () => {
+    const { pacer } = rig();
+    const queued = await pacer.enter(A, MESSAGE, 'queue');
+    queued.start();
+    await vi.advanceTimersByTimeAsync(400);
+    // The queued call is still in flight: the poll goes beside it.
+    expect(await startedAt(pacer, A, ACCOUNT, 'poll')).toBe(T0 + 400);
+    queued.release();
+    // A queued read of another key: the lane gap since the poll, not a turn behind it.
+    expect(await settle(startedAt(pacer, A, GROUP))).toBe(T0 + 800);
+  });
+});
+
+describe('each 429 told once (the counters, observe.ts)', () => {
+  it('our own 429 once, whether the client or `webRequest` saw it first, with its purpose; the page\'s and the others\' as their facts are applied', async () => {
+    const { pacer, facts, told } = rig();
+    // The client first, then the same answer as a fact of ours.
+    const click = await pacer.enter(A, GROUP, 'check');
+    click.start('req-1', 'notes');
+    await click.limited();
+    click.release();
+    facts.push({ clientRequestId: 'req-1', requestId: 'w-1', at: T0, accountId: A.legacyId, source: 'own' });
+    pacer.coolingUntil(A);
+    expect(told).toEqual([{ kind: 'limited', source: 'own', purpose: 'notes' }]);
+    // The fact first, then the client reads the same answer.
+    const poll = await pacer.enter(B, ACCOUNT, 'poll');
+    poll.start('req-2', 'badges');
+    facts.push({ clientRequestId: 'req-2', requestId: 'w-2', at: T0, accountId: B.legacyId, source: 'own' });
+    pacer.coolingUntil(B);
+    await poll.limited();
+    poll.release();
+    expect(told).toEqual([
+      { kind: 'limited', source: 'own', purpose: 'notes' },
+      { kind: 'limited', source: 'own', purpose: 'badges' },
+    ]);
+    // The page's and a neighbour's: once each, however often the facts are read.
+    facts.push(fact(A.legacyId, 'page'), fact(null, 'unknown'));
+    pacer.coolingUntil(A);
+    pacer.coolingUntil(B);
+    expect(told.slice(2)).toEqual([
+      { kind: 'limited', source: 'page', purpose: null },
+      { kind: 'limited', source: 'unknown', purpose: null },
+    ]);
   });
 });
