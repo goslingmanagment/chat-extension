@@ -265,6 +265,8 @@ export interface FanslyFiltersCopy {
   readonly refresh: string;
   readonly removeHeader: string;
   readonly stepSay: (text: string) => string;
+  /** A step's row in the picker: the words before its amount, drawn quieter. */
+  readonly stepLead: string;
   readonly confirmTitle: (name: string) => string;
   readonly confirmText: string;
   readonly cancel: string;

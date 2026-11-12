@@ -659,8 +659,9 @@ export function GroupsRefresh({ client, copy }: { readonly client: FanslyFilters
   );
 }
 
+/** The strip 10 px under the search row (its own 16 px, less 6) and 10 px over the list (§2.5). */
 export const GROUPS_CSS = `
-.cgg { position: relative; margin: 0 4px 10px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; font-size: 16px; line-height: 1.25; color: var(--font-1, #d6dce8); }
+.cgg { position: relative; margin: -6px 4px 10px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; font-size: 16px; line-height: 1.25; color: var(--font-1, #d6dce8); }
 .cgg.w400 { margin-left: 0; margin-right: 0; }
 .cgg svg { display: block; }
 .cgg-strip { margin: 0; }

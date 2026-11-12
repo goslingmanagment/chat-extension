@@ -328,7 +328,7 @@ export function Shelves({ client, copy }: { readonly client: FanslyFiltersClient
               row(
                 `p:${item.key}`,
                 <span>
-                  <span class="cgf-lead">{copy.stepSay('').replace(/\$$/, '')}</span>${item.label}
+                  <span class="cgf-lead">{copy.stepLead}</span>${item.label}
                 </span>,
                 () => choose(item),
                 <span class="cgf-ic cgf-mic" />,

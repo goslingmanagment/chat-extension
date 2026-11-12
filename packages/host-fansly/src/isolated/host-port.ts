@@ -661,8 +661,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (disposed) return;
     companion = { ...state.identity.fbuddy };
     network = state.contract;
-    // MAIN says every last word again right after this answer: the words held are the old stream's. So are the filters' facts.
-    filters.facts(null);
+    // MAIN says every last word again right after this answer: the words held are the old stream's. (The filters' facts
+    // are said again too, whole: the ones held stand until then, so the strip does not lose its names for a moment.)
     inboxMarks.clear();
     forgetWords();
     metas.clear();
