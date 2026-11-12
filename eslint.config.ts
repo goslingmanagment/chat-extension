@@ -45,7 +45,7 @@ const DEEP_IMPORTS: Restriction[] = [
     regex: '^(\\.\\./)+[^./][^/]*/src(/|$)',
     message: 'No relative imports across packages; import the package by name (§4).',
   },
-  { group: ['**/vendor/**'], message: 'Vendored packages are imported by name (@kernel/sdk, @chatgoose/hotkeys).' },
+  { group: ['**/vendor/**'], message: 'Vendored packages are imported by name (@kernel/sdk, @chatgoose/hotkeys, @hub/look).' },
 ];
 
 function restrict(...groups: Restriction[]): Linter.RulesRecord {

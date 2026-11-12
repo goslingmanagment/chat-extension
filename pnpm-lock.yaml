@@ -117,6 +117,9 @@ importers:
       '@chatgoose/hotkeys':
         specifier: workspace:*
         version: link:../../vendor/chatgoose-hotkeys
+      '@hub/look':
+        specifier: workspace:*
+        version: link:../../vendor/hub-look
 
   packages/fansly-api:
     dependencies:
@@ -294,6 +297,8 @@ importers:
         version: 11.0.0
 
   vendor/chatgoose-hotkeys: {}
+
+  vendor/hub-look: {}
 
   vendor/kernel-sdk:
     dependencies:

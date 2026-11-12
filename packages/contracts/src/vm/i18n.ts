@@ -47,7 +47,7 @@ export interface MoneyFormat {
   readonly cents?: boolean;
 }
 
-/** `time` 09:18, `date` 4 сен, `datetime` 4 сен, 09:18, `day` «30 сен» day separators. */
+/** `time` 09:18, `date` 4 сент., `datetime` 4 сент., 09:18, `day` «30 сент.» day separators. */
 export type TimeStyle = 'time' | 'date' | 'datetime' | 'day';
 
 /** `m:ss` timers and leases (0:03, 1:24), `h:mm:ss` the quota countdown, `seconds` «24 с». */
