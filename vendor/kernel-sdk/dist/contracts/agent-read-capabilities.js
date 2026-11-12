@@ -60,6 +60,8 @@ export const AGENT_CAPABILITIES = [
      * writer, the chatters' marks and the owner's split (`agentTeamSales`).
      * The agency ledger's right (ledger release 2, owner 2026-11-09): whose a
      * sale is and what anyone is paid is the ledger's. Needs read:money too.
+     * Alone it reads the people registry's feed (`agentPeople`): who is who,
+     * their logins, working pages, schedule and Telegram — no money.
      */
     "read:team",
     /**
@@ -87,6 +89,43 @@ export const AGENT_CAPABILITIES = [
      * per page; a fan's media is refused.
      */
     "look:media",
+    /**
+     * Matters (ecosystem plan, package D): open, close and comment a matter by
+     * its reason key — a finding or a reminder for a person or a role. The
+     * agent's own kinds only: the kinds Hub's server mirrors are the server's.
+     * Nothing is read back but the matter's key and state.
+     */
+    "write:matters",
+    /**
+     * The people registry's pay terms in the people feed (`agentPeople`, which
+     * itself needs read:team): each person's share and fix per shift by model,
+     * with the day each holds from. Money, for the agency ledger's key only
+     * (ecosystem plan 2026-11-12, package A); without it the feed carries none.
+     */
+    "read:pay_terms",
+    /**
+     * Proposing a change about a person, or a new person (`agentPersonProposal`):
+     * the proposal waits for the owner, who accepts or rejects it; an agent never
+     * changes a person itself. Never pay terms (ecosystem plan 2026-11-12).
+     */
+    "propose:people",
+    /**
+     * «Войти через хаб» for another service's server, one capability per
+     * service, so a key redeems only its own service's codes: it exchanges a
+     * one-time sign-in code for «who is this» — the person and whether they are
+     * the owner, never a Hub session token — and re-checks that sign-in later
+     * (`authSsoRedeem`, `authSsoCheck`; ecosystem plan §3.2). Reads nothing of a
+     * page: the key's page grant does not widen it. SIGNIN_CLIENT_CAPABILITIES.
+     */
+    "signin:contentops",
+    "signin:taskindex",
+    "signin:monitor",
+    /**
+     * Agent reports (ecosystem plan, package O): publish a named markdown page
+     * by its slug — the traffic routine's daily summary, a board — that people
+     * read in the app. Nothing of the hub's data is read through it.
+     */
+    "write:reports",
 ];
 const AGENT_CAPABILITY_SET = new Set(AGENT_CAPABILITIES);
 /**

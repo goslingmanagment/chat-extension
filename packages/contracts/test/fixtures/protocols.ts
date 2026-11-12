@@ -245,6 +245,11 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: empty,
     res: { valid: [{ serverRevoked: true }, { serverRevoked: null }], invalid: [{}] },
   },
+  'session.webLink': {
+    // The hub takes only a path of the team's place.
+    req: { valid: [{}, { next: '/workboard/my/shifts' }], invalid: [{ next: 'https://example.test/workboard/' }, { next: '' }, { next: `/${'w'.repeat(2048)}` }, { next: '/x', extra: true }] },
+    res: { valid: [{ url: 'https://team.example.test/api/v1/auth/sso/accept?code=synthetic' }], invalid: [{ url: '' }, {}] },
+  },
   'bootstrap.get': {
     req: { valid: [{}, { force: true }], invalid: [{ force: 'yes' }] },
     res: dto(H.bootstrap, { ...H.bootstrap, flags: { insertion: 'on' } }),

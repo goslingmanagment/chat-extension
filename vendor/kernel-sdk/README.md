@@ -9,8 +9,8 @@ repo's `scripts/vendor-sdk.mjs`. Regenerate from core to update:
 node scripts/vendor-sdk.mjs <path-to-this-directory>
 ```
 
-- Contract hash: `728107e44c9f2cf4112f21c33118aeea690ec38fa1c8bf802a532a0c9a8be232`
-- Core commit: `a87a17fbed62d3b0310708efef698f41ebb19fd1`
+- Contract hash: `f18ba5daabea79edc8d97a2f25596164c2d898b8fd3677cdc5d8f60d2807327b`
+- Core commit: `b112b417f6b6912d5b7e179e49cbdeb9b3fd1289`
 
 The contract hash is exported at runtime as `KERNEL_CONTRACT_HASH`; drift CI
 compares it against core@main. Distribution via git-tag installs (DP 10) is

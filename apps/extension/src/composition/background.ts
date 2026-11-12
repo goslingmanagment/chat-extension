@@ -1645,6 +1645,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       return outcome;
     }),
   );
+  // «Мои смены» of the popup (hub #1213): the one-time link goes to the page that opens it, and nowhere else.
+  rpc.handle('session.webLink', ({ next }) => hubCall(async () => ({ url: (await hub().webLink(next === undefined ? {} : { next })).url })));
   rpc.handle('bootstrap.get', ({ force }) => hubCall(() => hub().bootstrap(force === true ? { force: true } : undefined)));
   rpc.handle('binding.resolve', ({ account }) => {
     const resolution = hub().resolveBinding(account);

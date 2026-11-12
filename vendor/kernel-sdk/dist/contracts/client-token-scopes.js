@@ -102,6 +102,8 @@ export const CLIENT_TOKEN_PROFILES = {
             "clientFanCustomChange",
             // ai-limit-v1: the person's own daily AI limit and today's AI spend.
             "clientAiLimit",
+            // Дела: how many matters wait for the person and the newest of them, no evidence (the badge of a later package).
+            "clientMatters",
             // chatspace-tab-state-v1: the always-on ChatSpace tab's report (the server's own hub user).
             "clientChatspaceTabState",
             // onlyfans-feed-v1: what the page's ChatSpace already received, passed on
@@ -118,6 +120,10 @@ export const CLIENT_TOKEN_PROFILES = {
             // The page's voice-note limits and what is left of today's characters
             // (free, read-only), behind the same flag.
             "voiceNoteAllowance",
+            // web-link-v1: a one-time link into the team's place. It opens a NARROW
+            // web session (web-session-scopes.ts) that dies with this token: the
+            // profile's boundary holds in the browser too.
+            "authWebLink",
         ],
         // `client_health` (H-11b) is never journaled: the capture lane folds it
         // into hourly rollups that hold no user.

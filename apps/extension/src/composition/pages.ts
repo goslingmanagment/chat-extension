@@ -65,7 +65,7 @@ import { CHATSPACE_MATCHES, type PerHost } from '../hosts/runtime';
 import { CHATSPACE_FEATURE_SLICE } from './features/chatspace';
 import { FANSLY_FEATURE_SLICE } from './features/fansly';
 import { TELEGRAM_FEATURE_SLICE } from './features/telegram';
-import { SITE_PAGES } from '../site';
+import { SITE_PAGES, WORKBOARD_URL } from '../site';
 
 export type PageName = ExtensionPage;
 
@@ -189,7 +189,7 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
     version: extensionVersionOf(api),
     hotkeyPlatform: catalog.platform,
     hostOrigin: chatSpaceOrigin(),
-    links: { whatsNew: SITE_PAGES.whatsNew, changelog: SITE_PAGES.changelog },
+    links: { whatsNew: SITE_PAGES.whatsNew, changelog: SITE_PAGES.changelog, workboard: WORKBOARD_URL },
     systemLanguages: () => win.navigator.languages,
     features: featuresOf,
     sites: Object.values(PAGE_SITES),

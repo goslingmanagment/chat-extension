@@ -22,6 +22,7 @@ import {
   HubOriginSchema,
   INGEST_LIMITS,
   IngestBatchSchema,
+  WebLinkRequestSchema,
   hasCapability,
   narrowPlatform,
   type AbortSignalLike,
@@ -137,6 +138,8 @@ import {
   type SharedRecaps,
   type SharedRecapsQuery,
   type SignOutOutcome,
+  type WebLink,
+  type WebLinkRequest,
   type SpenderBatch,
   type SpenderBatchQuery,
   type SpenderDetail,
@@ -540,6 +543,21 @@ export class ChatExtensionHub implements HubFacade {
       await this.custody.eraseAgain();
       return { serverRevoked };
     });
+  }
+
+  /**
+   * 2026-11-12 (hub #1213, `web-link-v1`): a one-time link into the team's place for this sign-in. Accepted, it opens a
+   * narrow web session of the person: only the team's place, never an owner screen, gone with this device token.
+   * Refused here without the capability (CG-HUB-CAPABILITY). Never repeated by itself: each click mints its own link.
+   */
+  async webLink(request: WebLinkRequest): Promise<WebLink> {
+    const route = 'authWebLink';
+    await this.ready;
+    const connection = this.ctx.connection(route);
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    if (!hasCapability(entry.bootstrap.capabilities, 'web-link-v1')) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, 'web-link-v1');
+    if (!WebLinkRequestSchema.safeParse(request).success) throw this.ctx.failure(route, transportFailure('contract'), connection);
+    return (await this.ctx.sdk(route, { body: request }, {}, connection)) as WebLink;
   }
 
   /** true: revoked (or already revoked); false: the hub refused; null: no answer in 5 s. */

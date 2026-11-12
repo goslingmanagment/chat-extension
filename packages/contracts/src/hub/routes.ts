@@ -30,6 +30,8 @@ export interface HubRouteSpec {
 export const HUB_ROUTES = {
   authIssueDeviceTokenWithPassword: { method: 'POST', routeClass: 'sign-in', since: 'sdk', flag: null, capabilities: [], narrowToken: false },
   authRevokeCurrentDeviceToken: { method: 'DELETE', routeClass: 'sign-out', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
+  /** 2026-11-12 (hub #1213): a one-time link into the team's place for this device's person (the popup's «Мои смены»). */
+  authWebLink: { method: 'POST', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['web-link-v1'], narrowToken: true },
   health: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: false },
   me: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   clientBootstrap: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },

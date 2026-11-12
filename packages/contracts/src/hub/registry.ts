@@ -7,7 +7,7 @@
 import type * as z from 'zod/mini';
 
 import { HubFrameSchema, HubStreamRequestSchema, PersonaCatalogSchema } from './ai';
-import { DeviceTokenIssueRequestSchema, DeviceTokenIssueResponseSchema, DeviceTokenRevokeResponseSchema, HubAuthStateSchema, HubHealthSchema } from './auth';
+import { DeviceTokenIssueRequestSchema, DeviceTokenIssueResponseSchema, DeviceTokenRevokeResponseSchema, HubAuthStateSchema, HubHealthSchema, WebLinkRequestSchema, WebLinkSchema } from './auth';
 import { BootstrapSchema } from './bootstrap';
 import { FeedPageSchema, FeedQuerySchema } from './feed';
 import { AudienceNewPageSchema, AudienceNewQuerySchema, ClaimOpSchema, ClaimStateSchema } from './newcomers';
@@ -62,6 +62,7 @@ export interface HubRouteSchemas {
 export const HUB_ROUTE_SCHEMAS = {
   authIssueDeviceTokenWithPassword: { request: DeviceTokenIssueRequestSchema, response: DeviceTokenIssueResponseSchema },
   authRevokeCurrentDeviceToken: { request: null, response: DeviceTokenRevokeResponseSchema },
+  authWebLink: { request: WebLinkRequestSchema, response: WebLinkSchema },
   health: { request: null, response: HubHealthSchema },
   me: { request: null, response: HubAuthStateSchema },
   clientBootstrap: { request: null, response: BootstrapSchema },

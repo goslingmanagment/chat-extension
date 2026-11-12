@@ -1899,6 +1899,8 @@ export const RU: I18nCatalog<'ru'> = {
   'popup.whatsNew': 'Что нового',
   'popup.history': 'История версий',
   'popup.refreshStatus': 'Обновить статус',
+  'popup.myShifts': 'Мои смены',
+  'popup.myShiftsHint': 'Ваши смены и продажи в Workboard. Откроются в новой вкладке.',
   'popup.version': 'Версия {v}',
 
   // ── Sign-in ──

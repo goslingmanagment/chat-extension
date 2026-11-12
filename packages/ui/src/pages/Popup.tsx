@@ -360,6 +360,35 @@ function Windows({ vm }: { readonly vm: PopupVM }): JSX.Element | null {
   );
 }
 
+/**
+ * «Мои смены» (2026-11-12): Workboard's «Мои смены» in a new tab, signed in by the hub's one-time link (a hub without
+ * it: Workboard's plain address, the person signs in there). Under the windows, in every signed-in state, tab or not.
+ */
+function MyShifts(): JSX.Element {
+  const i18n = useI18n();
+  const act = useAct();
+  const [busy, setBusy] = useState(false);
+  return (
+    <div class="pg-popup__btns">
+      <Button
+        label={i18n.t('popup.myShifts')}
+        variant="line"
+        busy={busy}
+        tooltip={i18n.t('popup.myShiftsHint')}
+        trailing={
+          <span class="pg-popup__key" aria-hidden="true">
+            <Kbd>↗</Kbd>
+          </span>
+        }
+        onClick={() => {
+          setBusy(true);
+          void act({ type: 'Navigate', to: { kind: 'workboard' } }).finally(() => setBusy(false));
+        }}
+      />
+    </div>
+  );
+}
+
 /** One line: «Что нового», the optional site's switch (X61: no row of its own), «Обновить статус». */
 function Footer({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
@@ -445,6 +474,7 @@ export function Popup(): JSX.Element {
           <Stage vm={vm} />
           <Facts vm={vm} />
           <Windows vm={vm} />
+          <MyShifts />
         </>
       )}
       <SiteSwitchError />

@@ -1157,6 +1157,11 @@ export class FakeHub {
       case 'authRevokeCurrentDeviceToken':
         s.auth.revoke({ tokenId: need(principal).token.id });
         return { kind: 'json', status: 200, body: { revoked: true } };
+      case 'authWebLink':
+        // «Мои смены»: the accept of the stand world's team name with a code no hub takes; its `next` stays with the
+        // code, as the hub keeps it (the journal holds the request).
+        need(principal);
+        return { kind: 'json', status: 200, body: { url: `https://chatgoose.example.test/api/v1/auth/sso/accept?code=stand-${String(now)}`, expiresAt: iso(now + 60_000) } };
       case 'health': {
         const { compatibleClientSdks, ...rest } = SCENARIO_DATA.health;
         void compatibleClientSdks;

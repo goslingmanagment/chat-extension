@@ -66,6 +66,10 @@ export const FOCUS_RECHECK_MIN_INTERVAL_MS = 5_000;
 export const SOUND_STATE_POLL_MS = 10_000;
 /** The hub's sign-in answers within 20 s (§8.2); the page waits a little longer for the background's answer. */
 export const SIGN_IN_TIMEOUT_MS = 25_000;
+/** «Мои смены» (hub #1213): the path of the team's place its one-time link opens. */
+export const WORKBOARD_SHIFTS_PATH = '/workboard/my/shifts';
+/** «Мои смены»: how long the popup waits for the hub's one-time link before it opens Workboard's plain address. */
+export const WEB_LINK_TIMEOUT_MS = 10_000;
 /** The popup's count of new subscribers: the default window of «Новые», hours. */
 export const POPUP_NEWCOMERS_WINDOW_HOURS = 48;
 /** Running operations change in 50 ms batches; the page looks not more often than this. */
@@ -1064,6 +1068,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       if (env.page === 'popup') ports.window.close?.();
       return done('Navigate', { outcome: 'opened' });
     }
+    if (to.kind === 'workboard') return openWorkboard();
     if (to.kind === 'surface') {
       if (!to.open || (to.surface !== 'spenders' && to.surface !== 'newcomers' && to.surface !== 'cheatsheet')) return code('Navigate', 'CG-NAV-FAILED');
       return tabCommand('Navigate', { kind: 'surface', surface: to.surface });
@@ -1087,6 +1092,21 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     }
     // A chat, a chat step or a prompt snapshot is opened from a ChatSpace tab, never from a page.
     return code('Navigate', 'CG-NAV-FAILED');
+  }
+
+  /**
+   * «Мои смены» (hub #1213): Workboard's «Мои смены» signed in by the hub's one-time link (`web-link-v1`), opened at
+   * once and once. A hub without it, a refusal or no answer within 10 s: Workboard's plain address, where the person
+   * signs in. Nothing is repeated: another click mints another link.
+   */
+  async function openWorkboard(): Promise<ActionReceipt> {
+    const answer = await ask('session.webLink', { next: WORKBOARD_SHIFTS_PATH }, { timeoutMs: WEB_LINK_TIMEOUT_MS });
+    if (disposed) return done('Navigate');
+    const plain = env.links.workboard;
+    const opened = (answer.ok && ports.openLink(answer.payload.url)) || (plain !== null && ports.openLink(plain));
+    if (!opened) return code('Navigate', 'CG-NAV-FAILED');
+    if (env.page === 'popup') ports.window.close?.();
+    return done('Navigate', { outcome: 'opened' });
   }
 
   async function copy(type: UiAction['type'], text: string | null): Promise<ActionReceipt> {

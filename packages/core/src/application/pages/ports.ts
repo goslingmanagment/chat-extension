@@ -88,6 +88,8 @@ export interface PageOpener {
 export interface PageLinks {
   readonly whatsNew: string | null;
   readonly changelog: string | null;
+  /** «Мои смены» without the hub's one-time link: Workboard's plain address, where the person signs in. */
+  readonly workboard: string | null;
 }
 
 /**

@@ -338,6 +338,8 @@ export const UI_TEXT_KEYS = [
   // 2026-11-04: the check of Fansly's «Новые» left running when its window closed.
   'toast.newcomersRunning.title', 'toast.newcomersRunning.body', 'toast.newcomersRunning.bodyList', 'toast.newcomersDone.title', 'toast.newcomersDone.body', 'toast.newcomersDone.bodyNone', 'toast.newcomersDone.bodyEmpty', 'toast.newcomersStopped.title', 'toast.newcomersStopped.body', 'toast.newcomersStopped.bodyList', 'toast.newcomersOpen', 'toast.newcomersPartial.title', 'toast.newcomersPartial.body', 'toast.newcomersPartial.bodyList',
   'popup.btn.keys', 'popup.btn.settings', 'popup.whatsNew', 'popup.history', 'popup.refreshStatus', 'popup.version',
+  // 2026-11-12: «Мои смены» — Workboard's «Мои смены» in a new tab, signed in by the hub's one-time link.
+  'popup.myShifts', 'popup.myShiftsHint',
   'signIn.title', 'signIn.login', 'signIn.password', 'signIn.submit', 'signIn.pending',
   'settings.label',
   'settings.nav.label',

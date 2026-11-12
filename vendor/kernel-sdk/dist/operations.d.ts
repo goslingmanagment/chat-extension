@@ -311,6 +311,30 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/pages";
     };
+    readonly adminPeopleProposals: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/people-proposals";
+    };
+    readonly adminPerson: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/people/:code";
+    };
+    readonly adminPersonCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/people";
+    };
+    readonly adminPersonPayTermSet: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/admin/people/:code/pay-terms";
+    };
+    readonly adminPersonProposalDecide: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/people-proposals/:proposalId/decide";
+    };
+    readonly adminPersonUpdate: {
+        readonly method: "PATCH";
+        readonly path: "/api/v1/admin/people/:code";
+    };
     readonly adminPublicationApprove: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/publications/approve";
@@ -551,6 +575,18 @@ export declare const kernelOperations: {
         readonly method: "PATCH";
         readonly path: "/api/v1/agent/keys/:id";
     };
+    readonly agentMatterClose: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/matters/close";
+    };
+    readonly agentMatterComment: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/matters/comment";
+    };
+    readonly agentMatterOpen: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/matters";
+    };
     readonly agentMediaLookCreate: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/media-looks";
@@ -567,9 +603,21 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/observations";
     };
+    readonly agentPeople: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/people";
+    };
     readonly agentPerson: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/people/:platform/:platformUserId";
+    };
+    readonly agentPersonProposalCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/people/proposals";
+    };
+    readonly agentPersonProposals: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/people/proposals";
     };
     readonly agentPersonTimeline: {
         readonly method: "GET";
@@ -638,6 +686,14 @@ export declare const kernelOperations: {
     readonly agentPublicationWithdraw: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/publications/:id/withdraw";
+    };
+    readonly agentReportList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/reports";
+    };
+    readonly agentReportPut: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/agent/reports/:slug";
     };
     readonly agentResolve: {
         readonly method: "POST";
@@ -723,6 +779,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/auth/links/inspect";
     };
+    readonly authIntrospect: {
+        readonly method: "GET";
+        readonly path: "/api/v1/auth/introspect";
+    };
     readonly authIssueDeviceTokenWithPassword: {
         readonly method: "POST";
         readonly path: "/api/v1/auth/device-tokens/password";
@@ -750,6 +810,30 @@ export declare const kernelOperations: {
     readonly authRevokeDevice: {
         readonly method: "DELETE";
         readonly path: "/api/v1/auth/devices/:deviceId";
+    };
+    readonly authSso: {
+        readonly method: "GET";
+        readonly path: "/api/v1/auth/sso";
+    };
+    readonly authSsoAccept: {
+        readonly method: "GET";
+        readonly path: "/api/v1/auth/sso/accept";
+    };
+    readonly authSsoBegin: {
+        readonly method: "GET";
+        readonly path: "/api/v1/auth/sso/begin";
+    };
+    readonly authSsoCheck: {
+        readonly method: "POST";
+        readonly path: "/api/v1/auth/sso/check";
+    };
+    readonly authSsoRedeem: {
+        readonly method: "POST";
+        readonly path: "/api/v1/auth/sso/redeem";
+    };
+    readonly authWebLink: {
+        readonly method: "POST";
+        readonly path: "/api/v1/auth/web-link";
     };
     readonly chatspaceBrowserScreen: {
         readonly method: "GET";
@@ -866,6 +950,10 @@ export declare const kernelOperations: {
     readonly clientInConversation: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/in-conversation";
+    };
+    readonly clientMatters: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/matters";
     };
     readonly clientMessageAuthors: {
         readonly method: "GET";
@@ -1010,6 +1098,14 @@ export declare const kernelOperations: {
     readonly logout: {
         readonly method: "POST";
         readonly path: "/api/v1/auth/logout";
+    };
+    readonly mattersList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/matters";
+    };
+    readonly mattersWaiting: {
+        readonly method: "GET";
+        readonly path: "/api/v1/matters/waiting";
     };
     readonly me: {
         readonly method: "GET";
@@ -1479,6 +1575,14 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/pages";
     };
+    readonly reportGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/reports/:slug";
+    };
+    readonly reportsList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/reports";
+    };
     readonly setFanFlags: {
         readonly method: "PATCH";
         readonly path: "/api/v1/fans/:platform/:platformUserId/flags";
@@ -1594,6 +1698,10 @@ export declare const kernelOperations: {
     readonly teamLedgerReports: {
         readonly method: "GET";
         readonly path: "/api/v1/team/ledger-reports";
+    };
+    readonly teamPeople: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/people";
     };
     readonly teamSalesPpv: {
         readonly method: "GET";

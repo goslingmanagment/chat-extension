@@ -22,7 +22,12 @@ import { aiSpendRouteSchemas } from "./routes-ai-spend";
 import { aiOpenerRouteSchemas } from "./routes-ai-openers";
 import { shiftReviewRouteSchemas } from "./routes-shift-review";
 import { teamLedgerRouteSchemas } from "./routes-team-ledger";
+import { matterRouteSchemas } from "./routes-matters";
+import { agentReportRouteSchemas } from "./routes-agent-reports";
 import { accountReportsRouteSchemas } from "./routes-account-reports";
+import { peopleRouteSchemas } from "./routes-people";
+// One sign-in across the names Hub serves: the one-time code between names (ecosystem plan §3.2).
+import { signinRouteSchemas } from "./routes-signin";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
@@ -241,6 +246,9 @@ export const adminTerminateAllAccessResponseSchema = z.object({
 export const authStateSchema = z.object({
     authMethod: z.enum(["session", "device_token"]),
     user: authUserSchema,
+    /** Present only on a NARROW web session (opened from the extension, web-session-scopes.ts):
+     *  it opens the team's place alone, whatever `user.role` says. */
+    narrow: z.literal(true).optional(),
 });
 const serviceHealthStatusEnum = z.enum(["ok", "degraded"]);
 const systemCheckStatusEnum = z.enum(["ok", "error"]);
@@ -6569,7 +6577,11 @@ const baseRouteSchemas = {
     ...aiOpenerRouteSchemas,
     ...shiftReviewRouteSchemas,
     ...teamLedgerRouteSchemas,
+    ...matterRouteSchemas,
+    ...agentReportRouteSchemas,
     ...accountReportsRouteSchemas,
+    ...peopleRouteSchemas,
+    ...signinRouteSchemas,
     adminAiPersonasList: {
         auth: { kind: "owner-session" },
         tags: ["admin"],

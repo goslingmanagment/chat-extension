@@ -1795,6 +1795,8 @@ export const EN: I18nCatalog<'en'> = {
   'popup.whatsNew': 'What’s new',
   'popup.history': 'Version history',
   'popup.refreshStatus': 'Refresh status',
+  'popup.myShifts': 'My shifts',
+  'popup.myShiftsHint': 'Your shifts and sales in Workboard. They open in a new tab.',
   'popup.version': 'Version {v}',
 
   // ── Sign-in ──

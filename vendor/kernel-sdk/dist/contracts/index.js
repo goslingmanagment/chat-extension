@@ -18,6 +18,12 @@ export * from "./media-looks";
 export * from "./routes-media-looks";
 export * from "./fan-queues";
 export * from "./routes-fan-queues";
+// Дела: what waits for a person, by reason key (package D), spread by routes.ts.
+export * from "./matters";
+export * from "./routes-matters";
+// Agent reports: named markdown pages an agent key publishes (package O), spread by routes.ts.
+export * from "./agent-reports";
+export * from "./routes-agent-reports";
 export * from "./agent-team";
 // «Рассылки» kept by Hub (outreach-store-v1), spread by routes.ts.
 export * from "./outreach";
@@ -29,6 +35,10 @@ export * from "./publication-files";
 export * from "./routes-publication-files";
 // Narrow device-token profiles (the chat extension's route allowlist, H-3).
 export * from "./client-token-scopes";
+// One sign-in across the names (the one-time code between names), spread by routes.ts,
+// and the narrow web session's route allowlist.
+export * from "./routes-signin";
+export * from "./web-session-scopes";
 export * from "./authorization-policy";
 export * from "./sdk-runtime";
 export * from "./contract-hash";
@@ -69,6 +79,9 @@ export * from "./routes-team-ledger";
 export * from "./routes-account-reports";
 // Its quality numbers, one definition for the review's screen and «Смены» (`teamChatterNumbers`).
 export * from "./shift-review-rules";
+// The people registry (team list, the owner's card and writes, the agent feed and proposals), spread by routes.ts.
+export * from "./people";
+export * from "./routes-people";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-model-applications";
 export * from "./routes-ofapi-read-collections";

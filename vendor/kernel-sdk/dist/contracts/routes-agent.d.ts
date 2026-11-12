@@ -83,6 +83,13 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "withdraw:publications": "withdraw:publications";
     "delete:posts": "delete:posts";
     "look:media": "look:media";
+    "write:matters": "write:matters";
+    "read:pay_terms": "read:pay_terms";
+    "propose:people": "propose:people";
+    "signin:contentops": "signin:contentops";
+    "signin:taskindex": "signin:taskindex";
+    "signin:monitor": "signin:monitor";
+    "write:reports": "write:reports";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -2588,6 +2595,13 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "withdraw:publications": "withdraw:publications";
         "delete:posts": "delete:posts";
         "look:media": "look:media";
+        "write:matters": "write:matters";
+        "read:pay_terms": "read:pay_terms";
+        "propose:people": "propose:people";
+        "signin:contentops": "signin:contentops";
+        "signin:taskindex": "signin:taskindex";
+        "signin:monitor": "signin:monitor";
+        "write:reports": "write:reports";
     }>>;
     ownContent: z.ZodBoolean;
     captureState: z.ZodEnum<{
@@ -2660,6 +2674,13 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "withdraw:publications": "withdraw:publications";
                 "delete:posts": "delete:posts";
                 "look:media": "look:media";
+                "write:matters": "write:matters";
+                "read:pay_terms": "read:pay_terms";
+                "propose:people": "propose:people";
+                "signin:contentops": "signin:contentops";
+                "signin:taskindex": "signin:taskindex";
+                "signin:monitor": "signin:monitor";
+                "write:reports": "write:reports";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
@@ -2954,6 +2975,13 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "withdraw:publications": "withdraw:publications";
             "delete:posts": "delete:posts";
             "look:media": "look:media";
+            "write:matters": "write:matters";
+            "read:pay_terms": "read:pay_terms";
+            "propose:people": "propose:people";
+            "signin:contentops": "signin:contentops";
+            "signin:taskindex": "signin:taskindex";
+            "signin:monitor": "signin:monitor";
+            "write:reports": "write:reports";
         }>>;
         ownContent: z.ZodBoolean;
         captureState: z.ZodEnum<{
@@ -30439,6 +30467,13 @@ export declare const agentRouteSchemas: {
                             "withdraw:publications": "withdraw:publications";
                             "delete:posts": "delete:posts";
                             "look:media": "look:media";
+                            "write:matters": "write:matters";
+                            "read:pay_terms": "read:pay_terms";
+                            "propose:people": "propose:people";
+                            "signin:contentops": "signin:contentops";
+                            "signin:taskindex": "signin:taskindex";
+                            "signin:monitor": "signin:monitor";
+                            "write:reports": "write:reports";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
@@ -30733,6 +30768,13 @@ export declare const agentRouteSchemas: {
                         "withdraw:publications": "withdraw:publications";
                         "delete:posts": "delete:posts";
                         "look:media": "look:media";
+                        "write:matters": "write:matters";
+                        "read:pay_terms": "read:pay_terms";
+                        "propose:people": "propose:people";
+                        "signin:contentops": "signin:contentops";
+                        "signin:taskindex": "signin:taskindex";
+                        "signin:monitor": "signin:monitor";
+                        "write:reports": "write:reports";
                     }>>;
                     ownContent: z.ZodBoolean;
                     captureState: z.ZodEnum<{
