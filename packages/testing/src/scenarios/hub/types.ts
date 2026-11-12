@@ -19,6 +19,8 @@ import {
 export const HUB_ROUTE_PATHS = {
   authIssueDeviceTokenWithPassword: '/api/v1/auth/device-tokens/password',
   authRevokeCurrentDeviceToken: '/api/v1/auth/device-tokens/current',
+  // «Мои смены»: a one-time link into the team's place (hub #1213, `web-link-v1`).
+  authWebLink: '/api/v1/auth/web-link',
   health: '/api/v1/health',
   me: '/api/v1/auth/me',
   clientBootstrap: '/api/v1/client/bootstrap',

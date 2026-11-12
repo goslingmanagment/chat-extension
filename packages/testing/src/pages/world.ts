@@ -455,7 +455,7 @@ export function pagesWorld(options: PagesWorldOptions = {}): PagesWorld {
     version: PAGES_VERSION,
     hotkeyPlatform: options.platform ?? 'mac',
     hostOrigin: PAGES_HOST_ORIGIN,
-    links: options.links ?? { whatsNew: 'https://ext.example.test/chat-extension/whats-new.html', changelog: 'https://ext.example.test/chat-extension/changelog.html' },
+    links: options.links ?? { whatsNew: 'https://ext.example.test/chat-extension/whats-new.html', changelog: 'https://ext.example.test/chat-extension/changelog.html', workboard: 'https://team.example.test/workboard/' },
     systemLanguages: () => options.systemLanguages ?? [language],
     timeZone: 'Europe/Moscow',
     // The pages of the stand serve ChatSpace: its slice of the feature manifest.

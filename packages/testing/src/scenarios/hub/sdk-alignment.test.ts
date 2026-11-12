@@ -213,7 +213,8 @@ describe('contracts vs the vendored SDK', () => {
       'clientAudienceNew',
     ] as const;
     for (const key of arrived) expect([key, HUB_ROUTES[key].since, sdkOperations[key]?.path]).toEqual([key, 'sdk', HUB_ROUTE_PATHS[key]]);
-    expect(HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since !== 'sdk')).toEqual([]);
+    // Hub #1213's one-time link waits for a re-vendor: hub main cannot be vendored until its script stages the new contract files.
+    expect(HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since !== 'sdk')).toEqual(['authWebLink']);
   });
 
   it('every client/* scenario request is one the hub\'s route reads: path, query and body, each part checked', () => {

@@ -52,7 +52,7 @@ version this window cannot send with why and «Открыть и вставит�
 `fan-panel`, `queues` («Очереди» on both sites over the fake hub's prototype set: the bar's «Очереди 1 ↩», ⌘K's
 group, the fan who answered with his Reply sent, the cold batch queue, Ping, «Пропустить ▾», a paused queue, a queue's
 own message, a portion done), `queues-chat` (the queue in the chat on both sites: the day's reminder, the strip over the
-bar, a send from the chat counted, the next fan, a reload, another chat, the ×), `pages` (popup and settings), `ai-limit` (the person's own daily AI limit on the fake hub: «$2.90 / $3.50» in the dock with the 80 % toast, the popup's «ИИ сегодня», a Reply that spends it, the «исчерпан» toast and «Ещё раз» refused with CG-AI-LIMIT), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
+bar, a send from the chat counted, the next fan, a reload, another chat, the ×), `pages` (popup and settings), `my-shifts` (the popup's «Мои смены»: the tab it opens, its code hidden; `egress.json` the host it tried), `ai-limit` (the person's own daily AI limit on the fake hub: «$2.90 / $3.50» in the dock with the 80 % toast, the popup's «ИИ сегодня», a Reply that spends it, the «исчерпан» toast and «Ещё раз» refused with CG-AI-LIMIT), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
 first), `log-download` (Hi on in a long chat, Ping off in a short one by its
 gate, pressed, then «Скачать лог» in the popup; the files land in
 the run's `downloads/`), `chatspace-chat-length` (the chat's length after «Заметки» in ChatSpace's header: «428» from the

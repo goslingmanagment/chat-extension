@@ -339,6 +339,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * without it sends neither and is never told: its badges body is strict.
    */
   'fan-account-state-v1',
+  /**
+   * 2026-11-12 (hub #1213): a one-time link into the team's place without a password (`authWebLink`): the popup's
+   * «Мои смены». A hub without it is never asked; the popup opens Workboard's plain address instead.
+   */
+  'web-link-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

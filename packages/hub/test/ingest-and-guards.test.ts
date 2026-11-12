@@ -62,7 +62,8 @@ describe('[AU-029] routes this client never calls (§8.1 «Никогда»)', (
     }
     // Every contract route (all of them SDK operations since hub c8514c5c), and nothing else.
     expect([...SDK_ALLOWED_OPERATIONS].sort()).toEqual([...HUB_ROUTE_KEYS.filter((key) => HUB_ROUTES[key].since === 'sdk'), 'pages'].sort());
-    expect([...SDK_ALLOWED_OPERATIONS].sort()).toEqual([...HUB_ROUTE_KEYS, 'pages'].sort());
+    // But hub #1213's one-time link, which waits for a re-vendor (hub main cannot be vendored until its script stages the new contract files).
+    expect([...SDK_ALLOWED_OPERATIONS].sort()).toEqual([...HUB_ROUTE_KEYS.filter((key) => key !== 'authWebLink'), 'pages'].sort());
     // The cabinet's resolve and list of held sends came with the same SDK: a device token never reaches them.
     for (const cabinet of ['clientSendCustodyResolve', 'clientSendCustodyList']) {
       expect(kernelOperations).toHaveProperty(cabinet);

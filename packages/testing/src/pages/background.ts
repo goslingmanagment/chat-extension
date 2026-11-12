@@ -71,6 +71,8 @@ export interface BackgroundState {
   quotas: Record<number, AiQuotaSnapshot | null>;
   /** The person's own daily AI limit (`ai-limit-v1`); absent or null — none known. */
   aiLimit?: AiLimitSnapshot | null;
+  /** «Мои смены»: the hub's one-time link (`web-link-v1`); absent or null — the hub has none (CG-HUB-CAPABILITY). */
+  webLink?: string | null;
   ops: OpView[];
   journals: Partial<Record<JournalKind, JournalFixture>>;
   prompts: Record<string, PromptSnapshotView>;
@@ -339,6 +341,8 @@ export class FakePageBackground implements PageRpc {
       case 'session.signOut':
         this.setSession(null, 'sign-out');
         return { ok: true, payload: { serverRevoked: state.serverRevoked } };
+      case 'session.webLink':
+        return needsSession() ?? (state.webLink === undefined || state.webLink === null ? refuse('CG-HUB-CAPABILITY') : { ok: true, payload: { url: state.webLink } });
       case 'bootstrap.get':
         return needsSession() ?? { ok: true, payload: state.bootstrap };
       case 'catalog.get':

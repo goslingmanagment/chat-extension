@@ -132,6 +132,7 @@ const VOICE_NOTE = { pageLabel: 'pageLabel', id: 'voiceNoteId' } as const;
 export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>, WireSpec | null>> = {
   authIssueDeviceTokenWithPassword: { body: 'merge' },
   authRevokeCurrentDeviceToken: null,
+  authWebLink: { body: 'merge' },
   health: null,
   me: null,
   clientBootstrap: null,

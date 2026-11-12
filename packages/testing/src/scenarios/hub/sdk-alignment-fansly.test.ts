@@ -97,7 +97,8 @@ describe('[host:fansly] the window coverage check (contracts 1.15.0, P4b1) again
     expect(COVERAGE_DELETED_STATES.filter((state) => !(AI_COVERAGE_CHECK_DELETED_STATES as readonly string[]).includes(state))).toEqual(['included']);
     for (const state of AI_COVERAGE_CHECK_DELETED_STATES) expect(COVERAGE_DELETED_STATES).toContain(state);
     expect(SDK_AI_STREAM_CAPABILITIES.filter((capability) => (AI_STREAM_CAPABILITIES as readonly string[]).includes(capability))).toEqual([...AI_STREAM_CAPABILITIES]);
-    for (const capability of CLIENT_HUB_CAPABILITY_NAMES) expect(SDK_CLIENT_HUB_CAPABILITY_NAMES).toContain(capability);
+    // `web-link-v1` (hub #1213) comes with the re-vendor that brings `authWebLink`.
+    for (const capability of CLIENT_HUB_CAPABILITY_NAMES.filter((name) => name !== 'web-link-v1')) expect(SDK_CLIENT_HUB_CAPABILITY_NAMES).toContain(capability);
   });
 
   it('every request of the matrix both take, and each one the hub refuses ours refuses too', () => {

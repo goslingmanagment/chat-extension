@@ -63,6 +63,25 @@ export const DeviceTokenRevokeResponseSchema = z.object({ revoked: z.literal(tru
 export const SignOutOutcomeSchema = z.strictObject({ serverRevoked: z.nullable(z.boolean()) });
 export type SignOutOutcome = z.infer<typeof SignOutOutcomeSchema>;
 
+/** The longest `next` the hub takes (`authWebLinkBodySchema`). */
+export const WEB_LINK_NEXT_MAX_CHARS = 2048;
+
+/**
+ * `authWebLink` body (hub #1213, `web-link-v1`): a path of the team's place to open (`/workboard/my/shifts`); absent —
+ * Workboard's home. The hub refuses anything but a path of its team's name (400).
+ */
+export const WebLinkRequestSchema = z.strictObject({
+  next: z.optional(boundedText(WEB_LINK_NEXT_MAX_CHARS).check(z.startsWith('/'))),
+});
+export type WebLinkRequest = z.infer<typeof WebLinkRequestSchema>;
+
+/**
+ * The one-time link into the team's place: it opens a narrow web session of this device's person (only the team's
+ * place, never an owner screen, gone with this device token). Opened once, from the person's click, within the minute.
+ */
+export const WebLinkSchema = z.object({ url: z.string(), expiresAt: IsoTimestampSchema });
+export type WebLink = z.infer<typeof WebLinkSchema>;
+
 /**
  * Roles and platforms as the existing SDK operations declare them: closed
  * enums there, the client's known values (ids.ts); bootstrap and the new

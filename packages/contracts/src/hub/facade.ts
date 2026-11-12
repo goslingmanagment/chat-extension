@@ -14,7 +14,7 @@ import { type CgCode } from '../errors';
 import { type AcceptanceEvent, type ClientHealthV1 } from '../telemetry';
 import { type SessionIdentity } from '../ids';
 import { type HubFrame, type HubStreamRequest, type PersonaCatalog } from './ai';
-import { type HubHealth, type SignOutOutcome } from './auth';
+import { type HubHealth, type SignOutOutcome, type WebLink, type WebLinkRequest } from './auth';
 import { type Bootstrap } from './bootstrap';
 import { type HubClientCheck, type HubErrorResolution, type HubFailure } from './error-map';
 import { type FeedPage, type FeedQuery } from './feed';
@@ -146,6 +146,8 @@ export interface HubFacade {
   signIn(login: string, password: string): Promise<SessionIdentity>;
   /** Wipe → revoke (5 s) → wipe again (AU-013). */
   signOut(): Promise<SignOutOutcome>;
+  /** A one-time link into the team's place for this sign-in (hub #1213); refused without `web-link-v1`, never repeated by itself. */
+  webLink(request: WebLinkRequest): Promise<WebLink>;
   session(): SessionIdentity | null;
   /** `contractHash`, `compatibleClientSdks` (H-1). */
   health(): Promise<HubHealth>;

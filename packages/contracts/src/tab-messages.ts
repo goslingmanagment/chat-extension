@@ -36,7 +36,7 @@ import {
   displayText,
 } from './primitives';
 import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendFuseFactSchema, SendFuseStateSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup, SendMarksSchema } from './send';
-import { CONTRACT_HASH_PATTERN } from './hub/auth';
+import { CONTRACT_HASH_PATTERN, WebLinkRequestSchema } from './hub/auth';
 import { HiFanAvatarUrlSchema } from './hi-start-proof';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
@@ -497,6 +497,12 @@ export const TAB_REQUESTS = {
   },
   /** `serverRevoked: null` — the hub did not answer; the local sign-in is cleared anyway. */
   'session.signOut': { req: Empty, res: z.strictObject({ serverRevoked: z.nullable(z.boolean()) }), from: PAGE },
+  /**
+   * 2026-11-12 (hub #1213, `web-link-v1`): the popup's «Мои смены» — a one-time link into the team's place for this
+   * sign-in, opened at once and once. CG-HUB-CAPABILITY from a hub without it; never repeated by itself. The link is a
+   * credential for a minute: never logged, never kept.
+   */
+  'session.webLink': { req: WebLinkRequestSchema, res: z.strictObject({ url: boundedText(4096) }), from: PAGE, pages: ['popup'] },
   'bootstrap.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: BootstrapSchema, from: ANY },
   /** Binds a host account to exactly one page by platformAccountId; CG-BINDING-* on failure. */
   'binding.resolve': { req: z.strictObject({ account: HostAccountSchema }), res: z.strictObject({ binding: HubBindingSchema }), from: ANY },

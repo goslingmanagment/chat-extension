@@ -16,3 +16,9 @@ export const SITE_PAGES = {
   /** «Нужна помощь со входом» — «Как начать» (ST-050). */
   start: `${SITE_BASE}start.html`,
 } as const;
+
+/**
+ * The team's place on the hub (Workboard): the popup's «Мои смены» opens it when the hub gives no one-time link
+ * (`web-link-v1`, hub #1213), and the person signs in there. Opened in a new tab on the person's click only.
+ */
+export const WORKBOARD_URL = 'https://chatgoose.gosling-agency.ru/workboard/';
