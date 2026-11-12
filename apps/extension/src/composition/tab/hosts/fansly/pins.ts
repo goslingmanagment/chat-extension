@@ -4,16 +4,19 @@
 // open chat's button first in the header (order 5, before «Заметки» 10 and «Регистрация» 20). In Fansly's `pins` chunk,
 // loaded the first time the tab is on /messages.
 //
-// - The header's button is mounted as soon as the header has its place and the switch is not off: nothing of the
-//   header moves after it came. Not for a group chat.
-// - The strip is mounted while the controller says it stands, in the route's own list only.
+// - The header's button is mounted as soon as the header has its place and the switch is not off (unseen until the
+//   switch is known): nothing of the header moves after it came. Not for a group chat.
+// - The strip is mounted while the controller says it stands, in the route's own list only: at full height at once
+//   when its list has just come (the list is first painted with it) or shows no row yet, sliding in otherwise.
 // - A chip opens its chat through Fansly's own router by the person's click: a navigation token of the `pins` surface
-//   from the tab's gate (the click went through our root), spent by the port.
+//   from the tab's gate (the click went through our root), spent by the port — given up when the person went elsewhere
+//   while the token was asked.
 // - The background's changes of the creator's pins and of the switch are heard as events; a tab back in view reads
-//   again. No storage listener in the tab.
+//   again, so does another sign-in. No storage listener in the tab.
+// - Nothing of ours throws into the port's sync: a surface that fails is reported and the page's sync goes on.
 import type { MountSurfaceKind } from '@cg/contracts/vm';
-import { issueCause, type TabRpc } from '@cg/core/application/boards';
-import { createFanslyPins } from '@cg/core/application/hosts/fansly/pins';
+import { issueCause } from '@cg/core/application/boards';
+import { createFanslyPins, type FanslyPinsStats } from '@cg/core/application/hosts/fansly/pins';
 import { PINS_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { pinHeaderSurface, pinStripSurface } from '@cg/ui/hosts/fansly/pins';
@@ -31,13 +34,13 @@ const PINS_TIMEOUT_MS = 15_000;
 export function startFanslyPins(env: SiteAppEnv<FanslyPort>): () => void {
   const { host, rpc, win } = env;
   const page = host.fansly;
-  const gated = env.gated === undefined ? null : (env.gated as unknown as TabRpc);
-  /** The background's last refusal of a read or a change (the test build's report). */
-  let refused: string | null = null;
-  /** The test build's report, once the controller took an answer (a read that changes no view says so too). */
-  const report = (): void => {
-    if (env.probe !== null) win.setTimeout(() => place(), 0);
-  };
+  const gated = env.gated ?? null;
+  const probe = env.probe;
+  /** Test builds: the controller's state, the slot's and the background's last refusal, for the e2e's report. */
+  const seen = probe === null ? null : { refused: null as string | null };
+  let strip: { readonly slot: ReturnType<FanslyPort['inbox']['mount']>; readonly mount: KitMount } | null = null;
+  let header: { readonly slot: ReturnType<FanslyPort['header']['mount']>; readonly mount: KitMount } | null = null;
+
   const pins = createFanslyPins({
     page,
     creator: () => host.identity()?.hostAccountId ?? null,
@@ -48,62 +51,79 @@ export function startFanslyPins(env: SiteAppEnv<FanslyPort>): () => void {
     },
     async read(creator) {
       const answer = await fanslyRequest(rpc, 'fansly.pins.read', { hostAccountId: creator }, PINS_TIMEOUT_MS);
-      refused = answer.ok ? null : answer.error.code;
-      report();
+      if (seen !== null) seen.refused = answer.ok ? null : answer.error.code;
       return answer.ok ? answer.payload : null;
     },
     async change(creator, op) {
       const answer = await fanslyRequest(rpc, 'fansly.pins.change', op.op === 'pin' ? { hostAccountId: creator, op: 'pin', pin: op.pin } : op.op === 'unpin' ? { hostAccountId: creator, op: 'unpin', groupId: op.groupId } : { hostAccountId: creator, op: 'touch', groupId: op.groupId, at: op.at }, PINS_TIMEOUT_MS);
-      refused = answer.ok ? null : answer.error.code;
-      report();
+      if (seen !== null) seen.refused = answer.ok ? null : answer.error.code;
       return answer.ok ? answer.payload.pins : null;
     },
-    // The token is asked inside the click (the tab's gate sees it through our root); the port spends it.
+    // The token is asked inside the click (the tab's gate sees it through our root); the port spends it. A person who
+    // went elsewhere while it was asked is not taken back to this chat.
     async navigate(target) {
       if (gated === null) return false;
+      const from = win.location.pathname;
       const issued = await issueCause(gated, 'navigate', 'pins');
-      if (!issued.ok || env.life.aborted) return false;
+      if (!issued.ok || env.life.aborted || win.location.pathname !== from) return false;
       const receipt = await host.navigate({ intentId: win.crypto.randomUUID(), cause: issued.cause, target: { hostAccountId: target.creator, platformFanId: target.fanId, conversationRef: target.groupId } }).catch(() => null);
       return receipt?.state === 'navigated';
     },
     copy: () => PINS_TEXTS[env.deps.i18n.language],
     now: () => Date.now(),
     timers: { set: (callback, ms) => win.setTimeout(callback, ms), clear: (handle) => win.clearTimeout(handle as number) },
+    ...(probe === null
+      ? {}
+      : {
+          observe: (stats: FanslyPinsStats) =>
+            probe.set('pins', { ...stats, slot: host.inbox.available(), mounted: strip !== null, header: header !== null, hostStats: host.inbox.stats(), refused: seen?.refused ?? null }),
+        }),
   });
 
-  let strip: { readonly slot: ReturnType<FanslyPort['inbox']['mount']>; readonly mount: KitMount } | null = null;
-  let header: { readonly slot: ReturnType<FanslyPort['header']['mount']>; readonly mount: KitMount } | null = null;
+  const unmountStrip = (): void => {
+    // Out of the record first: an unmount says `hold(false)`, which may come back here before this returns.
+    const gone = strip;
+    strip = null;
+    gone?.mount.unmount();
+    gone?.slot.remove();
+  };
+  const unmountHeader = (): void => {
+    const gone = header;
+    header = null;
+    gone?.mount.unmount();
+    gone?.slot.remove();
+  };
+
   const place = (): void => {
     if (env.life.aborted) return;
     const view = pins.view();
     const wantStrip = view.visible && host.inbox.available();
     if (wantStrip && strip === null) {
-      // Before Fansly's first rows the strip simply stands: nothing on the page moves yet.
-      const instant = !host.inbox.hasRows();
+      // A list that has just come is painted with the strip already in it; one with no row yet does not move either.
+      const instant = host.inbox.fresh() || !host.inbox.hasRows();
       const slot = host.inbox.mount(STRIP_ORDER);
       strip = { slot, mount: mountKitSurface('inbox-slot' as MountSurfaceKind, slot.root, env.deps, pinStripSurface(pins, PINS_TEXTS, () => instant), { report: env.report }) };
-    } else if (!wantStrip && strip !== null) {
-      strip.mount.unmount();
-      strip.slot.remove();
-      strip = null;
-    }
+    } else if (!wantStrip && strip !== null) unmountStrip();
     const { route } = host.current();
     const wantHeader = pins.active() && host.header.available() && route.name === 'chat' && route.conversationKind !== 'group';
     if (wantHeader && header === null) {
       const slot = host.header.mount(HEADER_ORDER);
       header = { slot, mount: mountKitSurface('header-slot' as MountSurfaceKind, slot.root, env.deps, pinHeaderSurface(pins, PINS_TEXTS), { report: env.report }) };
-    } else if (!wantHeader && header !== null) {
-      header.mount.unmount();
-      header.slot.remove();
-      header = null;
-    }
-    env.probe?.set('pins', { ...pins.stats(), slot: host.inbox.available(), mounted: strip !== null, header: header !== null, hostStats: host.inbox.stats(), refused });
+    } else if (!wantHeader && header !== null) unmountHeader();
   };
-  const sync = (): void => {
+  /** The port's listeners: whatever fails here is ours to report, never the port's sync to break. */
+  const safely = (run: () => void) => (): void => {
+    try {
+      run();
+    } catch (error) {
+      env.report({ kind: 'render', surface: 'inbox-slot' as MountSurfaceKind, code: 'CG-UI-FAILED', name: error instanceof Error ? error.name : typeof error });
+    }
+  };
+  const sync = safely(() => {
     if (env.life.aborted) return;
     pins.sync();
     place();
-  };
+  });
   const onVisible = (): void => {
     if (win.document.visibilityState === 'visible') pins.refresh();
   };
@@ -112,25 +132,21 @@ export function startFanslyPins(env: SiteAppEnv<FanslyPort>): () => void {
     host.subscribe((event) => {
       if (event.type === 'route' || event.type === 'accounts') sync();
     }),
-    host.header.onChange(place),
-    host.inbox.onChange(place),
-    pins.subscribe(place),
+    host.header.onChange(safely(place)),
+    host.inbox.onChange(safely(place)),
+    pins.subscribe(safely(place)),
     env.deps.i18n.subscribe(() => pins.sync()),
     fanslyEvent(rpc, 'fansly.pins.changed', (payload) => pins.changed(payload.hostAccountId, payload.pins)),
     fanslyEvent(rpc, 'fansly.pins.switched', (payload) => pins.switched(payload.on)),
     // Another sign-in (or none): the background answers for whoever is signed in now.
-    rpc.onEvent('session.changed', () => pins.refresh()),
+    rpc.onEvent('session.changed', () => pins.sessionChanged()),
     () => win.document.removeEventListener('visibilitychange', onVisible),
   ];
   sync();
   return () => {
     for (const off of offs.splice(0)) off();
+    unmountStrip();
+    unmountHeader();
     pins.dispose();
-    strip?.mount.unmount();
-    strip?.slot.remove();
-    header?.mount.unmount();
-    header?.slot.remove();
-    strip = null;
-    header = null;
   };
 }

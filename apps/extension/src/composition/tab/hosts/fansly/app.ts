@@ -25,6 +25,7 @@
 //   person's temporary chat pins over the list of chats (2026-11-12, `pins` chunk).
 
 import { showProxyNotice } from '@cg/host-fansly/isolated/proxy-notice';
+import { isMessagesPath } from '@cg/host-fansly/isolated/route';
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
@@ -151,7 +152,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   let vault: Promise<(() => void) | null> | null = null;
   const sync = (): void => {
     if (env.life.aborted) return;
-    if (registration === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
+    if (registration === null && isMessagesPath(env.win.location.pathname)) {
       // The open chat's chunk: «Регистрация» and, after it, the fan's warning marks; «кто написал» in the list.
       registration = env.lazy<typeof RegistrationChunk>('registration').then((chunk) => {
         if (env.life.aborted) return null;
@@ -163,7 +164,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
         return null;
       });
     }
-    if (notes === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
+    if (notes === null && isMessagesPath(env.win.location.pathname)) {
       notes = env.lazy<typeof NotesChunk>('notes').then((chunk) => (env.life.aborted ? null : chunk.startFanslyNotes(env)), () => {
         notes = null;
         env.report({ kind: 'render', surface: 'notes' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'NotesChunk' });
@@ -171,7 +172,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
       });
     }
     // 2026-11-12: temporary chat pins — the strip over the list of chats, the rows' and the header's buttons.
-    if (pins === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
+    if (pins === null && isMessagesPath(env.win.location.pathname)) {
       pins = env.lazy<typeof PinsChunk>('pins').then((chunk) => (env.life.aborted ? null : chunk.startFanslyPins(env)), () => {
         pins = null;
         env.report({ kind: 'render', surface: 'inbox-slot' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'PinsChunk' });

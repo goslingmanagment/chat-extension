@@ -51,6 +51,7 @@ import { type CgErrorWire } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type ClientFeatureFlag } from '@cg/contracts/hub';
+import type { HostKind } from '@cg/contracts/hosts';
 import { admission, admissionState } from '@cg/core/domain/features';
 
 export type TokenKind = 'generate' | 'insert' | 'navigate' | 'send';
@@ -70,6 +71,9 @@ export interface TokenGateHub {
   /** Reads an expired bootstrap again; rejects with the hub layer's own error. */
   bootstrap(): Promise<unknown>;
 }
+
+/** A surface of one site's own feature with no switch of the hub's: its navigation token is that site's tabs' alone. */
+export const SITE_SURFACES: Readonly<Partial<Record<Surface, HostKind>>> = { pins: 'fansly-web' };
 
 /** The switches a navigation token of each surface answers to: any one usable (on some granted page) lets it through. */
 export const NAVIGATE_SWITCHES: Readonly<Record<Surface, readonly ClientFeatureFlag[]>> = {

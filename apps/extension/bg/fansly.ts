@@ -311,15 +311,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const marks = createFanMarksReader(kit, FANSLY_SLICE, (creator, fanRef) => badges.accountRead(creator, fanRef));
   const deleted = createDeletedMessagesReader(kit, FANSLY_SLICE);
   // The person's pins: whoever is signed in now owns them; nobody — nothing read or written.
-  const pins = createFanslyPins({
-    local: kit.storage.local,
-    now: () => kit.clock.now(),
-    owner: () => {
-      const signedIn = kit.hub.session();
-      return signedIn === null ? null : `${signedIn.hubOrigin}|${signedIn.userId}`;
-    },
-    log: kit.log.service,
-  });
+  const pins = createFanslyPins({ local: kit.storage.local, now: () => kit.clock.now(), owner: () => kit.install.owner(), log: kit.log.service });
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
@@ -478,11 +470,11 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         if (type === 'fansly.pins.change' && !tabOnCreator(kit, tab, creator)) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
         try {
           const change = type === 'fansly.pins.change' ? (request as FanslyTabRequestPayload<'fansly.pins.change'>) : null;
+          // The switch first: nothing is awaited after the queue's step, so no answer lands after a newer change's event.
+          const on = change !== null || kit.settingsExt === undefined ? true : (await kit.settingsExt.state()).state.ext.hosts['fansly-web'].pins;
           const answer = change === null ? await pins.read(creator) : await pins.change(creator, change.op === 'pin' ? { op: 'pin', pin: change.pin } : change.op === 'unpin' ? { op: 'unpin', groupId: change.groupId } : { op: 'touch', groupId: change.groupId, at: change.at });
           if (answer.changed) kit.site?.emit('fansly.pins.changed', { hostAccountId: creator, pins: [...answer.pins] });
-          if (change !== null) return ok({ pins: answer.pins });
-          const on = kit.settingsExt === undefined ? true : (await kit.settingsExt.state()).state.ext.hosts['fansly-web'].pins;
-          return ok({ on, pins: answer.pins });
+          return change === null ? ok({ on, pins: answer.pins }) : ok({ pins: answer.pins });
         } catch (error) {
           return { ok: false, error: { code: error instanceof FanslyPinsStorageError ? error.code : 'CG-STORAGE-READ' } };
         }
