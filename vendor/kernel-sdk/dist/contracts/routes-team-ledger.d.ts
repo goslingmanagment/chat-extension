@@ -61,6 +61,8 @@ export declare const teamLedgerPayoutsResponseSchema: z.ZodObject<{
     accrualFrom: z.ZodString;
     factsFrom: z.ZodNullable<z.ZodString>;
     reportsFrom: z.ZodNullable<z.ZodString>;
+    termsHubFrom: z.ZodNullable<z.ZodString>;
+    basisHubFrom: z.ZodNullable<z.ZodString>;
     generatedAt: z.ZodString;
     people: z.ZodArray<z.ZodObject<{
         slug: z.ZodString;
@@ -676,6 +678,8 @@ export declare const teamLedgerRouteSchemas: {
                 accrualFrom: z.ZodString;
                 factsFrom: z.ZodNullable<z.ZodString>;
                 reportsFrom: z.ZodNullable<z.ZodString>;
+                termsHubFrom: z.ZodNullable<z.ZodString>;
+                basisHubFrom: z.ZodNullable<z.ZodString>;
                 generatedAt: z.ZodString;
                 people: z.ZodArray<z.ZodObject<{
                     slug: z.ZodString;

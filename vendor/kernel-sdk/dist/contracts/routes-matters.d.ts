@@ -112,11 +112,9 @@ export declare const matterRouteSchemas: {
             readonly kind: "session";
         };
         readonly tags: readonly ["admin"];
-        readonly summary: "«Ждут вас» and «Решения» read from matters: the same rows, counts and links as the screens' own reads";
+        readonly summary: "«Ждут вас» read from matters, by the list's groups (waiting-groups.ts): the chips, the menu's number and the list's counts";
         readonly description: string;
-        readonly querystring: import("zod").ZodObject<{
-            pageLabel: import("zod").ZodOptional<import("zod").ZodString>;
-        }, import("zod/v4/core").$strict>;
+        readonly querystring: import("zod").ZodObject<{}, import("zod/v4/core").$strict>;
         readonly response: {
             readonly 400: import("zod").ZodObject<{
                 error: import("zod").ZodString;
@@ -148,30 +146,6 @@ export declare const matterRouteSchemas: {
             }, import("zod/v4/core").$strip>;
             readonly 200: import("zod").ZodObject<{
                 active: import("zod").ZodBoolean;
-                rows: import("zod").ZodArray<import("zod").ZodObject<{
-                    id: import("zod").ZodEnum<{
-                        other: "other";
-                        unknown: "unknown";
-                        reports: "reports";
-                        customs: "customs";
-                        login: "login";
-                        drafts: "drafts";
-                        content: "content";
-                        held: "held";
-                        history: "history";
-                        ledger: "ledger";
-                        people: "people";
-                        extension: "extension";
-                        questions: "questions";
-                        failures: "failures";
-                    }>;
-                    label: import("zod").ZodString;
-                    count: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    capped: import("zod").ZodBoolean;
-                    pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
-                    to: import("zod").ZodString;
-                    matterIds: import("zod").ZodArray<import("zod").ZodNumber>;
-                }, import("zod/v4/core").$strip>>;
                 groups: import("zod").ZodArray<import("zod").ZodObject<{
                     id: import("zod").ZodEnum<{
                         other: "other";
@@ -198,38 +172,18 @@ export declare const matterRouteSchemas: {
                 total: import("zod").ZodNumber;
                 failed: import("zod").ZodArray<import("zod").ZodEnum<{
                     other: "other";
-                    unknown: "unknown";
+                    info: "info";
                     reports: "reports";
                     customs: "customs";
-                    login: "login";
-                    drafts: "drafts";
                     content: "content";
+                    system: "system";
+                    publications: "publications";
                     held: "held";
-                    history: "history";
                     ledger: "ledger";
                     people: "people";
-                    extension: "extension";
                     questions: "questions";
-                    failures: "failures";
                 }>>;
-                decisions: import("zod").ZodObject<{
-                    questions: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    reports: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    reportParts: import("zod").ZodNullable<import("zod").ZodObject<{
-                        posts: import("zod").ZodNumber;
-                        changes: import("zod").ZodNumber;
-                    }, import("zod/v4/core").$strip>>;
-                    customs: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    held: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    total: import("zod").ZodNumber;
-                    elsewhere: import("zod").ZodNumber;
-                    failed: import("zod").ZodArray<import("zod").ZodEnum<{
-                        reports: "reports";
-                        customs: "customs";
-                        held: "held";
-                        questions: "questions";
-                    }>>;
-                }, import("zod/v4/core").$strip>;
+                customOrders: import("zod").ZodNumber;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };

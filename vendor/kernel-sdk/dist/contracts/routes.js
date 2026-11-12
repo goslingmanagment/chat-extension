@@ -32,6 +32,8 @@ import { peopleRouteSchemas } from "./routes-people";
 import { shiftHandinRouteSchemas } from "./routes-shift-handins";
 import { saleClaimRouteSchemas } from "./routes-sale-claims";
 import { saleChainRouteSchemas } from "./routes-sale-chain";
+import { erasureRouteSchemas } from "./routes-erasures";
+import { saleDecisionRouteSchemas } from "./routes-sale-decisions";
 // One sign-in across the names Hub serves: the one-time code between names (ecosystem plan §3.2).
 import { signinRouteSchemas } from "./routes-signin";
 // Система → «Состояние»: every routine and copy, from the owner's place (ecosystem plan, package P).
@@ -7737,4 +7739,6 @@ export const routeSchemas = {
     ...peopleMessageRouteSchemas,
     ...saleClaimRouteSchemas,
     ...saleChainRouteSchemas,
+    ...erasureRouteSchemas,
+    ...saleDecisionRouteSchemas,
 };

@@ -8,8 +8,8 @@
  *
  * Who reads what: the owner everything, pay included; a chatter a sale of their own shifts, reports or claims on a
  * page they may open — the home, their own report, their accrual and payout as states, their own sums only with their
- * switch «видит свои деньги»; a team lead a sale of their pages, no pay sums; an agent key (read:team + read:money)
- * a sale of its pages, no pay sums. Another sale is not found. A link whose source did not answer says «неизвестно»
+ * switch «видит свои деньги»; a team lead a sale of their pages — whose it is, the shift and the report, never another
+ * person's accrual or payout, not even as a state; an agent key (read:team + read:money) a sale of its pages, no pay sums. Another sale is not found. A link whose source did not answer says «неизвестно»
  * and why, never a guess.
  */
 import { z } from "zod";

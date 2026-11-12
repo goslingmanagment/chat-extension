@@ -105,6 +105,10 @@ export * from "./sale-claims";
 export * from "./routes-sale-claims";
 // Цепочка продажи (package T): from one sale, whose it is down to its payout.
 export * from "./routes-sale-chain";
+// Стирание фана: the ledger's feed of the erasures Hub completed.
+export * from "./routes-erasures";
+// «Чья продажа» «со слов» through Hub (review R2b-3).
+export * from "./routes-sale-decisions";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-model-applications";
 export * from "./routes-ofapi-read-collections";

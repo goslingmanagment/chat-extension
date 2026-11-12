@@ -191,6 +191,19 @@ export declare const chatterStatsRouteSchemas: {
                     longestStreakDays: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>;
                 ruleFrom: import("zod").ZodOptional<import("zod").ZodString>;
+                withoutShift: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
+                    at: import("zod").ZodString;
+                    kind: import("zod").ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    pageLabel: import("zod").ZodString;
+                    netMills: import("zod").ZodNumber;
+                    fanName: import("zod").ZodNullable<import("zod").ZodString>;
+                    date: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };
@@ -393,6 +406,19 @@ export declare const chatterStatsRouteSchemas: {
                         longestStreakDays: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>;
                     ruleFrom: import("zod").ZodOptional<import("zod").ZodString>;
+                    withoutShift: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        kind: import("zod").ZodEnum<{
+                            subscription: "subscription";
+                            tip: "tip";
+                            post: "post";
+                            ppv: "ppv";
+                        }>;
+                        pageLabel: import("zod").ZodString;
+                        netMills: import("zod").ZodNumber;
+                        fanName: import("zod").ZodNullable<import("zod").ZodString>;
+                        date: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>>;
                     serverNow: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
@@ -513,6 +539,7 @@ export declare const chatterStatsRouteSchemas: {
                 }, import("zod/v4/core").$strip>>;
                 outside: import("zod").ZodObject<{
                     daily: import("zod").ZodArray<import("zod").ZodObject<{
+                        personNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         potNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         waitingNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         decideNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
@@ -521,6 +548,7 @@ export declare const chatterStatsRouteSchemas: {
                         nobodyNetMills: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>>;
                     pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        personNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         potNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         waitingNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         decideNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
@@ -541,6 +569,7 @@ export declare const chatterStatsRouteSchemas: {
                         netMills: import("zod").ZodNumber;
                         visitBy: import("zod").ZodNullable<import("zod").ZodString>;
                         home: import("zod").ZodOptional<import("zod").ZodEnum<{
+                            person: "person";
                             waiting: "waiting";
                             visit: "visit";
                             pot: "pot";
@@ -548,6 +577,7 @@ export declare const chatterStatsRouteSchemas: {
                             nobody: "nobody";
                         }>>;
                     }, import("zod/v4/core").$strip>>;
+                    personNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                     potNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                     waitingNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                     decideNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;

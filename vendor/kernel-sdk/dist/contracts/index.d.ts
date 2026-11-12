@@ -66,6 +66,8 @@ export * from "./routes-people-messages";
 export * from "./sale-claims";
 export * from "./routes-sale-claims";
 export * from "./routes-sale-chain";
+export * from "./routes-erasures";
+export * from "./routes-sale-decisions";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-model-applications";
 export * from "./routes-ofapi-read-collections";

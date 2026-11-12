@@ -16,7 +16,7 @@ export const WAITING_GROUPS = [
     { id: "customs", title: "Кастомы" },
     { id: "held", title: "Зависшие отправки" },
     { id: "publications", title: "Публикации" },
-    // ContentOps' findings (`contentops.*`): decided in ContentOps, each line opens it there.
+    // ContentOps' findings (`contentops.*`) and the content routines' (`content.*`): each line opens where it is decided.
     { id: "content", title: "Контент" },
     { id: "people", title: "Люди и доступ" },
     { id: "ledger", title: "Проверки ledger" },
@@ -44,7 +44,8 @@ export function waitingGroupOf(kind) {
         return "held";
     if (kind.startsWith("publication."))
         return "publications";
-    if (kind.startsWith("contentops."))
+    // ContentOps' findings and the content routines' own (`content.*`: a week to approve, a gap in the schedule).
+    if (kind.startsWith("contentops.") || kind.startsWith("content."))
         return "content";
     // The people checks' (package K) and a newcomer's way (package J: `person.no_pages`, `person.onboarding_stuck`).
     if (kind.startsWith("people.") || kind.startsWith("person."))
@@ -89,4 +90,38 @@ export function worstWaitingTone(tones) {
 /** The list filtered to one group: `/workboard/decisions#<group>`. */
 export function waitingGroupLink(id) {
     return `/workboard/decisions#${id}`;
+}
+/** The kinds whose finding names when their reason began under a word of its own (the system state's, a shift's report). */
+const SINCE_OF_KIND = {
+    // The input empty since; silent since the last run or the last report; the newest copy taken then.
+    "routine.empty": "emptySince",
+    "routine.silent": "lastRunAt",
+    "reporter.silent": "lastReportAt",
+    "copy.stale": "takenAt",
+    // The shift ended and its report was not handed in.
+    "shift.report.missing": "endedAt",
+};
+/**
+ * The moments the other findings name: a state entered (a custom order's, a newcomer's step), a send's, a question's,
+ * a payment's, a post's, a failure's opening, a request's, a red check's first run, a word said, a publication's.
+ */
+const SINCE_FIELDS = ["since", "sentAt", "askedAt", "paidAt", "postedAt", "openedAt", "requestedAt", "failingSince", "saidAt", "publishAt"];
+/**
+ * Since when a matter waits: since its reason began, as its own finding names it, else since it was opened — never
+ * the moment a matter row was opened (or reopened) today while its cause is days old. Only a past moment no later than
+ * the opening counts (a publication's moment is when it goes out, not when it waits). The age both apps show and the
+ * list's «дольше ждёт» order are this.
+ */
+export function waitingSinceOf(matter, now = Date.now()) {
+    const own = SINCE_OF_KIND[matter.kind];
+    const opened = Date.parse(matter.openedAt);
+    for (const field of own === undefined ? SINCE_FIELDS : [own, ...SINCE_FIELDS]) {
+        const value = matter.evidence[field];
+        if (typeof value !== "string")
+            continue;
+        const at = Date.parse(value);
+        if (!Number.isNaN(at) && at <= now && at <= opened + 60_000)
+            return new Date(at).toISOString();
+    }
+    return matter.openedAt;
 }

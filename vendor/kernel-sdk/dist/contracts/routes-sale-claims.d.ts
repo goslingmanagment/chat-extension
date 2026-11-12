@@ -35,6 +35,7 @@ export declare const saleClaimAnswerResponseSchema: z.ZodObject<{
         kind: z.ZodEnum<{
             imported: "imported";
             claim: "claim";
+            question: "question";
             double: "double";
         }>;
         transactionId: z.ZodNullable<z.ZodNumber>;
@@ -70,6 +71,7 @@ export declare const saleClaimAnswerResponseSchema: z.ZodObject<{
         escalatedWhy: z.ZodNullable<z.ZodEnum<{
             imported: "imported";
             silence: "silence";
+            question: "question";
             disagree: "disagree";
             double: "double";
             no_side: "no_side";
@@ -81,6 +83,7 @@ export declare const saleClaimAnswerResponseSchema: z.ZodObject<{
                 nobody: "nobody";
                 first: "first";
                 half: "half";
+                said: "said";
             }>;
             note: z.ZodNullable<z.ZodString>;
             decidedAt: z.ZodString;
@@ -103,6 +106,7 @@ export declare const saleDisputePartySchema: z.ZodObject<{
     }>;
     says: z.ZodArray<z.ZodString>;
     countedMills: z.ZodNullable<z.ZodNumber>;
+    claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     shiftId: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
 export declare const saleDisputeResponseSchema: z.ZodObject<{
@@ -138,6 +142,7 @@ export declare const saleDisputeResponseSchema: z.ZodObject<{
         }>;
         says: z.ZodArray<z.ZodString>;
         countedMills: z.ZodNullable<z.ZodNumber>;
+        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         shiftId: z.ZodNullable<z.ZodNumber>;
     }, z.core.$strip>>;
     claims: z.ZodArray<z.ZodObject<{
@@ -145,6 +150,7 @@ export declare const saleDisputeResponseSchema: z.ZodObject<{
         kind: z.ZodEnum<{
             imported: "imported";
             claim: "claim";
+            question: "question";
             double: "double";
         }>;
         transactionId: z.ZodNullable<z.ZodNumber>;
@@ -180,6 +186,7 @@ export declare const saleDisputeResponseSchema: z.ZodObject<{
         escalatedWhy: z.ZodNullable<z.ZodEnum<{
             imported: "imported";
             silence: "silence";
+            question: "question";
             disagree: "disagree";
             double: "double";
             no_side: "no_side";
@@ -191,6 +198,7 @@ export declare const saleDisputeResponseSchema: z.ZodObject<{
                 nobody: "nobody";
                 first: "first";
                 half: "half";
+                said: "said";
             }>;
             note: z.ZodNullable<z.ZodString>;
             decidedAt: z.ZodString;
@@ -251,6 +259,12 @@ export declare const saleDisputeResponseSchema: z.ZodObject<{
         decidedAt: z.ZodString;
         by: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
+    reports: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        userId: z.ZodNumber;
+        name: z.ZodString;
+        shiftId: z.ZodNumber;
+        reportDate: z.ZodString;
+    }, z.core.$strip>>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export declare const saleDisputeDecideBodySchema: z.ZodObject<{
@@ -368,6 +382,7 @@ export declare const saleDecisionsUnlinkedResponseSchema: z.ZodObject<{
             split: "split";
             pot: "pot";
             nobody: "nobody";
+            off_platform: "off_platform";
         }>;
         candidates: z.ZodArray<z.ZodObject<{
             transactionId: z.ZodNumber;
@@ -413,6 +428,7 @@ export declare const agentSaleClaimsResponseSchema: z.ZodObject<{
             split: "split";
             pot: "pot";
             nobody: "nobody";
+            off_platform: "off_platform";
         }>;
         shares: z.ZodArray<z.ZodObject<{
             person: z.ZodNullable<z.ZodString>;
@@ -433,6 +449,7 @@ export declare const agentSaleClaimsResponseSchema: z.ZodObject<{
         kind: z.ZodEnum<{
             imported: "imported";
             claim: "claim";
+            question: "question";
             double: "double";
         }>;
         transactionId: z.ZodNullable<z.ZodNumber>;
@@ -468,6 +485,7 @@ export declare const agentSaleClaimsResponseSchema: z.ZodObject<{
         escalatedWhy: z.ZodNullable<z.ZodEnum<{
             imported: "imported";
             silence: "silence";
+            question: "question";
             disagree: "disagree";
             double: "double";
             no_side: "no_side";
@@ -479,6 +497,7 @@ export declare const agentSaleClaimsResponseSchema: z.ZodObject<{
                 nobody: "nobody";
                 first: "first";
                 half: "half";
+                said: "said";
             }>;
             note: z.ZodNullable<z.ZodString>;
             decidedAt: z.ZodString;
@@ -567,6 +586,7 @@ export declare const saleClaimRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -602,6 +622,7 @@ export declare const saleClaimRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -613,6 +634,7 @@ export declare const saleClaimRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -703,6 +725,7 @@ export declare const saleClaimRouteSchemas: {
                     }>;
                     says: z.ZodArray<z.ZodString>;
                     countedMills: z.ZodNullable<z.ZodNumber>;
+                    claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                     shiftId: z.ZodNullable<z.ZodNumber>;
                 }, z.core.$strip>>;
                 claims: z.ZodArray<z.ZodObject<{
@@ -710,6 +733,7 @@ export declare const saleClaimRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -745,6 +769,7 @@ export declare const saleClaimRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -756,6 +781,7 @@ export declare const saleClaimRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -816,6 +842,12 @@ export declare const saleClaimRouteSchemas: {
                     decidedAt: z.ZodString;
                     by: z.ZodNullable<z.ZodString>;
                 }, z.core.$strip>>;
+                reports: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    name: z.ZodString;
+                    shiftId: z.ZodNumber;
+                    reportDate: z.ZodString;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -899,6 +931,7 @@ export declare const saleClaimRouteSchemas: {
                     }>;
                     says: z.ZodArray<z.ZodString>;
                     countedMills: z.ZodNullable<z.ZodNumber>;
+                    claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                     shiftId: z.ZodNullable<z.ZodNumber>;
                 }, z.core.$strip>>;
                 claims: z.ZodArray<z.ZodObject<{
@@ -906,6 +939,7 @@ export declare const saleClaimRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -941,6 +975,7 @@ export declare const saleClaimRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -952,6 +987,7 @@ export declare const saleClaimRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -1012,6 +1048,12 @@ export declare const saleClaimRouteSchemas: {
                     decidedAt: z.ZodString;
                     by: z.ZodNullable<z.ZodString>;
                 }, z.core.$strip>>;
+                reports: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    name: z.ZodString;
+                    shiftId: z.ZodNumber;
+                    reportDate: z.ZodString;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -1395,6 +1437,7 @@ export declare const saleClaimRouteSchemas: {
                         split: "split";
                         pot: "pot";
                         nobody: "nobody";
+                        off_platform: "off_platform";
                     }>;
                     candidates: z.ZodArray<z.ZodObject<{
                         transactionId: z.ZodNumber;
@@ -1537,6 +1580,7 @@ export declare const saleClaimRouteSchemas: {
                         split: "split";
                         pot: "pot";
                         nobody: "nobody";
+                        off_platform: "off_platform";
                     }>;
                     shares: z.ZodArray<z.ZodObject<{
                         person: z.ZodNullable<z.ZodString>;
@@ -1557,6 +1601,7 @@ export declare const saleClaimRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -1592,6 +1637,7 @@ export declare const saleClaimRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -1603,6 +1649,7 @@ export declare const saleClaimRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -1683,6 +1730,7 @@ export declare const saleClaimRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -1718,6 +1766,7 @@ export declare const saleClaimRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -1729,6 +1778,7 @@ export declare const saleClaimRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;

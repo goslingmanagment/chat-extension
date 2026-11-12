@@ -22,3 +22,14 @@ export declare function waitingToneOf(kind: string): WaitingTone | null;
 export declare function worstWaitingTone(tones: Iterable<WaitingTone | null>): WaitingTone | null;
 /** The list filtered to one group: `/workboard/decisions#<group>`. */
 export declare function waitingGroupLink(id: WaitingGroupId): string;
+/**
+ * Since when a matter waits: since its reason began, as its own finding names it, else since it was opened — never
+ * the moment a matter row was opened (or reopened) today while its cause is days old. Only a past moment no later than
+ * the opening counts (a publication's moment is when it goes out, not when it waits). The age both apps show and the
+ * list's «дольше ждёт» order are this.
+ */
+export declare function waitingSinceOf(matter: {
+    kind: string;
+    openedAt: string;
+    evidence: Record<string, unknown>;
+}, now?: number): string;

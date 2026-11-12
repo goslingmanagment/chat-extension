@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "96a1afd61fa0e15453a1a8c4e74e71425654485d24affe638f2d6dac5a72c323",
-    "sourceCommit": "b06b2e0a9c68378ac383f16e05ef37767bf2507b",
-    "note": "Vendored on 2026-11-12 from hub branch eco/review-fan-panel-step b06b2e0a (hub #1275 on main 292830f6, not merged yet) with scripts/vendor-sdk.mjs: a custom order's `code`, `stepLabel` and `stepAt` in the fan card's and the handoff's customs. Re-vendor from hub main once #1275 is merged, before a release."
+    "contractHash": "04d7ed612612e262b03a636f4145d14a9cff807353fb1eeabbf9a020198e64f6",
+    "sourceCommit": "a7b32bb84463d4b83f1dcb917e35b0b3244fc1a9",
+    "note": "Vendored on 2026-11-12 from hub main a7b32bb8 (review trains #1281 and #1283, merged) with scripts/vendor-sdk.mjs: a custom order's `code`, `stepLabel` and `stepAt` in the fan card's and the handoff's customs (hub #1275). Re-vendor with the same script and update this pin together: only the release gate reads it."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

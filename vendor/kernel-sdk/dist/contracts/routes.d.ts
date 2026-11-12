@@ -8,6 +8,8 @@ import { peopleRouteSchemas } from "./routes-people";
 import { shiftHandinRouteSchemas } from "./routes-shift-handins";
 import { saleClaimRouteSchemas } from "./routes-sale-claims";
 import { saleChainRouteSchemas } from "./routes-sale-chain";
+import { erasureRouteSchemas } from "./routes-erasures";
+import { saleDecisionRouteSchemas } from "./routes-sale-decisions";
 import { signinRouteSchemas } from "./routes-signin";
 import { systemStateRouteSchemas } from "./routes-system-state";
 import { peopleMessageRouteSchemas } from "./routes-people-messages";
@@ -18075,6 +18077,8 @@ declare const baseRouteSchemas: {
                 accrualFrom: z.ZodString;
                 factsFrom: z.ZodNullable<z.ZodString>;
                 reportsFrom: z.ZodNullable<z.ZodString>;
+                termsHubFrom: z.ZodNullable<z.ZodString>;
+                basisHubFrom: z.ZodNullable<z.ZodString>;
                 generatedAt: z.ZodString;
                 people: z.ZodArray<z.ZodObject<{
                     slug: z.ZodString;
@@ -18811,6 +18815,57 @@ declare const baseRouteSchemas: {
                         text: z.ZodString;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
+                withoutShiftSales: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                        campaign: "campaign";
+                    }>;
+                    home: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            unknown: "unknown";
+                            shift: "shift";
+                            waiting: "waiting";
+                            visit: "visit";
+                            pot: "pot";
+                            decide: "decide";
+                            nobody: "nobody";
+                            before_rule: "before_rule";
+                        }>;
+                        text: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>>;
                 waits: z.ZodArray<z.ZodObject<{
                     chat: z.ZodString;
                     since: z.ZodString;
@@ -31098,6 +31153,19 @@ declare const baseRouteSchemas: {
                     longestStreakDays: z.ZodNumber;
                 }, z.core.$strip>;
                 ruleFrom: z.ZodOptional<z.ZodString>;
+                withoutShift: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    at: z.ZodString;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    pageLabel: z.ZodString;
+                    netMills: z.ZodNumber;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    date: z.ZodString;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -31300,6 +31368,19 @@ declare const baseRouteSchemas: {
                         longestStreakDays: z.ZodNumber;
                     }, z.core.$strip>;
                     ruleFrom: z.ZodOptional<z.ZodString>;
+                    withoutShift: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                        at: z.ZodString;
+                        kind: z.ZodEnum<{
+                            subscription: "subscription";
+                            tip: "tip";
+                            post: "post";
+                            ppv: "ppv";
+                        }>;
+                        pageLabel: z.ZodString;
+                        netMills: z.ZodNumber;
+                        fanName: z.ZodNullable<z.ZodString>;
+                        date: z.ZodString;
+                    }, z.core.$strip>>>;
                     serverNow: z.ZodString;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
@@ -31420,6 +31501,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>>;
                 outside: z.ZodObject<{
                     daily: z.ZodArray<z.ZodObject<{
+                        personNetMills: z.ZodOptional<z.ZodNumber>;
                         potNetMills: z.ZodOptional<z.ZodNumber>;
                         waitingNetMills: z.ZodOptional<z.ZodNumber>;
                         decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -31428,6 +31510,7 @@ declare const baseRouteSchemas: {
                         nobodyNetMills: z.ZodNumber;
                     }, z.core.$strip>>;
                     pages: z.ZodArray<z.ZodObject<{
+                        personNetMills: z.ZodOptional<z.ZodNumber>;
                         potNetMills: z.ZodOptional<z.ZodNumber>;
                         waitingNetMills: z.ZodOptional<z.ZodNumber>;
                         decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -31448,6 +31531,7 @@ declare const baseRouteSchemas: {
                         netMills: z.ZodNumber;
                         visitBy: z.ZodNullable<z.ZodString>;
                         home: z.ZodOptional<z.ZodEnum<{
+                            person: "person";
                             waiting: "waiting";
                             visit: "visit";
                             pot: "pot";
@@ -31455,6 +31539,7 @@ declare const baseRouteSchemas: {
                             nobody: "nobody";
                         }>>;
                     }, z.core.$strip>>;
+                    personNetMills: z.ZodOptional<z.ZodNumber>;
                     potNetMills: z.ZodOptional<z.ZodNumber>;
                     waitingNetMills: z.ZodOptional<z.ZodNumber>;
                     decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -32082,6 +32167,14 @@ declare const baseRouteSchemas: {
                     resolution: z.ZodNullable<z.ZodArray<z.ZodObject<{
                         userId: z.ZodNumber;
                         percent: z.ZodNumber;
+                    }, z.core.$strip>>>;
+                    decision: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            split: "split";
+                            pot: "pot";
+                            nobody: "nobody";
+                        }>;
+                        pot: z.ZodNullable<z.ZodString>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
@@ -45622,7 +45715,7 @@ declare const baseRouteSchemas: {
         };
     };
 };
-export type RouteSchemas = typeof baseRouteSchemas & typeof ofapiActionRouteSchemas & typeof agentRouteSchemas & typeof agentKeyAdminRouteSchemas & typeof syncRouteSchemas & typeof clientRouteSchemas & typeof agentDoorRouteSchemas & typeof agentKeyIntrospectRouteSchemas & typeof matterRouteSchemas & typeof agentReportRouteSchemas & typeof accountPayRouteSchemas & typeof peopleRouteSchemas & typeof signinRouteSchemas & typeof systemStateRouteSchemas & typeof customOrderRouteSchemas & typeof shiftHandinRouteSchemas & typeof peopleMessageRouteSchemas & typeof saleClaimRouteSchemas & typeof saleChainRouteSchemas;
+export type RouteSchemas = typeof baseRouteSchemas & typeof ofapiActionRouteSchemas & typeof agentRouteSchemas & typeof agentKeyAdminRouteSchemas & typeof syncRouteSchemas & typeof clientRouteSchemas & typeof agentDoorRouteSchemas & typeof agentKeyIntrospectRouteSchemas & typeof matterRouteSchemas & typeof agentReportRouteSchemas & typeof accountPayRouteSchemas & typeof peopleRouteSchemas & typeof signinRouteSchemas & typeof systemStateRouteSchemas & typeof customOrderRouteSchemas & typeof shiftHandinRouteSchemas & typeof peopleMessageRouteSchemas & typeof saleClaimRouteSchemas & typeof saleChainRouteSchemas & typeof erasureRouteSchemas & typeof saleDecisionRouteSchemas;
 export declare const routeSchemas: RouteSchemas;
 export type AuthState = z.infer<typeof authStateSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;

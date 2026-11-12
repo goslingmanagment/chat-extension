@@ -20,6 +20,8 @@ export declare function matterKindOfKey(key: string): string;
  */
 export declare const MATTER_MIRROR_KINDS: readonly ["publication.draft", "publication.unknown", "ledger.sale_question", "ledger.report_post", "ledger.paid_day_changed", "custom.paid_not_delivered", "send.held", "page.login_needed", "incident.open", "extension.critical", "history.request"];
 export type MatterMirrorKind = (typeof MATTER_MIRROR_KINDS)[number];
+/** Whom a mirrored kind waits for: the owner's role, or the team lead's (customs paid and not given, held sends). */
+export declare const MATTER_MIRROR_KIND_ROLES: Readonly<Record<MatterMirrorKind, "owner" | "team_lead">>;
 export declare function isMatterMirrorKind(kind: string): kind is MatterMirrorKind;
 /**
  * The kinds Hub's server opens by its own rules (not mirrored from a list),
@@ -49,14 +51,6 @@ export declare const MATTER_STATES: readonly ["open", "closed"];
 export declare const MATTER_CLOSED_HOWS: readonly ["resolved", "withdrawn", "cause_gone"];
 export declare const MATTER_SOURCE_NAMES: readonly ["server", "agent", "ledger", "contentops", "person"];
 export declare const MATTER_OWNER_ROLE_NAMES: readonly ["owner", "team_lead", "chatter"];
-/**
- * «Ждут вас»'s rows, in the screen's order (apps/dashboard/src/api/waiting.ts); after them the matters no old row
- * counts (package K): ContentOps' (`contentops.*`), people and access, the ledger's checks, and every other kind.
- */
-export declare const WAITING_ROW_IDS: readonly ["drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history", "content", "people", "ledger", "other"];
-export type WaitingRowId = (typeof WAITING_ROW_IDS)[number];
-/** «Решения»'s queues, in the screen's order (apps/workboard/src/shared/decisions.ts). */
-export declare const DECISION_QUEUE_IDS: readonly ["questions", "reports", "customs", "held"];
 export declare const matterOwnerSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     kind: z.ZodLiteral<"user">;
     userId: z.ZodNumber;
@@ -194,59 +188,10 @@ export declare const mattersListResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
-export declare const mattersWaitingQuerySchema: z.ZodObject<{
-    pageLabel: z.ZodOptional<z.ZodString>;
-}, z.core.$strict>;
-export declare const mattersWaitingRowSchema: z.ZodObject<{
-    id: z.ZodEnum<{
-        other: "other";
-        unknown: "unknown";
-        reports: "reports";
-        customs: "customs";
-        login: "login";
-        drafts: "drafts";
-        content: "content";
-        held: "held";
-        history: "history";
-        ledger: "ledger";
-        people: "people";
-        extension: "extension";
-        questions: "questions";
-        failures: "failures";
-    }>;
-    label: z.ZodString;
-    count: z.ZodNullable<z.ZodNumber>;
-    capped: z.ZodBoolean;
-    pageLabel: z.ZodNullable<z.ZodString>;
-    to: z.ZodString;
-    matterIds: z.ZodArray<z.ZodNumber>;
-}, z.core.$strip>;
+/** «Ждут вас» is never cut by page: no parameters. */
+export declare const mattersWaitingQuerySchema: z.ZodObject<{}, z.core.$strict>;
 export declare const mattersWaitingResponseSchema: z.ZodObject<{
     active: z.ZodBoolean;
-    rows: z.ZodArray<z.ZodObject<{
-        id: z.ZodEnum<{
-            other: "other";
-            unknown: "unknown";
-            reports: "reports";
-            customs: "customs";
-            login: "login";
-            drafts: "drafts";
-            content: "content";
-            held: "held";
-            history: "history";
-            ledger: "ledger";
-            people: "people";
-            extension: "extension";
-            questions: "questions";
-            failures: "failures";
-        }>;
-        label: z.ZodString;
-        count: z.ZodNullable<z.ZodNumber>;
-        capped: z.ZodBoolean;
-        pageLabel: z.ZodNullable<z.ZodString>;
-        to: z.ZodString;
-        matterIds: z.ZodArray<z.ZodNumber>;
-    }, z.core.$strip>>;
     groups: z.ZodArray<z.ZodObject<{
         id: z.ZodEnum<{
             other: "other";
@@ -273,38 +218,18 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
     total: z.ZodNumber;
     failed: z.ZodArray<z.ZodEnum<{
         other: "other";
-        unknown: "unknown";
+        info: "info";
         reports: "reports";
         customs: "customs";
-        login: "login";
-        drafts: "drafts";
         content: "content";
+        system: "system";
+        publications: "publications";
         held: "held";
-        history: "history";
         ledger: "ledger";
         people: "people";
-        extension: "extension";
         questions: "questions";
-        failures: "failures";
     }>>;
-    decisions: z.ZodObject<{
-        questions: z.ZodNullable<z.ZodNumber>;
-        reports: z.ZodNullable<z.ZodNumber>;
-        reportParts: z.ZodNullable<z.ZodObject<{
-            posts: z.ZodNumber;
-            changes: z.ZodNumber;
-        }, z.core.$strip>>;
-        customs: z.ZodNullable<z.ZodNumber>;
-        held: z.ZodNullable<z.ZodNumber>;
-        total: z.ZodNumber;
-        elsewhere: z.ZodNumber;
-        failed: z.ZodArray<z.ZodEnum<{
-            reports: "reports";
-            customs: "customs";
-            held: "held";
-            questions: "questions";
-        }>>;
-    }, z.core.$strip>;
+    customOrders: z.ZodNumber;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 /** The extension's narrow read: how many matters wait for the person, and the newest of them, without evidence. */
@@ -419,7 +344,6 @@ export type Matter = z.infer<typeof matterSchema>;
 export type MattersListQuery = z.infer<typeof mattersListQuerySchema>;
 export type MattersListResponse = z.infer<typeof mattersListResponseSchema>;
 export type MattersWaitingQuery = z.infer<typeof mattersWaitingQuerySchema>;
-export type MattersWaitingRow = z.infer<typeof mattersWaitingRowSchema>;
 export type MattersWaitingResponse = z.infer<typeof mattersWaitingResponseSchema>;
 export type ClientMattersResponse = z.infer<typeof clientMattersResponseSchema>;
 export type AgentMatterOpenBody = z.infer<typeof agentMatterOpenBodySchema>;

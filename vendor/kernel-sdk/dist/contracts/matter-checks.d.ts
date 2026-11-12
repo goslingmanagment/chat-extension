@@ -21,6 +21,8 @@ export declare const MATTER_CHECK_KIND_PERIODS: {
     readonly "people.access_idle": number;
     /** An agent key that expires within 7 days (or expired and nobody revoked it). */
     readonly "people.agent_key_expiring": 10;
+    /** An agent's proposal about a person (or a new one) the owner has not decided: one matter per person, all of theirs. */
+    readonly "people.proposal_open": 10;
     /** A check of the ledger red longer than its threshold (one per check key), in the ledger's own sentence. */
     readonly "ledger.check": 15;
     /** The payout tabs someone works with no column for tomorrow: one matter listing them (the ledger's notice). */
@@ -32,7 +34,7 @@ export type MatterCheckKind = keyof typeof MATTER_CHECK_KIND_PERIODS;
 export declare const MATTER_CHECK_KINDS: MatterCheckKind[];
 export declare function isMatterCheckKind(kind: string): kind is MatterCheckKind;
 /** The people checks: a person or a login, read from the people registry and the logins. */
-export declare const PEOPLE_CHECK_KINDS: ("people.left_with_access" | "people.login_unlinked" | "people.no_pay_terms" | "people.no_working_page" | "people.page_without_access" | "people.access_idle" | "people.agent_key_expiring" | "ledger.check" | "ledger.sheet_column" | "ledger.off_platform")[];
+export declare const PEOPLE_CHECK_KINDS: ("people.left_with_access" | "people.login_unlinked" | "people.no_pay_terms" | "people.no_working_page" | "people.page_without_access" | "people.access_idle" | "people.agent_key_expiring" | "people.proposal_open" | "ledger.check" | "ledger.sheet_column" | "ledger.off_platform")[];
 /** The ledger's: its checks, its notice about the payout tabs, its off-platform sales. */
 export declare const LEDGER_CHECK_KINDS: readonly ["ledger.check", "ledger.sheet_column", "ledger.off_platform"];
 /**

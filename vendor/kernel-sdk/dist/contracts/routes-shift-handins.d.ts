@@ -124,6 +124,7 @@ export declare const shiftReportLineSchema: z.ZodObject<{
     shareWithName: z.ZodNullable<z.ZodString>;
     note: z.ZodNullable<z.ZodString>;
     amountMills: z.ZodNumber;
+    claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     added: z.ZodBoolean;
     disputed: z.ZodBoolean;
     alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -222,6 +223,7 @@ export declare const shiftReportBodySchema: z.ZodObject<{
         shareWithName: z.ZodNullable<z.ZodString>;
         note: z.ZodNullable<z.ZodString>;
         amountMills: z.ZodNumber;
+        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         added: z.ZodBoolean;
         disputed: z.ZodBoolean;
         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -387,6 +389,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
             shareWithName: z.ZodNullable<z.ZodString>;
             note: z.ZodNullable<z.ZodString>;
             amountMills: z.ZodNumber;
+            claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             added: z.ZodBoolean;
             disputed: z.ZodBoolean;
             alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -466,6 +469,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
         kind: z.ZodEnum<{
             imported: "imported";
             claim: "claim";
+            question: "question";
             double: "double";
         }>;
         transactionId: z.ZodNullable<z.ZodNumber>;
@@ -501,6 +505,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
         escalatedWhy: z.ZodNullable<z.ZodEnum<{
             imported: "imported";
             silence: "silence";
+            question: "question";
             disagree: "disagree";
             double: "double";
             no_side: "no_side";
@@ -512,6 +517,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
                 nobody: "nobody";
                 first: "first";
                 half: "half";
+                said: "said";
             }>;
             note: z.ZodNullable<z.ZodString>;
             decidedAt: z.ZodString;
@@ -732,6 +738,7 @@ export declare const agentShiftReportsFeedItemSchema: z.ZodObject<{
         shareWithUserId: z.ZodNullable<z.ZodNumber>;
         note: z.ZodNullable<z.ZodString>;
         amountMills: z.ZodNumber;
+        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         added: z.ZodBoolean;
         disputed: z.ZodBoolean;
         settled: z.ZodDefault<z.ZodNullable<z.ZodEnum<{
@@ -757,9 +764,11 @@ export declare const agentShiftReportsFeedItemSchema: z.ZodObject<{
     madeFor: z.ZodDefault<z.ZodNullable<z.ZodObject<{
         kind: z.ZodEnum<{
             claim: "claim";
+            decision: "decision";
             off_platform: "off_platform";
         }>;
         claimId: z.ZodNullable<z.ZodNumber>;
+        decisionId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         offPlatformId: z.ZodNullable<z.ZodNumber>;
         transactionId: z.ZodNullable<z.ZodNumber>;
         outcome: z.ZodString;
@@ -806,6 +815,7 @@ export declare const agentShiftReportsFeedResponseSchema: z.ZodObject<{
             shareWithUserId: z.ZodNullable<z.ZodNumber>;
             note: z.ZodNullable<z.ZodString>;
             amountMills: z.ZodNumber;
+            claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             added: z.ZodBoolean;
             disputed: z.ZodBoolean;
             settled: z.ZodDefault<z.ZodNullable<z.ZodEnum<{
@@ -831,15 +841,28 @@ export declare const agentShiftReportsFeedResponseSchema: z.ZodObject<{
         madeFor: z.ZodDefault<z.ZodNullable<z.ZodObject<{
             kind: z.ZodEnum<{
                 claim: "claim";
+                decision: "decision";
                 off_platform: "off_platform";
             }>;
             claimId: z.ZodNullable<z.ZodNumber>;
+            decisionId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             offPlatformId: z.ZodNullable<z.ZodNumber>;
             transactionId: z.ZodNullable<z.ZodNumber>;
             outcome: z.ZodString;
             byUserId: z.ZodNullable<z.ZodNumber>;
         }, z.core.$strip>>>;
     }, z.core.$strip>>;
+    held: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        seq: z.ZodNumber;
+        shiftId: z.ZodNumber;
+        person: z.ZodNullable<z.ZodString>;
+        reportDate: z.ZodString;
+        reason: z.ZodEnum<{
+            page_outside_key: "page_outside_key";
+        }>;
+        pageLabels: z.ZodArray<z.ZodString>;
+    }, z.core.$strip>>>;
     next: z.ZodString;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -994,6 +1017,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -1073,6 +1097,7 @@ export declare const shiftHandinRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -1108,6 +1133,7 @@ export declare const shiftHandinRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -1119,6 +1145,7 @@ export declare const shiftHandinRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -1655,6 +1682,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -1734,6 +1762,7 @@ export declare const shiftHandinRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -1769,6 +1798,7 @@ export declare const shiftHandinRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -1780,6 +1810,7 @@ export declare const shiftHandinRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -1953,6 +1984,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -2032,6 +2064,7 @@ export declare const shiftHandinRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -2067,6 +2100,7 @@ export declare const shiftHandinRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -2078,6 +2112,7 @@ export declare const shiftHandinRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -2527,6 +2562,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -2606,6 +2642,7 @@ export declare const shiftHandinRouteSchemas: {
                     kind: z.ZodEnum<{
                         imported: "imported";
                         claim: "claim";
+                        question: "question";
                         double: "double";
                     }>;
                     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -2641,6 +2678,7 @@ export declare const shiftHandinRouteSchemas: {
                     escalatedWhy: z.ZodNullable<z.ZodEnum<{
                         imported: "imported";
                         silence: "silence";
+                        question: "question";
                         disagree: "disagree";
                         double: "double";
                         no_side: "no_side";
@@ -2652,6 +2690,7 @@ export declare const shiftHandinRouteSchemas: {
                             nobody: "nobody";
                             first: "first";
                             half: "half";
+                            said: "said";
                         }>;
                         note: z.ZodNullable<z.ZodString>;
                         decidedAt: z.ZodString;
@@ -2773,6 +2812,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithUserId: z.ZodNullable<z.ZodNumber>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         settled: z.ZodDefault<z.ZodNullable<z.ZodEnum<{
@@ -2798,15 +2838,28 @@ export declare const shiftHandinRouteSchemas: {
                     madeFor: z.ZodDefault<z.ZodNullable<z.ZodObject<{
                         kind: z.ZodEnum<{
                             claim: "claim";
+                            decision: "decision";
                             off_platform: "off_platform";
                         }>;
                         claimId: z.ZodNullable<z.ZodNumber>;
+                        decisionId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         offPlatformId: z.ZodNullable<z.ZodNumber>;
                         transactionId: z.ZodNullable<z.ZodNumber>;
                         outcome: z.ZodString;
                         byUserId: z.ZodNullable<z.ZodNumber>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
+                held: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    seq: z.ZodNumber;
+                    shiftId: z.ZodNumber;
+                    person: z.ZodNullable<z.ZodString>;
+                    reportDate: z.ZodString;
+                    reason: z.ZodEnum<{
+                        page_outside_key: "page_outside_key";
+                    }>;
+                    pageLabels: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>>>;
                 next: z.ZodString;
                 serverNow: z.ZodString;
             }, z.core.$strip>;

@@ -89,6 +89,14 @@ declare const agentTeamSaleSchema: z.ZodObject<{
         userId: z.ZodNumber;
         percent: z.ZodNumber;
     }, z.core.$strip>>>;
+    decision: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+        kind: z.ZodEnum<{
+            split: "split";
+            pot: "pot";
+            nobody: "nobody";
+        }>;
+        pot: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>>;
 }, z.core.$strip>;
 export declare const agentTeamSalesResponseSchema: z.ZodObject<{
     from: z.ZodString;
@@ -166,6 +174,14 @@ export declare const agentTeamSalesResponseSchema: z.ZodObject<{
         resolution: z.ZodNullable<z.ZodArray<z.ZodObject<{
             userId: z.ZodNumber;
             percent: z.ZodNumber;
+        }, z.core.$strip>>>;
+        decision: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+            kind: z.ZodEnum<{
+                split: "split";
+                pot: "pot";
+                nobody: "nobody";
+            }>;
+            pot: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>>;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
@@ -297,6 +313,14 @@ export declare const agentTeamRouteSchemas: {
                     resolution: z.ZodNullable<z.ZodArray<z.ZodObject<{
                         userId: z.ZodNumber;
                         percent: z.ZodNumber;
+                    }, z.core.$strip>>>;
+                    decision: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            split: "split";
+                            pot: "pot";
+                            nobody: "nobody";
+                        }>;
+                        pot: z.ZodNullable<z.ZodString>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;

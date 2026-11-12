@@ -535,6 +535,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/datasets/:dataset/query";
     };
+    readonly agentErasuresFeed: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/erasures";
+    };
     readonly agentFanQueueAppend: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/fan-queues/:queueId/fans";
@@ -754,6 +758,42 @@ export declare const kernelOperations: {
     readonly agentSaleContext: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/team/sale-context";
+    };
+    readonly agentSaleDecisionAdd: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/sale-decisions";
+    };
+    readonly agentSaleDecisionApplied: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/sale-decisions/applied";
+    };
+    readonly agentSaleDecisionCancel: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/sale-decisions/cancel";
+    };
+    readonly agentSaleDecisions: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/sale-decisions";
+    };
+    readonly agentSaleDecisionsFeed: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/sale-decisions/feed";
+    };
+    readonly agentSaleQuestionAnswer: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/sale-questions/answer";
+    };
+    readonly agentSaleQuestionAsk: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/sale-questions";
+    };
+    readonly agentSaleQuestionClose: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/sale-questions/close";
+    };
+    readonly agentSaleQuestions: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/sale-questions";
     };
     readonly agentSearchMessages: {
         readonly method: "POST";

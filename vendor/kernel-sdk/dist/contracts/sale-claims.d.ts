@@ -36,6 +36,7 @@ export declare const saleClaimSchema: z.ZodObject<{
     kind: z.ZodEnum<{
         imported: "imported";
         claim: "claim";
+        question: "question";
         double: "double";
     }>;
     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -71,6 +72,7 @@ export declare const saleClaimSchema: z.ZodObject<{
     escalatedWhy: z.ZodNullable<z.ZodEnum<{
         imported: "imported";
         silence: "silence";
+        question: "question";
         disagree: "disagree";
         double: "double";
         no_side: "no_side";
@@ -82,6 +84,7 @@ export declare const saleClaimSchema: z.ZodObject<{
             nobody: "nobody";
             first: "first";
             half: "half";
+            said: "said";
         }>;
         note: z.ZodNullable<z.ZodString>;
         decidedAt: z.ZodString;
@@ -95,6 +98,7 @@ export declare const shiftReportClaimSchema: z.ZodObject<{
     kind: z.ZodEnum<{
         imported: "imported";
         claim: "claim";
+        question: "question";
         double: "double";
     }>;
     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -130,6 +134,7 @@ export declare const shiftReportClaimSchema: z.ZodObject<{
     escalatedWhy: z.ZodNullable<z.ZodEnum<{
         imported: "imported";
         silence: "silence";
+        question: "question";
         disagree: "disagree";
         double: "double";
         no_side: "no_side";
@@ -141,6 +146,7 @@ export declare const shiftReportClaimSchema: z.ZodObject<{
             nobody: "nobody";
             first: "first";
             half: "half";
+            said: "said";
         }>;
         note: z.ZodNullable<z.ZodString>;
         decidedAt: z.ZodString;
