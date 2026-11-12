@@ -97,6 +97,8 @@ const MANY_FANS = [
   { at: 5, unread: 3, staff: true },
   { at: 6, unread: 1, lists: [listAt('📸 Хотят кастом фото и видео'), listAt('[FB] $5000+ Spenders')] },
   { at: 7, unread: 2, vip: true, tier: 1, lists: [listAt('[FB] Top 1% Spenders')] },
+  // Unread in a chat beyond the list's first page: Fansly's All counts it, its lists cannot (the chat is not loaded).
+  { at: 60, unread: 3, old: true, lists: [listAt('🟡 Потенциал')] },
 ];
 
 async function setStrip(s: See, strip: 'shelves' | 'groups' | 'native'): Promise<void> {
@@ -171,6 +173,12 @@ scenario(
     await waitFilters((report) => report.mode === 'shelves' && report.mounted, 'no «Две полки»');
     await browser.pause(400);
     await shootColumn(s, 'shelves');
+    // Fansly's sort menu opens down over the strip: it stands above ours, its items take the clicks.
+    await $('.message-search .transparent-dropdown .dropdown-title').click();
+    await browser.pause(250);
+    await shootColumn(s, 'shelves-under-sort-menu');
+    await $('.message-search .transparent-dropdown .dropdown-title').click();
+    await browser.pause(150);
     await hover('[data-cg-filter="tier:2"]');
     await shootColumn(s, 'shelves-hover');
     await away();

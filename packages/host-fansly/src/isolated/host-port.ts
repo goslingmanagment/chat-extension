@@ -237,6 +237,12 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const search = createSearchSlot(doc, mounts.registry);
   // 2026-11-13: Fansly's filter chips of the route's list, for the strips of «Фильтры над чатами».
   const filters = createInboxFilters(doc, { win, diag: (event, detail) => diag({ event, detail }) });
+  /** Whether a strip of «Четыре группы» stands: MAIN builds the filters' unread only then (`fx.filtersWanted`). */
+  let filtersWanted = false;
+  const askFiltersWanted = (): void => {
+    if (bridge === null || disposed) return;
+    void bridge.request('fx.filtersWanted', { unread: filtersWanted }).catch(() => undefined);
+  };
   // The rows' pins ask MAIN for a row's chat and hand a person's click to the application.
   const inboxMarks = createInboxMarks(doc, {
     meta: (groupId) => chatMeta(groupId),
@@ -663,6 +669,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     network = state.contract;
     // MAIN says every last word again right after this answer: the words held are the old stream's. (The filters' facts
     // are said again too, whole: the ones held stand until then, so the strip does not lose its names for a moment.)
+    if (filtersWanted) askFiltersWanted();
     inboxMarks.clear();
     forgetWords();
     metas.clear();
@@ -1005,6 +1012,11 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         if (!disposed) filters.hide(on);
       },
       onChange: (listener) => filters.onChange(listener),
+      wantUnread: (on) => {
+        if (disposed || on === filtersWanted) return;
+        filtersWanted = on;
+        askFiltersWanted();
+      },
       select: (ref) => !disposed && filters.select(ref),
       unpin: (ref) => !disposed && filters.unpin(ref),
       pin: () => !disposed && filters.pin(),

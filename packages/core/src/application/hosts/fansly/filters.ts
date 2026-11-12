@@ -9,9 +9,14 @@
 //   of ours: the page's own chips stand.
 // - The set (what exists and its names) and the counts and the active filter are read anew at every change of the
 //   block; the shelves' rows are computed only for a new set or width.
-// - «Четыре группы»'s numbers (groups spec §3, §7): our counts from MAIN's copy of the unread of the loaded chats, shown
-//   only while they agree with Fansly's own badges; a mismatch twice in a row, or no copy, and the numbers become dots
-//   until the next full match. Between the two, the last numbers that agreed.
+// - «Четыре группы»'s numbers (groups spec §3, §7): our counts from MAIN's copy of the unread, shown only while they
+//   agree with Fansly's own badges. A mismatch keeps the last numbers that agreed for RECHECK_MS, then a second look:
+//   still a mismatch — dots. After dots, trust comes back only on an agreement no `99+` badge decided, or on one after
+//   a fresh full read of the unread (MAIN's `fresh`). MAIN builds the unread only while this strip stands.
+// - Fansly keeps a tier's filter after another chip is pressed, until Subscribers itself is (main:74387), and prints that
+//   tier's number on Subscribers meanwhile (main:74458-74460): our Subscribers is not checked against it then, and its
+//   own number is ours or none.
+// - A change of the strip heard while a read of the setting is on its way wins over that read's strip.
 // - Every action is a click on Fansly's own chip, inside the person's handler (the page port makes it); a pick from a
 //   group's menu is remembered for that group, per creator, in the background.
 
@@ -42,6 +47,7 @@ export interface FanslyFiltersDeps {
   read(creator: string): Promise<{ readonly strip: FanslyFilterStrip; readonly memo: FanslyFilterMemo } | null>;
   /** `fansly.filters.remember`; null — no answer. */
   remember(creator: string, group: 'tier' | 'list', key: string | null): Promise<FanslyFilterMemo | null>;
+  readonly timers: { set(callback: () => void, ms: number): unknown; clear(handle: unknown): void };
   /** The words of the tab's language now. */
   copy(): FanslyFiltersCopy;
   /** Test builds only: the controller's state after every change of it (the e2e's report). */
@@ -74,8 +80,8 @@ export interface FanslyFiltersController extends FanslyFiltersClient {
 }
 
 const EMPTY_VIEW: FanslyFiltersView = { mode: null, set: null, items: new Map(), width: 0, spinning: false, groups: null };
-/** Mismatches in a row after which «Четыре группы» shows dots instead of numbers (groups spec §7.4). */
-const MISMATCHES = 2;
+/** After a mismatch, the second look (groups spec §7.4: «twice in a row»), whether anything else came or not. */
+export const RECHECK_MS = 500;
 
 export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersController {
   const listeners = new Set<(view: FanslyFiltersView) => void>();
@@ -86,10 +92,20 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
   let readFor: string | null = null;
   /** The newest read asked: an older answer says nothing. */
   let asked = 0;
+  /** Grows with every change of the strip heard: a read begun before one does not bring its strip back. */
+  let stripVersion = 0;
   let view: FanslyFiltersView = EMPTY_VIEW;
   let refused: string | null = 'no-block';
-  let mismatches = MISMATCHES;
+  /** The numbers are shown (vouched for); false — dots. */
+  let trusted = false;
   let vouched: GroupCounts | null = null;
+  /** MAIN's `fresh` when trust was lost: an agreement after a newer full read may bring it back by itself. */
+  let distrustedAt = -1;
+  let recheck: unknown = null;
+  let confirming = false;
+  /** A tier was on since Subscribers itself was: Fansly's Subscribers badge counts that tier. */
+  let tierStale = false;
+  let unreadWanted = false;
   let layoutCache: { readonly signature: string; readonly width: number; readonly layout: FanslyShelvesLayout } | null = null;
 
   const words = () => {
@@ -123,20 +139,49 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
     for (const listener of [...listeners]) listener(view);
   };
 
-  /** «Четыре группы»'s numbers: the counts vouched for by the self-check, or dots. */
+  const stopRecheck = (): void => {
+    if (recheck !== null) deps.timers.clear(recheck);
+    recheck = null;
+  };
+  /** «Четыре группы»'s numbers: the counts vouched for by the self-check, or dots (the trust policy above). */
   const groupsOf = (set: FanslyFilterSet, items: ReadonlyMap<string, FanslyFilterItem>): FanslyGroupsView => {
     const unread = deps.page.unread();
     const counts = unread === null ? null : groupCounts(unread);
-    if (counts !== null && countsAgree(set, items, counts)) {
-      mismatches = 0;
-      vouched = counts;
-    } else {
-      mismatches = Math.min(MISMATCHES, mismatches + 1);
-      if (mismatches >= MISMATCHES) vouched = null;
+    const check = counts === null ? { agree: false, saturated: false } : countsAgree(set, items, counts, !tierStale);
+    if (check.agree) {
+      stopRecheck();
+      // Back from dots only on numbers a `99+` did not decide, or on a full read newer than the mismatch.
+      if (trusted || !check.saturated || (unread?.fresh ?? -1) > distrustedAt) {
+        trusted = true;
+        vouched = counts;
+      }
+    } else if (trusted) {
+      if (confirming) {
+        stopRecheck();
+        trusted = false;
+        vouched = null;
+        distrustedAt = unread?.fresh ?? -1;
+      } else if (recheck === null) {
+        recheck = deps.timers.set(() => {
+          recheck = null;
+          confirming = true;
+          try {
+            compute();
+          } finally {
+            confirming = false;
+          }
+        }, RECHECK_MS);
+      }
     }
-    const shown = mismatches < MISMATCHES ? vouched : null;
-    const numbers = groupsNumbers(set, items, memo, shown, words().groups);
+    const shown = trusted ? vouched : null;
+    const numbers = groupsNumbers(set, items, memo, shown, words().groups, tierStale);
     return { ...numbers, fallback: shown === null };
+  };
+  /** MAIN builds the unread only while «Четыре группы» stands. */
+  const wantUnread = (on: boolean): void => {
+    if (on === unreadWanted) return;
+    unreadWanted = on;
+    deps.page.wantUnread(on);
   };
 
   const compute = (): void => {
@@ -144,15 +189,20 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
     const read = deps.page.read();
     if (!read.ok) {
       refused = read.reason;
+      // The route's list went: its next instance starts with no tier's filter.
+      if (read.reason === 'no-block') tierStale = false;
       if (view !== EMPTY_VIEW) publish(EMPTY_VIEW);
       else deps.observe?.(stats());
       return;
     }
     refused = null;
     const block = read.block;
+    if (block.subscribers.active) tierStale = false;
+    else if (block.tiers.some((chip) => chip.active)) tierStale = true;
     const set = filterSet(block, deps.page.names(), words().staff);
     const narrow = block.width < FANSLY_FILTER_LIMITS.minWidthPx;
     const mode = strip === null || strip === 'native' || narrow ? null : strip;
+    wantUnread(mode === 'groups');
     const groups = mode === 'groups' ? groupsOf(set, set.items) : null;
     publish({ mode, set, items: set.items, width: block.width, spinning: block.spinning, groups });
   };
@@ -162,10 +212,12 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
     if (creator === null) return;
     readFor = creator;
     const ask = ++asked;
+    const version = stripVersion;
     void deps.read(creator).then(
       (answer) => {
         if (disposed || ask !== asked || answer === null) return;
-        strip = answer.strip;
+        // A change of the strip heard meanwhile is newer than this read's.
+        if (version === stripVersion) strip = answer.strip;
         memo = answer.memo;
         compute();
       },
@@ -243,7 +295,9 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
       compute();
     },
     stripChanged(next) {
-      if (disposed || next === strip) return;
+      if (disposed) return;
+      stripVersion += 1;
+      if (next === strip) return;
       strip = next;
       compute();
     },
@@ -253,6 +307,8 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
     },
     stats,
     dispose() {
+      stopRecheck();
+      wantUnread(false);
       disposed = true;
       off();
       listeners.clear();

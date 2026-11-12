@@ -25,9 +25,12 @@ import type {
 
 // ── names ──
 
-/** Fansly prints a tier's name and a list's label as its first 20 characters, and `...` when it is longer than 21. */
+/**
+ * Fansly prints a tier's name and a list's label as its first 20 characters, and `...` when it is longer than 21
+ * (main:73925, 73993: `slice(0, 20)` always): a name of exactly 21 loses its last character and gets no dots.
+ */
 export function fanslyCut(name: string): string {
-  return name.length > 21 ? `${name.slice(0, 20)}...` : name;
+  return `${name.slice(0, 20)}${name.length > 21 ? '...' : ''}`;
 }
 
 /** Fansly's badge as a number: `99+` is 100; null — none, 0. */
@@ -154,15 +157,25 @@ const chipItem = (key: string, ref: FanslyFilterRef, kind: FanslyFilterKind, chi
 /**
  * The page's data for each chip, in order: a chip takes the next entry whose cut is its label (shelves spec §8.3: by
  * position, only when they agree), so a list unpinned since the data was read leaves the others matched; null — none.
+ * A label that as many entries as chips do not share is ambiguous (two lists with one cut, one of them unpinned since the
+ * data was read): its chips get no name and no id, never another list's — the strip would name one and unpin another.
  */
-function aligned<T>(chips: readonly FanslyFilterChip[], data: readonly T[], name: (entry: T) => string): Array<T | null> {
+export function aligned<T>(chips: readonly FanslyFilterChip[], data: readonly T[], name: (entry: T) => string): Array<T | null> {
+  const cuts = data.map((entry) => fanslyCut(name(entry)));
+  const tally = (labels: readonly string[]): Map<string, number> => {
+    const counted = new Map<string, number>();
+    for (const label of labels) counted.set(label, (counted.get(label) ?? 0) + 1);
+    return counted;
+  };
+  const inData = tally(cuts);
+  const onChips = tally(chips.map((chip) => chip.label));
   let next = 0;
   return chips.map((chip) => {
+    if (inData.get(chip.label) !== onChips.get(chip.label)) return null;
     for (let at = next; at < data.length; at += 1) {
-      const entry = data[at] as T;
-      if (fanslyCut(name(entry)) !== chip.label) continue;
+      if (cuts[at] !== chip.label) continue;
       next = at + 1;
-      return entry;
+      return data[at] as T;
     }
     return null;
   });
@@ -470,34 +483,60 @@ export interface GroupCounts {
   union(ids: readonly string[], except?: string): number;
 }
 
+/**
+ * Our counts, in one pass over the rows: All is MAIN's count over every chat (Fansly's All counts the chats it has not
+ * loaded too); subscribers, tiers and lists over the loaded chats with a known fan, as Fansly's filters count them.
+ */
 export function groupCounts(unread: FanslyFilterUnread): GroupCounts {
   const rows = unread.rows;
-  const sum = (test: (row: (typeof rows)[number]) => boolean): number => rows.reduce((total, row) => total + (test(row) ? row.unread : 0), 0);
+  let subscribers = 0;
+  const tiers = new Map<string, number>();
+  const lists = new Map<string, number>();
+  for (const row of rows) {
+    if (row.subscriber) subscribers += row.unread;
+    if (row.tierId !== null) tiers.set(row.tierId, (tiers.get(row.tierId) ?? 0) + row.unread);
+    for (const id of row.lists) lists.set(id, (lists.get(id) ?? 0) + row.unread);
+  }
   return {
-    all: sum(() => true),
-    subscribers: sum((row) => row.subscriber),
-    tier: (id) => sum((row) => row.tierId === id),
-    list: (id) => sum((row) => row.lists.includes(id)),
-    union: (ids, except) => sum((row) => row.lists.some((id) => ids.includes(id)) && (except === undefined || !row.lists.includes(except))),
+    all: unread.all,
+    subscribers,
+    tier: (id) => tiers.get(id) ?? 0,
+    list: (id) => lists.get(id) ?? 0,
+    union: (ids, except) => {
+      const wanted = new Set(ids);
+      let total = 0;
+      for (const row of rows) if (row.lists.some((id) => wanted.has(id)) && (except === undefined || !row.lists.includes(except))) total += row.unread;
+      return total;
+    },
   };
 }
 
+export interface CountsCheck {
+  /** Every compared number is Fansly's own. */
+  readonly agree: boolean;
+  /** A compared badge was `99+`: equal by its letter, not proven equal by its number. */
+  readonly saturated: boolean;
+}
+
 /**
- * The self-check (§7.4): our All, our Subscribers (only while no tier is on: Fansly then prints the tier's number on it)
- * and our count of every pinned list against Fansly's badges. False — a list whose id is not known (nothing to check
- * it by) or any number that differs.
+ * The self-check (§7.4): our All and our count of every pinned list against Fansly's badges, and our Subscribers while
+ * Fansly's badge of it is its own (`subscribers`: false — a tier was on since Subscribers itself was, and Fansly prints
+ * that tier's number on it, main:74387, 74458-74460). A list whose id is not known has nothing to be checked by: no.
  */
-export function countsAgree(set: FanslyFilterSet, items: ReadonlyMap<string, FanslyFilterItem>, counts: GroupCounts): boolean {
-  const all = items.get('all');
-  if (all === undefined || !sameBadge(counts.all, all.count)) return false;
-  const tierOn = set.tiers.some((item) => items.get(item.key)?.active === true);
-  const subs = items.get('subscribers');
-  if (!tierOn && (subs === undefined || !sameBadge(counts.subscribers, subs.count))) return false;
+export function countsAgree(set: FanslyFilterSet, items: ReadonlyMap<string, FanslyFilterItem>, counts: GroupCounts, subscribers: boolean): CountsCheck {
+  let saturated = false;
+  const same = (ours: number, printed: string | null | undefined): boolean => {
+    if (printed === '99+') saturated = true;
+    return printed !== undefined && sameBadge(ours, printed);
+  };
+  const no = (): CountsCheck => ({ agree: false, saturated });
+  if (!same(counts.all, items.get('all')?.count)) return no();
+  if (subscribers && !same(counts.subscribers, items.get('subscribers')?.count)) return no();
   for (const item of [...set.lists, ...set.steps]) {
-    if (item.id === null) return false;
-    if (!sameBadge(counts.list(item.id), items.get(item.key)?.count ?? null)) return false;
+    if (item.id === null) return no();
+    if (!same(counts.list(item.id), items.get(item.key)?.count ?? null)) return no();
   }
-  return true;
+  return { agree: true, saturated };
 }
 
 /** The short name a group shows: a step `$250-500`, a tier's words, a list's name. */
@@ -528,15 +567,15 @@ export interface GroupsNumbers {
 
 /**
  * What the two groups show. `counts` — our counts when they are vouched for (the self-check), else null: then no union
- * and no rest numbers, a dot where something inside is unread, and «Subscribers» without a number while a tier is on.
+ * and no rest numbers, a dot where something inside is unread, and «Subscribers» without a number while Fansly's badge
+ * of it counts a tier (`tierStale`).
  */
-export function groupsNumbers(set: FanslyFilterSet, items: ReadonlyMap<string, FanslyFilterItem>, memo: FanslyFilterMemo, counts: GroupCounts | null, words: GroupsWords): GroupsNumbers {
+export function groupsNumbers(set: FanslyFilterSet, items: ReadonlyMap<string, FanslyFilterItem>, memo: FanslyFilterMemo, counts: GroupCounts | null, words: GroupsWords, tierStale: boolean): GroupsNumbers {
   const live = (item: FanslyFilterItem): FanslyFilterItem => items.get(item.key) ?? item;
   const split = set.tiers.length >= 2;
   const tier = split && memo.tier !== null ? (set.tiers.find((item) => item.memo === memo.tier) ?? null) : null;
-  const tierOn = set.tiers.some((item) => live(item).active);
-  const subsItem = items.get('subscribers');
-  const subscribers = tierOn ? (counts === null ? null : badgeText(counts.subscribers)) : (subsItem?.count ?? null);
+  // Ours when vouched for; Fansly's badge only while it is its own (no tier on since Subscribers itself was).
+  const subscribers = counts !== null ? badgeText(counts.subscribers) : tierStale ? null : (items.get('subscribers')?.count ?? null);
   const tierRest = tier !== null && counts !== null && tier.id !== null ? badgeText(counts.subscribers - counts.tier(tier.id)) : null;
   const pinned = [...set.steps, ...set.lists];
   const list = memo.list === null ? null : (pinned.find((item) => item.memo === memo.list) ?? null);

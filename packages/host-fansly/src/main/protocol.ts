@@ -56,6 +56,8 @@ export const REQ_GROUP_FOR_FAN = 'fx.groupForFan';
 export const REQ_WINDOW = 'fx.windowMeta';
 /** 2026-11-03: the order of a group's messages, without a text (contracts FanslyOrderSchema). */
 export const REQ_ORDER = 'fx.order';
+/** 2026-11-13: whether a strip wants the unread of the filters (`fx.filters`). */
+export const REQ_FILTERS_WANTED = 'fx.filtersWanted';
 
 /** FANSLY_GAP_REASONS. */
 export const GAP_OVERFLOW = 'overflow';

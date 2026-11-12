@@ -410,7 +410,8 @@ export function Groups({ client, copy }: { readonly client: FanslyFiltersClient;
         <button type="button" class={`cgg-mi${on ? ' on' : ''}`} role="menuitemradio" aria-checked={on ? 'true' : 'false'} data-fk={`m-${key}`} data-nav data-cg-filter={key} onClick={(event) => pick(key, group, event.detail === 0)} {...(live === null || live.kind === 'base' ? {} : tipOf(live))}>
           <i class="cgg-ico">{live === null ? <Icon name="users" size={15} /> : <ItemIcon item={live} slots={slots} />}</i>
           <span class="cgg-nm">{highlight(name, q)}</span>
-          <Badge count={live === null ? (items.get('subscribers')?.count ?? null) : live.count} />
+          {/* «Subscribers»: the number of all subscribers (Fansly's badge counts a tier while one was on). */}
+          <Badge count={live === null ? g.subscribers : live.count} />
           {on ? (
             <i class="cgg-ck">
               <Icon name="check" size={14} />

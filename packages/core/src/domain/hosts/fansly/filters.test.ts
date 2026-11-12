@@ -70,6 +70,29 @@ describe('the kind of a pinned list', () => {
 });
 
 describe('the set', () => {
+  it('cuts a name as Fansly prints it: twenty characters always, dots only past twenty-one', () => {
+    expect(fanslyCut('123456789012345678901')).toBe('12345678901234567890');
+    expect(fanslyCut('1234567890123456789012')).toBe('12345678901234567890...');
+    expect(fanslyCut('12345678901234567890')).toBe('12345678901234567890');
+    const name = 'Клиенты из Германии!!';
+    const set = filterSet(block([], [name]), names([], [name]), 'Staff');
+    expect(set.lists[0]?.id).not.toBeNull();
+    expect(set.lists[0]?.full).toBe(name);
+  });
+
+  it('gives no name and no id to chips whose cut more or fewer entries share (one of two alike unpinned)', () => {
+    const a = 'Clients from Germany A';
+    const b = 'Clients from Germany B';
+    expect(fanslyCut(a)).toBe(fanslyCut(b));
+    // Both pinned, both known: each chip its own.
+    const both = filterSet(block([], [a, b]), names([], [a, b]), 'Staff');
+    expect(both.lists.map((item) => item.full)).toEqual([a, b]);
+    // A unpinned, the names not read again yet: B's chip must not take A's name and id.
+    const stale = filterSet(block([], [b]), names([], [a, b]), 'Staff');
+    expect(stale.lists[0]?.id).toBeNull();
+    expect(stale.lists[0]?.full).toBe(fanslyCut(b));
+  });
+
   it('takes a full name only where Fansly’s cut of it is the chip’s label, in order', () => {
     const lists = ['[FB] $0-$50 Spenders', '💩 Бомж', '📸 Хотят кастом фото и видео'];
     const set = filterSet(block([], lists), names([], lists), 'Staff');
@@ -168,6 +191,8 @@ describe('«Четыре группы»: the numbers', () => {
   const [step, custom, potential] = (n.lists ?? []).map((list) => list.id);
   // Mateo is in the step and in «Потенциал»: one chat, counted once in the union.
   const unread = {
+    all: 11,
+    fresh: 1,
     rows: [
       { unread: 2, subscriber: false, tierId: null, lists: [step as string, potential as string] },
       { unread: 2, subscriber: false, tierId: null, lists: [custom as string] },
@@ -181,11 +206,11 @@ describe('«Четыре группы»: the numbers', () => {
   it('counts each chat once in the union, and the rest outside the remembered list', () => {
     const set = filterSet(badges, n, 'Staff');
     const counts = groupCounts(unread);
-    expect(countsAgree(set, set.items, counts)).toBe(true);
-    const plain = groupsNumbers(set, set.items, { tier: null, list: null }, counts, words);
+    expect(countsAgree(set, set.items, counts, true)).toEqual({ agree: true, saturated: false });
+    const plain = groupsNumbers(set, set.items, { tier: null, list: null }, counts, words, false);
     expect(plain.union).toBe('10');
     expect(plain.summary).toEqual(['Потенциал 8 · $250-500 2 · Кастом 2', 'всего 10']);
-    const remembered = groupsNumbers(set, set.items, { tier: null, list: potential as string }, counts, words);
+    const remembered = groupsNumbers(set, set.items, { tier: null, list: potential as string }, counts, words, false);
     expect(remembered.list?.label).toBe('Потенциал');
     expect(remembered.listRest).toBe('2');
     expect(remembered.union).toBeNull();
@@ -193,24 +218,39 @@ describe('«Четыре группы»: the numbers', () => {
 
   it('turns the numbers into dots when ours do not agree with Fansly’s badges or a list has no id', () => {
     const set = filterSet({ ...badges, lists: badges.lists.map((c, index) => (index === 2 ? { ...c, count: '9' } : c)) }, n, 'Staff');
-    expect(countsAgree(set, set.items, groupCounts(unread))).toBe(false);
-    const numbers = groupsNumbers(set, set.items, { tier: null, list: null }, null, words);
+    expect(countsAgree(set, set.items, groupCounts(unread), true).agree).toBe(false);
+    const numbers = groupsNumbers(set, set.items, { tier: null, list: null }, null, words, false);
     expect(numbers.union).toBeNull();
     expect(numbers.dot).toBe(true);
     expect(numbers.summary[1]).toBe('в каждом списке своё число');
     const unnamed = filterSet(badges, { tiers: null, lists: null }, 'Staff');
-    expect(countsAgree(unnamed, unnamed.items, groupCounts(unread))).toBe(false);
+    expect(countsAgree(unnamed, unnamed.items, groupCounts(unread), true).agree).toBe(false);
   });
 
-  it('takes 99+ as any number above 99, and Subscribers only while no tier is on', () => {
-    const many = { rows: [{ unread: 150, subscriber: true, tierId: '700000000000000400', lists: [] }] };
+  it('counts All over every unread chat, loaded or not: MAIN’s `all`, not the sum of the rows', () => {
+    const set = filterSet(badges, n, 'Staff');
+    // Two more unread in chats the page has not loaded: Fansly's All counts them, the lists cannot.
+    const counts = groupCounts({ ...unread, all: 13 });
+    expect(countsAgree(set, set.items, counts, true).agree).toBe(false);
+    const agreed = filterSet({ ...badges, all: chip('All', { active: true, count: '13' }) }, n, 'Staff');
+    expect(countsAgree(agreed, agreed.items, counts, true).agree).toBe(true);
+  });
+
+  it('takes 99+ as any number above 99 (saturated), and leaves Subscribers out while Fansly’s badge counts a tier', () => {
+    const many = { all: 150, fresh: 1, rows: [{ unread: 150, subscriber: true, tierId: '700000000000000400', lists: [] }] };
     const tiers = ['⋆˙⟡ my friend ⋆˙⟡'];
     const set = filterSet(
       block(tiers, [], { all: chip('All', { count: '99+' }), subscribers: chip('Subscribers', { count: '99+' }), tiers: [{ ...chip(fanslyCut(tiers[0] as string), { active: true, count: '99+' }), color: null }] }),
       names(tiers, []),
       'Staff',
     );
-    // Fansly prints the tier's number on Subscribers while the tier is on: not compared.
-    expect(countsAgree(set, set.items, groupCounts(many))).toBe(true);
+    expect(countsAgree(set, set.items, groupCounts(many), false)).toEqual({ agree: true, saturated: true });
+    // A tier on since Subscribers was: Fansly's Subscribers badge is that tier's, ours is all subscribers.
+    const stale = filterSet(block(tiers, [], { all: chip('All', { active: true, count: '5' }), subscribers: chip('Subscribers', { count: '2' }) }), names(tiers, []), 'Staff');
+    const five = groupCounts({ all: 5, fresh: 1, rows: [{ unread: 2, subscriber: true, tierId: '700000000000000400', lists: [] }, { unread: 3, subscriber: true, tierId: '700000000000000401', lists: [] }] });
+    expect(countsAgree(stale, stale.items, five, true).agree).toBe(false);
+    expect(countsAgree(stale, stale.items, five, false).agree).toBe(true);
+    expect(groupsNumbers(stale, stale.items, { tier: null, list: null }, five, words, true).subscribers).toBe('5');
+    expect(groupsNumbers(stale, stale.items, { tier: null, list: null }, null, words, true).subscribers).toBeNull();
   });
 });

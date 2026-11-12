@@ -67,8 +67,15 @@ export class Inbox {
     this.list = el(s, 'div', { class: 'message-list noselect', attrs: { xdscrollwatcher: '' } }, [this.topSpacer, this.rows.anchor, this.bottomSpacer]);
     const input = el(s, 'input', { class: 'search-input', attrs: { type: 'text', placeholder: 'Search conversations' } });
     this.filters = new FilterBlock(filters, { groups: () => store.loadedGroups() }, () => this.reload());
-    // Fansly's sort control: a dropdown after the search field (main:74215, `appXdDropdown`).
-    const sort = el(s, 'div', { class: 'transparent-dropdown margin-left-1 margin-right-1 margin-top-3', attrs: { appxddropdown: '' } }, [el(s, 'div', { class: 'dropdown-title' }, [el(s, 'div', { class: 'icon-stack' }, [el(s, 'i', { class: 'fa-fw fas fa-arrow-down-wide-short hover-effect' })])])]);
+    // Fansly's sort control: a dropdown after the search field (main:74215, `appXdDropdown`); open, its list stands over
+    // what follows the search row at z-index 5 (styles.e3071a57227c55dd.css:942).
+    const sortItems = ['Newest', 'Oldest', 'Unread', 'Unread Tips'].map((label) => el(s, 'div', { class: 'dropdown-item' }, [el(s, 'xd-localization-string', {}, [`${label} `])]));
+    const sort = el(s, 'div', { class: 'transparent-dropdown margin-left-1 margin-right-1 margin-top-3', attrs: { appxddropdown: '' } }, [
+      el(s, 'div', { class: 'dropdown-title' }, [el(s, 'div', { class: 'icon-stack' }, [el(s, 'i', { class: 'fa-fw fas fa-arrow-down-wide-short hover-effect' })])]),
+      el(s, 'div', { class: 'dropdown-list' }, sortItems),
+    ]);
+    sort.querySelector('.dropdown-title')?.addEventListener('click', () => setClass(sort, 'dropdown-open', !sort.classList.contains('dropdown-open')));
+    for (const item of sortItems) item.addEventListener('click', () => setClass(sort, 'dropdown-open', false));
     this.spinnerAnchor = document.createComment('');
     this.root = el(s, 'div', { class: 'messages-list-wrapper border-color' }, [
       el(s, 'div', { class: 'messages-top-header border-color sm-mobile-hidden' }, [el(s, 'span', { class: 'flex-1' }, [el(s, 'xd-localization-string', {}, ['Messages'])])]),

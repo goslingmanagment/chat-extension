@@ -183,6 +183,8 @@ export interface FilterFanSeed {
   readonly staff?: boolean;
   readonly follower?: boolean;
   readonly unread?: number;
+  /** The unread are the chat's own last messages of the fan, not new ones: the chat keeps its place (beyond the first page). */
+  readonly old?: boolean;
 }
 
 export interface FakeFanslySocketView {

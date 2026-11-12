@@ -404,6 +404,8 @@ export interface FanslyPagePort {
     unread(): FanslyFilterUnread | null;
     /** Fansly's own block hidden (true) or as it is (false); the block of a list that came later follows. */
     hide(on: boolean): void;
+    /** Whether the strip needs the unread (`unread()`): MAIN builds it only then («Четыре группы»). */
+    wantUnread(on: boolean): void;
     /** The block, the width, the names or the unread changed (coalesced, one call a turn). */
     onChange(listener: () => void): Unsubscribe;
   };

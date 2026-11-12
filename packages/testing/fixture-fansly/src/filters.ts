@@ -38,6 +38,8 @@ export interface StandFiltersSource {
   facts(accountId: string): FanFilterFacts | null;
   /** The refresh: the unread read again. */
   refresh(done: () => void): void;
+  /** Every unread message the page read, in any chat (loaded or not): what Fansly's All counts. */
+  allUnread(): number;
 }
 
 /** The loaded chats the badges count: each one's unread and its fan. */
@@ -145,8 +147,12 @@ export class FilterBlock {
     }
   }
 
-  /** Unread messages of the loaded chats in a filter (`getTotalUnreadMessages`). */
+  /**
+   * Unread messages in a filter (`getTotalUnreadMessages` over the group service's groups): All over every unread chat,
+   * loaded or not (Fansly makes an empty group for one it has not loaded); the others over loaded chats whose fan is known.
+   */
   private count(filter: Filter): number {
+    if (filter.kind === 'all' && this.source !== null) return this.source.allUnread();
     let total = 0;
     for (const group of this.loaded.groups()) {
       if (group.unread <= 0) continue;

@@ -19,9 +19,12 @@
 //   that comes or goes, a ResizeObserver on the list for the width. The full names and the unread are MAIN's
 //   `fx.filters` (the port hands them in).
 
+import { STALE_HIDDEN_ATTRIBUTE } from '@cg/host-kit/isolated/hosts';
 import type { FanslyFilterBlock, FanslyFilterChip, FanslyFilterNames, FanslyFilterRead, FanslyFilterRef, FanslyFilterRefusal, FanslyFilterUnread } from '@cg/contracts/fansly-filters';
 
 const NAV = 'messages-nav-wrapper';
+/** The mark of a node of the page we hid: a later instance shows it again when this one is stale. */
+const HIDDEN_MARK = STALE_HIDDEN_ATTRIBUTE;
 const CHIPS = '.bubble-wrap.bubble-wrap-sm';
 const FAN_CHIPS = '.bubble-wrap';
 const BADGE = /^(?:\d{1,5}|99\+)$/;
@@ -127,7 +130,20 @@ function parse(nav: Element): Parsed | FanslyFilterRefusal {
 export interface FiltersWire {
   readonly tiers: ReadonlyArray<{ readonly id: string; readonly name: string; readonly color: string | null }> | null;
   readonly lists: ReadonlyArray<{ readonly id: string; readonly label: string }> | null;
-  readonly unread: { readonly ids: readonly string[]; readonly rows: ReadonlyArray<{ readonly u: number; readonly s: boolean; readonly t: string | null; readonly l: readonly number[] }> } | null;
+  readonly unread: { readonly all: number; readonly fresh: number; readonly ids: readonly string[]; readonly tiers: readonly string[]; readonly rows: ReadonlyArray<readonly number[]> } | null;
+}
+
+/** MAIN's compact rows read back; null — an index that names nothing (not a copy to count by). */
+function unreadOf(facts: NonNullable<FiltersWire['unread']>): FanslyFilterUnread | null {
+  const rows: Array<FanslyFilterUnread['rows'][number]> = [];
+  for (const row of facts.rows) {
+    const [unread = 0, subscriber = 0, tier = -1, ...lists] = row;
+    const tierId = tier < 0 ? null : (facts.tiers[tier] ?? undefined);
+    const ids = lists.map((at) => facts.ids[at]);
+    if (tierId === undefined || ids.includes(undefined)) return null;
+    rows.push({ unread, subscriber: subscriber === 1, tierId, lists: ids as string[] });
+  }
+  return { all: facts.all, fresh: facts.fresh, rows };
 }
 
 export function createInboxFilters(doc: Document, deps: InboxFiltersDeps) {
@@ -173,10 +189,13 @@ export function createInboxFilters(doc: Document, deps: InboxFiltersDeps) {
     const target = wantHidden ? nav : null;
     if (hiddenNav !== null && hiddenNav !== target) {
       hiddenNav.style.removeProperty('display');
+      hiddenNav.removeAttribute(HIDDEN_MARK);
       hiddenNav = null;
     }
     if (target !== null && hiddenNav !== target) {
       target.style.setProperty('display', 'none', 'important');
+      // Marked ours: an instance of a later build takes our hiding off when it finds this one's hosts stale (host-kit hosts.ts).
+      target.setAttribute(HIDDEN_MARK, 'filters');
       hiddenNav = target;
     }
   };
@@ -270,7 +289,7 @@ export function createInboxFilters(doc: Document, deps: InboxFiltersDeps) {
     facts(wire: FiltersWire | null): void {
       names = wire === null ? { tiers: null, lists: null } : { tiers: wire.tiers, lists: wire.lists };
       const facts = wire?.unread ?? null;
-      unread = facts === null ? null : { rows: facts.rows.map((row) => ({ unread: row.u, subscriber: row.s, tierId: row.t, lists: row.l.flatMap((at) => facts.ids[at] ?? []) })) };
+      unread = facts === null ? null : unreadOf(facts);
       changed();
     },
     hide(on: boolean): void {

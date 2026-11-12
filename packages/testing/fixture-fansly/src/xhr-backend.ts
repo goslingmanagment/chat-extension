@@ -149,6 +149,8 @@ export class XhrBackend implements StandBackend, VaultApi {
       this.readUnread();
       setTimeout(done, 300);
     },
+    // Fansly's All: every unread message the page read, in any chat, loaded or not (its empty groups, main:27904-27946).
+    allUnread: () => [...this.unreadIds.values()].reduce((total, ids) => total + ids.size, 0),
   };
 
   // ── groups ──

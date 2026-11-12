@@ -744,7 +744,8 @@ export class FanslyWorld {
       const group = this.conversationWith(fanId);
       if (seed.unread !== undefined && group !== null) {
         this.readAll(group);
-        for (let n = 0; n < seed.unread; n += 1) this.addMessage({ groupId: group.id, senderId: fanId, content: SHOWCASE ? (FAN_LINES[(Number(BigInt(fanId) % 97n) + n) % FAN_LINES.length] as string) : `Stand line ${String(n + 1)} for the filters` });
+        if (seed.old === true) for (const message of group.history.filter((item) => item.senderId === fanId).slice(-seed.unread)) this.markUnread(group, message);
+        else for (let n = 0; n < seed.unread; n += 1) this.addMessage({ groupId: group.id, senderId: fanId, content: SHOWCASE ? (FAN_LINES[(Number(BigInt(fanId) % 97n) + n) % FAN_LINES.length] as string) : `Stand line ${String(n + 1)} for the filters` });
       }
     }
     return { tierIds, listIds };

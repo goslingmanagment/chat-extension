@@ -13,8 +13,11 @@
 //   the queue and the batches in flight are MAIN's memory (`held()`, part of
 //   the observation's account, §5.5). A batch is ≤ MAX_BATCH_BYTES of JSON with
 //   its envelope and ≤ MAX_BATCH_EVENTS events — what the isolated side checks
-//   (`fanslyFrameByteLimit`): every payload here is ASCII (ids, enums, ISO
-//   times), so the length of its JSON is its UTF-8 size.
+//   (`fanslyFrameByteLimit`), in the same unit: the UTF-8 bytes of the JSON
+//   (2026-11-13: names of the creator's tiers and lists cross now, not ASCII).
+// - A state larger than any batch could ever carry, or states that together
+//   never fit an empty pipe, are dropped, the largest first, and said as a
+//   fault (`oversize`): one state never stops the stream of every other fact.
 // - The queue full: MAIN drops it, sends ONE `fx.gap` (outside the batches and
 //   their credits) and takes nothing more until the isolated side asks
 //   `fx.state` — every chat is unknown, and a lost event never makes a false
@@ -38,8 +41,8 @@ export interface StreamStats {
 export interface Emitter {
   /** An event of the stream: in order, never coalesced. */
   event(t: string, p: Plain): void;
-  /** A state: the latest of its type leads the next batch. */
-  state(t: string, p: Plain): void;
+  /** A state: the latest of its type leads the next batch. `bytes` — its payload's UTF-8 JSON size, when the caller measured it. */
+  state(t: string, p: Plain, bytes?: number): void;
   /** The end of a listener call: at most one batch goes out, within the credits. */
   flush(): void;
   /** The isolated side took every batch up to `n`: their credits are free. */
@@ -62,13 +65,45 @@ interface Item {
   readonly b: number;
 }
 
-/** `gapped` — told after the one `fx.gap` went: every chat of the observation is unknown from then on (§5.6). */
-export function createEmitter(post: (t: string, payload: Plain) => void, stringify: (value: unknown) => string, gapped: (reason: string) => void = () => undefined): Emitter {
-  const size = (t: string, p: Plain): number => stringify({ t, p }).length + 1;
+const NON_ASCII = /[\u0080-\uffff]/;
+
+/**
+ * UTF-8 bytes of a JSON text, as the isolated side counts them (contracts bridge.ts `checkBridgeFrame`). A lone
+ * surrogate never stands in `JSON.stringify`'s output (it is escaped as `\\uXXXX`, ASCII).
+ */
+export function utf8Bytes(text: string): number {
+  if (!NON_ASCII.test(text)) return text.length;
+  let bytes = text.length;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    if (c < 0x80) continue;
+    if (c < 0x800) bytes += 1;
+    else if (c >= 0xd800 && c <= 0xdbff) {
+      // A pair: two UTF-16 units, four bytes.
+      bytes += 2;
+      i += 1;
+    } else bytes += 2;
+  }
+  return bytes;
+}
+
+/**
+ * `gapped` — told after the one `fx.gap` went: every chat of the observation is unknown from then on (§5.6).
+ * `oversize` — a state dropped because no batch could carry it.
+ */
+export function createEmitter(
+  post: (t: string, payload: Plain) => void,
+  stringify: (value: unknown) => string,
+  gapped: (reason: string) => void = () => undefined,
+  oversize: (t: string) => void = () => undefined,
+): Emitter {
+  const size = (t: string, p: Plain): number => utf8Bytes(stringify({ t, p })) + 1;
+  /** The most one batch can ever carry, its envelope aside. */
+  const ROOM_MAX = Math.min(MAX_BATCH_BYTES, MAX_IN_FLIGHT_BYTES) - BATCH_ENVELOPE_BYTES;
   let queue: Item[] = [];
   let head = 0;
   let queueBytes = 0;
-  let states: Record<string, Plain> = {};
+  let states: Record<string, { readonly p: Plain; readonly b: number }> = {};
   /** Batches in flight, oldest first: number → bytes. */
   const unacked = new Map<number, number>();
   let inFlight = 0;
@@ -96,16 +131,20 @@ export function createEmitter(post: (t: string, payload: Plain) => void, stringi
   const flush = (): void => {
     if (!streaming || stopped || unacked.size >= MAX_UNACKED) return;
     const room = Math.min(MAX_BATCH_BYTES, MAX_IN_FLIGHT_BYTES - inFlight) - BATCH_ENVELOPE_BYTES;
-    const events: Array<{ t: string; p: Plain }> = [];
     let bytes = 0;
-    const keys = Object.keys(states);
-    for (const t of keys) {
-      const p = states[t] as Plain;
-      bytes += size(t, p);
-      events.push({ t, p });
+    for (const t of Object.keys(states)) bytes += (states[t] as { readonly b: number }).b;
+    // States that could never go together, even with nothing in flight: the largest goes, said once each — never a stall.
+    while (bytes > ROOM_MAX) {
+      let largest: string | null = null;
+      for (const t of Object.keys(states)) if (largest === null || (states[t] as { readonly b: number }).b > (states[largest] as { readonly b: number }).b) largest = t;
+      if (largest === null) break;
+      bytes -= (states[largest] as { readonly b: number }).b;
+      delete states[largest];
+      oversize(largest);
     }
     // The states alone do not fit what is left in flight: they wait for an ack.
     if (bytes > room) return;
+    const events: Array<{ t: string; p: Plain }> = Object.keys(states).map((t) => ({ t, p: (states[t] as { readonly p: Plain }).p }));
     let next = head;
     while (next < queue.length && events.length < MAX_BATCH_EVENTS) {
       const item = queue[next] as Item;
@@ -141,8 +180,15 @@ export function createEmitter(post: (t: string, payload: Plain) => void, stringi
       queueBytes += b;
       if (queueBytes > QUEUE_MAX_BYTES || queue.length - head > QUEUE_MAX_EVENTS) gap(GAP_OVERFLOW);
     },
-    state(t, p) {
-      if (!stopped) states[t] = p;
+    state(t, p, bytes) {
+      if (stopped) return;
+      const b = bytes === undefined ? size(t, p) : 14 + utf8Bytes(t) + bytes;
+      if (b > ROOM_MAX) {
+        delete states[t];
+        oversize(t);
+        return;
+      }
+      states[t] = { p, b };
     },
     flush,
     ack(upTo) {

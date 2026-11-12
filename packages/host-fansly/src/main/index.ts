@@ -91,6 +91,7 @@ import {
   REQ_ORDER,
   REQ_WINDOW,
   REQ_GROUP_FOR_FAN,
+  REQ_FILTERS_WANTED,
   RESPONSE_MAX_CHARS,
   RESPONSE_NOW_CHARS,
   SILENT_MS,
@@ -224,12 +225,20 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   let chatSent = '';
   /** The isolated side asked `fx.state`: the last words go out from then on (before it, `replay` says them all anyway). */
   let wordsLive = false;
-  /** 2026-11-13: what the page's answers say of its filter chips; said again whole after every `fx.state`. */
-  const filters = createFilterFacts(stringify);
+  /**
+   * 2026-11-13: what the page's answers say of its filter chips; said again whole after every `fx.state`, else at most
+   * every FILTERS_EVERY_MS (the wake below ends a quiet burst).
+   */
+  const filters = createFilterFacts(stringify, (ms) =>
+    context.setTimer(() => {
+      if (!stopped && !disposed) end();
+    }, ms),
+  );
   let filtersAgain = false;
 
-  // A gap of the stream: the isolated side lost events — every chat unknown until the next certificate (§5.12).
-  const emitter = createEmitter((t, payload) => context.post(t, payload), stringify, () => world().observation.lose(null, WHY_GAP));
+  // A gap of the stream: the isolated side lost events — every chat unknown until the next certificate (§5.12). A state
+  // no batch could carry is dropped and counted as a fault: it never stops the stream.
+  const emitter = createEmitter((t, payload) => context.post(t, payload), stringify, () => world().observation.lose(null, WHY_GAP), () => fault('stateTooLarge'));
   // eslint-disable-next-line prefer-const -- the queue's own drain needs the runtime's `end`, defined below it
   let queue: ReturnType<typeof createResponseQueue<XhrStamp>>;
   const memory = createMemory(() => 2 * queue.chars() + emitter.held());
@@ -362,9 +371,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         chatSent = text;
       }
       if (wordsLive) for (const change of world().lastWords.drain()) emitter.event(EVT_LAST_WORD, { groupId: change.groupId, word: change.word });
-      const facts = filters.take(filtersAgain);
+      const facts = filters.take(now(), filtersAgain);
       filtersAgain = false;
-      if (facts !== null) emitter.state(EVT_FILTERS, facts);
+      if (facts !== null) emitter.state(EVT_FILTERS, facts.payload, facts.bytes);
     }
     const current = contract();
     const text = stringify(current);
@@ -530,14 +539,20 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'history': {
         const { messages, count } = messagesIn(read.groupId);
         observation.history(read.groupId as string, messages, count, stamp, { epoch, confirmed }, read.limit ?? null);
-        for (const m of messages) word(m);
+        for (const m of messages) {
+          word(m);
+          filters.held(m.groupId, m.id);
+        }
         return;
       }
       case 'older':
       case 'byIds': {
         const { messages } = messagesIn(read.groupId);
         observation.answer(messages, read.groupId, stamp, { epoch, confirmed });
-        for (const m of messages) word(m);
+        for (const m of messages) {
+          word(m);
+          filters.held(m.groupId, m.id);
+        }
         return;
       }
       case 'receipt': {
@@ -547,6 +562,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         if (m !== null) {
           observation.sent(m, stamp, { epoch, confirmed });
           word(m);
+          filters.held(m.groupId, m.id);
         }
         // Chat Memory week 1: any message the creator sent from this tab to a direct chat's fan — who sent it.
         const fanId = m === null ? null : identity.fan(m.groupId);
@@ -782,6 +798,13 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         const asked = payload as { creatorId: string; fanId: string };
         const { identity } = world();
         return { groupId: identity.creator === asked.creatorId ? identity.groupForFan(asked.fanId) : null };
+      }
+      if (t === REQ_FILTERS_WANTED) {
+        // 2026-11-13: a strip of «Четыре группы» stands (or went): the unread goes into `fx.filters` only then.
+        if (!isPlain(payload) || Object.keys(payload).length !== 1 || typeof payload['unread'] !== 'boolean') return ERR_BAD_REQUEST;
+        filters.want(payload['unread']);
+        context.setTimer(end, 0);
+        return null;
       }
       if (t === REQ_WINDOW) {
         if (!isWindowRequest(payload)) return ERR_BAD_REQUEST;

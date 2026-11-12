@@ -283,6 +283,10 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
       invalid: [{ ids: ['100'], bits: [], hashes: [0], times: [0] }, { ids: ['100'], bits: [256], hashes: [0], times: [0] }, { ids: ['100'], bits: [16], hashes: [0], times: [] }, { ids: ['100'], bits: [16], hashes: [0] }],
     },
   },
+  'fx.filtersWanted': {
+    payload: { valid: [{ unread: true }, { unread: false }], invalid: [{}, { unread: 'yes' }, { unread: true, lists: true }] },
+    data: { valid: [null], invalid: [{ ok: true }] },
+  },
   'fx.ack': {
     payload: { valid: [{ n: 1 }, { n: 9 }], invalid: [{ n: 0 }, { n: '1' }, { n: 1, bytes: 300 }] },
     data: { valid: [null], invalid: [{ freed: 1 }] },
@@ -387,15 +391,18 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
       {
         tiers: [{ id: '700000000000000401', name: '⋆˙⟡ my friend ⋆˙⟡', color: '#4781b4' }, { id: '700000000000000402', name: 'my bff', color: null }],
         lists: [{ id: '700000000000000411', label: '[FB] $0-$50 Spenders' }, { id: '700000000000000412', label: '🟡 Потенциал' }],
-        unread: { ids: ['700000000000000411', '700000000000000412'], rows: [{ u: 3, s: true, t: '700000000000000401', l: [0, 1] }, { u: 1, s: false, t: null, l: [] }] },
+        unread: { all: 9, fresh: 1, ids: ['700000000000000411', '700000000000000412'], tiers: ['700000000000000401'], rows: [[3, 1, 0, 0, 1], [1, 0, -1, 1]] },
       },
     ],
     invalid: [
       // Never a fan's name or a message: ids, the creator's own names, counts.
-      { tiers: null, lists: null, unread: { ids: [], rows: [{ u: 2, s: false, t: null, l: [], name: 'fan' }] } },
+      { tiers: null, lists: null, unread: { all: 2, fresh: 1, ids: [], tiers: [], rows: [[2, 0, -1, 'fan']] } },
       { tiers: [{ id: 'tier', name: 'x', color: null }], lists: null, unread: null },
       { tiers: null, lists: [{ id: '700000000000000411', label: '' }], unread: null },
-      { tiers: null, lists: null, unread: { ids: [], rows: [{ u: 0, s: false, t: null, l: [] }] } },
+      { tiers: null, lists: null, unread: { all: 0, fresh: 1, ids: [], tiers: [], rows: [[0, 0, -1]] } },
+      { tiers: null, lists: null, unread: { all: 1, fresh: 1, ids: [], tiers: [], rows: [[1, 2, -1]] } },
+      // Without the count of every chat: All has nothing to be checked by.
+      { tiers: null, lists: null, unread: { fresh: 1, ids: [], tiers: [], rows: [] } },
       { tiers: null, lists: null },
     ],
   },

@@ -28,12 +28,10 @@ export const FANSLY_FILTER_LIMITS = {
   lists: 200,
   /** A name of a tier or a list as the page's answers carry it. */
   nameMaxChars: 200,
-  /** Loaded chats with unread messages MAIN says (more: the copy is not trusted, the numbers fall back). */
+  /** Loaded chats with unread MAIN says, of a filter's fans (more: the copy is not said, the numbers fall back). */
   unreadRows: 600,
-  /** Lists one fan is in, as MAIN says them. */
+  /** Pinned lists one fan is in, as MAIN says them. */
   rowLists: 64,
-  /** Distinct list ids over the rows. */
-  listIds: 2000,
   /** The shelves' content below this width: Fansly's chips instead (All, Subscribers and «ещё N» no longer fit). */
   minWidthPx: 300,
   /** The strip's height of «Четыре группы» on every set: no layout moves when its numbers do. */
@@ -97,6 +95,11 @@ export interface FanslyFilterUnreadRow {
 
 /** MAIN's copy of the page's unread by filter facts (groups spec §7); null where not known. */
 export interface FanslyFilterUnread {
+  /** Unread messages over every chat, loaded or not: what Fansly's All counts. */
+  readonly all: number;
+  /** First pages of `/message/unread` read so far: grows with a fresh full read of the unread. */
+  readonly fresh: number;
+  /** Loaded chats with unread whose fan is a subscriber, of a tier or in a pinned list. */
   readonly rows: readonly FanslyFilterUnreadRow[];
 }
 

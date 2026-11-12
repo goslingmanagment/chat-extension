@@ -6,8 +6,10 @@
 //
 // - The strip stands while the controller has a mode: it is drawn first, then Fansly's block is hidden, in one task; the
 //   other way round when it goes (never our strip beside Fansly's visible block, never neither).
-// - Its host is positioned above Fansly's scroller (`position: relative; z-index: 10`): the popovers paint over the list
-//   and over the marks on its rows (z-index 2 there).
+// - Its host is positioned above Fansly's scroller (`position: relative; z-index: 3`): the popovers paint over the list
+//   and over the marks on its rows (z-index 2 there), and under Fansly's own menus (its sort menu opens down over the
+//   strip at z-index 5, styles.e3071a57227c55dd.css:942).
+// - A strip that fails to draw (the kit's boundary) gives the place back to Fansly's block for the rest of the tab.
 // - The background's change of the strip is heard as an event; a tab back in view and another sign-in read again.
 // - Nothing of ours throws into the port's sync: a surface that fails is reported and the page's sync goes on.
 import type { MountSurfaceKind } from '@cg/contracts/vm';
@@ -48,9 +50,18 @@ export function startFanslyFilters(env: SiteAppEnv<FanslyPort>): () => void {
       return answer.ok ? answer.payload.memo : null;
     },
     copy: () => FILTERS_TEXTS[env.deps.i18n.language],
+    timers: { set: (callback, ms) => win.setTimeout(callback, ms), clear: (handle) => win.clearTimeout(handle as number) },
     ...(probe === null ? {} : { observe: (stats: FanslyFiltersStats) => report(stats) }),
   });
 
+  /** The strip failed to draw: Fansly's block for the rest of the tab, never a broken strip over a hidden block. */
+  let broken = false;
+  const reportStrip = (failure: Parameters<typeof env.report>[0]): void => {
+    env.report(failure);
+    if (failure.kind !== 'render' || broken) return;
+    broken = true;
+    queueMicrotask(() => place());
+  };
   const unmountStrip = (): void => {
     const gone = strip;
     strip = null;
@@ -68,14 +79,14 @@ export function startFanslyFilters(env: SiteAppEnv<FanslyPort>): () => void {
 
   const place = (): void => {
     if (env.life.aborted) return;
-    const mode = filters.view().mode;
+    const mode = broken ? null : filters.view().mode;
     const want = mode !== null && host.inbox.available();
     if (want && strip === null) {
       const slot = host.inbox.mount(STRIP_ORDER);
       slot.host.style.setProperty('position', 'relative');
-      // Above Fansly's scroller and its rows' marks (ours too: z-index 2 inside the rows).
-      slot.host.style.setProperty('z-index', '10');
-      strip = { slot, mount: mountKitSurface('inbox-slot' as MountSurfaceKind, slot.root, env.deps, filtersSurface(filters, FILTERS_TEXTS), { report: env.report }) };
+      // Above Fansly's scroller and the rows' marks (z-index 2), under Fansly's own menus (z-index 5).
+      slot.host.style.setProperty('z-index', '3');
+      strip = { slot, mount: mountKitSurface('inbox-slot' as MountSurfaceKind, slot.root, env.deps, filtersSurface(filters, FILTERS_TEXTS), { report: reportStrip }) };
       // Ours is drawn: Fansly's block goes in the same task.
       page.filters.hide(true);
     } else if (!want && strip !== null) unmountStrip();

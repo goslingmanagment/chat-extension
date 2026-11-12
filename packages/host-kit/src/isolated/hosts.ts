@@ -59,6 +59,9 @@ export function mountClosedHost(parent: Element, kind: 'dock' | 'overlay', posit
   };
 }
 
+/** The mark of a node of the page our code hid by an inline style (host-fansly inbox-filters.ts). */
+export const STALE_HIDDEN_ATTRIBUTE = 'data-cg-hidden';
+
 /**
  * Removes hosts left by a previous instance of the extension. When the add-on
  * is updated, reinstalled or re-enabled, Firefox kills the old content script
@@ -69,8 +72,14 @@ export function removeStaleHosts(doc: Document): number {
   // Only our host shape — a `div` with nothing in its light DOM: a neutral name could be some other element's too.
   // `data-cg` — a host of a build from before X22.
   const stale = [...doc.querySelectorAll(`div[${HOST_ATTRIBUTE}], div[data-cg]`)].filter(
-    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay', 'header-slot', 'inbox-slot'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
+    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay', 'header-slot', 'inbox-slot', 'search-slot'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
   );
   stale.forEach((node) => node.remove());
+  // A node of the page the old instance hid (2026-11-13: Fansly's filter chips under our strip): shown again, so the page
+  // never stands without either until its reload.
+  for (const node of doc.querySelectorAll<HTMLElement>(`[${STALE_HIDDEN_ATTRIBUTE}]`)) {
+    node.style.removeProperty('display');
+    node.removeAttribute(STALE_HIDDEN_ATTRIBUTE);
+  }
   return stale.length;
 }
