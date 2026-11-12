@@ -90,6 +90,10 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "signin:taskindex": "signin:taskindex";
     "signin:monitor": "signin:monitor";
     "write:reports": "write:reports";
+    "write:system_state": "write:system_state";
+    "introspect:agent_keys": "introspect:agent_keys";
+    "write:customs": "write:customs";
+    "write:shift_reports": "write:shift_reports";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -2602,6 +2606,10 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "signin:taskindex": "signin:taskindex";
         "signin:monitor": "signin:monitor";
         "write:reports": "write:reports";
+        "write:system_state": "write:system_state";
+        "introspect:agent_keys": "introspect:agent_keys";
+        "write:customs": "write:customs";
+        "write:shift_reports": "write:shift_reports";
     }>>;
     ownContent: z.ZodBoolean;
     captureState: z.ZodEnum<{
@@ -2681,10 +2689,18 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "signin:taskindex": "signin:taskindex";
                 "signin:monitor": "signin:monitor";
                 "write:reports": "write:reports";
+                "write:system_state": "write:system_state";
+                "introspect:agent_keys": "introspect:agent_keys";
+                "write:customs": "write:customs";
+                "write:shift_reports": "write:shift_reports";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
         expiresAt: z.ZodString;
+        agent: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            code: z.ZodString;
+            displayName: z.ZodString;
+        }, z.core.$strict>>>;
     }, z.core.$strict>;
     budgets: z.ZodObject<{
         timezone: z.ZodLiteral<"UTC">;
@@ -2982,6 +2998,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "signin:taskindex": "signin:taskindex";
             "signin:monitor": "signin:monitor";
             "write:reports": "write:reports";
+            "write:system_state": "write:system_state";
+            "introspect:agent_keys": "introspect:agent_keys";
+            "write:customs": "write:customs";
+            "write:shift_reports": "write:shift_reports";
         }>>;
         ownContent: z.ZodBoolean;
         captureState: z.ZodEnum<{
@@ -30474,10 +30494,18 @@ export declare const agentRouteSchemas: {
                             "signin:taskindex": "signin:taskindex";
                             "signin:monitor": "signin:monitor";
                             "write:reports": "write:reports";
+                            "write:system_state": "write:system_state";
+                            "introspect:agent_keys": "introspect:agent_keys";
+                            "write:customs": "write:customs";
+                            "write:shift_reports": "write:shift_reports";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
                     expiresAt: z.ZodString;
+                    agent: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                        code: z.ZodString;
+                        displayName: z.ZodString;
+                    }, z.core.$strict>>>;
                 }, z.core.$strict>;
                 budgets: z.ZodObject<{
                     timezone: z.ZodLiteral<"UTC">;
@@ -30775,6 +30803,10 @@ export declare const agentRouteSchemas: {
                         "signin:taskindex": "signin:taskindex";
                         "signin:monitor": "signin:monitor";
                         "write:reports": "write:reports";
+                        "write:system_state": "write:system_state";
+                        "introspect:agent_keys": "introspect:agent_keys";
+                        "write:customs": "write:customs";
+                        "write:shift_reports": "write:shift_reports";
                     }>>;
                     ownContent: z.ZodBoolean;
                     captureState: z.ZodEnum<{

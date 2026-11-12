@@ -13,7 +13,7 @@ export type KernelOperationKey = keyof Schemas & string;
  * audio/mpeg (dedicated `fetchVoiceNoteAudio` helper). All remain reachable via
  * `client.raw(...)`.
  */
-export declare const SDK_EXCLUDED_OPERATIONS: readonly ["ofapiWebhookReceive", "aiGatewayStream", "adminOfapiCreditsLedgerCsv", "voiceNoteAudio", "pageBrowserLoginScreenshot", "pageBrowserScreen", "pageBrowserProfileLoginScreenshot", "pageBrowserProfileScreen", "chatspaceBrowserScreenOpen", "chatspaceBrowserScreen"];
+export declare const SDK_EXCLUDED_OPERATIONS: readonly ["ofapiWebhookReceive", "aiGatewayStream", "adminOfapiCreditsLedgerCsv", "voiceNoteAudio", "pageBrowserLoginScreenshot", "pageBrowserScreen", "pageBrowserProfileLoginScreenshot", "pageBrowserProfileScreen", "chatspaceBrowserScreenOpen", "chatspaceBrowserScreen", "publicVaultUploadFile"];
 export type KernelSdkExcludedKey = (typeof SDK_EXCLUDED_OPERATIONS)[number];
 export type KernelSdkMethodKey = Exclude<KernelOperationKey, KernelSdkExcludedKey>;
 type InputOf<S> = S extends z.ZodType ? z.input<S> : never;

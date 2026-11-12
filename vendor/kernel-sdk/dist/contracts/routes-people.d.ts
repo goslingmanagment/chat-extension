@@ -1,4 +1,132 @@
 export declare const peopleRouteSchemas: {
+    readonly accountStart: {
+        readonly auth: {
+            readonly kind: "any-session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "«Начало»: the caller's own way from the invitation to the first shift, each step closed by what Hub sees";
+        readonly description: string;
+        readonly response: {
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                person: import("zod").ZodNullable<import("zod").ZodObject<{
+                    code: import("zod").ZodString;
+                    displayName: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                username: import("zod").ZodString;
+                start: import("zod").ZodNullable<import("zod").ZodObject<{
+                    newcomer: import("zod").ZodBoolean;
+                    signedUp: import("zod").ZodBoolean;
+                    steps: import("zod").ZodArray<import("zod").ZodObject<{
+                        step: import("zod").ZodEnum<{
+                            pages: "pages";
+                            install: "install";
+                            extension: "extension";
+                            activity: "activity";
+                            payout: "payout";
+                        }>;
+                        done: import("zod").ZodBoolean;
+                        doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    done: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    current: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        pages: "pages";
+                        install: "install";
+                        extension: "extension";
+                        activity: "activity";
+                        payout: "payout";
+                    }>>;
+                    since: import("zod").ZodNullable<import("zod").ZodString>;
+                    stuck: import("zod").ZodBoolean;
+                    extension: import("zod").ZodNullable<import("zod").ZodObject<{
+                        label: import("zod").ZodString;
+                        signedInAt: import("zod").ZodString;
+                        active: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        modelName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    firstActivity: import("zod").ZodNullable<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        pageLabel: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+                payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
+                    text: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                submitsShift: import("zod").ZodBoolean;
+                serverNow: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly accountPayoutDetailsSet: {
+        readonly auth: {
+            readonly kind: "any-session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Write where the caller's own payouts go (free text; empty clears it)";
+        readonly description: string;
+        readonly body: import("zod").ZodObject<{
+            text: import("zod").ZodString;
+        }, import("zod/v4/core").$strict>;
+        readonly response: {
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
+                    text: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
     readonly teamPeople: {
         readonly auth: {
             readonly kind: "session";
@@ -66,6 +194,7 @@ export declare const peopleRouteSchemas: {
                             disabled: "disabled";
                             invited: "invited";
                         }>;
+                        lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     agentKeys: import("zod").ZodArray<import("zod").ZodObject<{
                         agentKeyId: import("zod").ZodNumber;
@@ -131,6 +260,9 @@ export declare const peopleRouteSchemas: {
                     rights: import("zod").ZodArray<import("zod").ZodObject<{
                         right: import("zod").ZodEnum<{
                             customs_lead: "customs_lead";
+                            records_customs: "records_customs";
+                            submits_shift: "submits_shift";
+                            sees_own_pay: "sees_own_pay";
                         }>;
                         grantedAt: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
@@ -143,6 +275,7 @@ export declare const peopleRouteSchemas: {
                     importNotes: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodString;
                         text: import("zod").ZodString;
+                        settledAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
@@ -167,6 +300,7 @@ export declare const peopleRouteSchemas: {
                         disabled: "disabled";
                         invited: "invited";
                     }>;
+                    lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
                 }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
@@ -262,6 +396,7 @@ export declare const peopleRouteSchemas: {
                             disabled: "disabled";
                             invited: "invited";
                         }>;
+                        lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     agentKeys: import("zod").ZodArray<import("zod").ZodObject<{
                         agentKeyId: import("zod").ZodNumber;
@@ -327,6 +462,9 @@ export declare const peopleRouteSchemas: {
                     rights: import("zod").ZodArray<import("zod").ZodObject<{
                         right: import("zod").ZodEnum<{
                             customs_lead: "customs_lead";
+                            records_customs: "records_customs";
+                            submits_shift: "submits_shift";
+                            sees_own_pay: "sees_own_pay";
                         }>;
                         grantedAt: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
@@ -339,6 +477,7 @@ export declare const peopleRouteSchemas: {
                     importNotes: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodString;
                         text: import("zod").ZodString;
+                        settledAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
@@ -403,6 +542,54 @@ export declare const peopleRouteSchemas: {
                     decidedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     decisionNote: import("zod").ZodNullable<import("zod").ZodString>;
                 }, import("zod/v4/core").$strip>>;
+                start: import("zod").ZodNullable<import("zod").ZodObject<{
+                    newcomer: import("zod").ZodBoolean;
+                    signedUp: import("zod").ZodBoolean;
+                    steps: import("zod").ZodArray<import("zod").ZodObject<{
+                        step: import("zod").ZodEnum<{
+                            pages: "pages";
+                            install: "install";
+                            extension: "extension";
+                            activity: "activity";
+                            payout: "payout";
+                        }>;
+                        done: import("zod").ZodBoolean;
+                        doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    done: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    current: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        pages: "pages";
+                        install: "install";
+                        extension: "extension";
+                        activity: "activity";
+                        payout: "payout";
+                    }>>;
+                    since: import("zod").ZodNullable<import("zod").ZodString>;
+                    stuck: import("zod").ZodBoolean;
+                    extension: import("zod").ZodNullable<import("zod").ZodObject<{
+                        label: import("zod").ZodString;
+                        signedInAt: import("zod").ZodString;
+                        active: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        modelName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    firstActivity: import("zod").ZodNullable<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        pageLabel: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+                payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
+                    text: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };
@@ -412,7 +599,7 @@ export declare const peopleRouteSchemas: {
             readonly kind: "owner-session";
         };
         readonly tags: readonly ["admin"];
-        readonly summary: "Create a person, and with `invite` their login and invite link in the same transaction";
+        readonly summary: "Create a person, and with `invite` their login and invite link, with `payTerms` their pay terms, in the same transaction";
         readonly description: string;
         readonly body: import("zod").ZodObject<{
             state: import("zod").ZodOptional<import("zod").ZodEnum<{
@@ -447,6 +634,9 @@ export declare const peopleRouteSchemas: {
             }, import("zod/v4/core").$strip>>;
             rights: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodEnum<{
                 customs_lead: "customs_lead";
+                records_customs: "records_customs";
+                submits_shift: "submits_shift";
+                sees_own_pay: "sees_own_pay";
             }>>>;
             onboarding: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
                 step: import("zod").ZodString;
@@ -471,6 +661,13 @@ export declare const peopleRouteSchemas: {
                 pageLabels: import("zod").ZodArray<import("zod").ZodString>;
                 expiresInHours: import("zod").ZodOptional<import("zod").ZodNumber>;
             }, import("zod/v4/core").$strip>>;
+            payTerms: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
+                modelSlug: import("zod").ZodString;
+                validFrom: import("zod").ZodString;
+                shareBasisPoints: import("zod").ZodNumber;
+                fixPerShiftMills: import("zod").ZodNumber;
+                note: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
+            }, import("zod/v4/core").$strip>>>;
             displayName: import("zod").ZodString;
             role: import("zod").ZodEnum<{
                 owner: "owner";
@@ -569,6 +766,7 @@ export declare const peopleRouteSchemas: {
                             disabled: "disabled";
                             invited: "invited";
                         }>;
+                        lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     agentKeys: import("zod").ZodArray<import("zod").ZodObject<{
                         agentKeyId: import("zod").ZodNumber;
@@ -634,6 +832,9 @@ export declare const peopleRouteSchemas: {
                     rights: import("zod").ZodArray<import("zod").ZodObject<{
                         right: import("zod").ZodEnum<{
                             customs_lead: "customs_lead";
+                            records_customs: "records_customs";
+                            submits_shift: "submits_shift";
+                            sees_own_pay: "sees_own_pay";
                         }>;
                         grantedAt: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
@@ -646,6 +847,7 @@ export declare const peopleRouteSchemas: {
                     importNotes: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodString;
                         text: import("zod").ZodString;
+                        settledAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
@@ -709,6 +911,54 @@ export declare const peopleRouteSchemas: {
                     createdAt: import("zod").ZodString;
                     decidedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     decisionNote: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                start: import("zod").ZodNullable<import("zod").ZodObject<{
+                    newcomer: import("zod").ZodBoolean;
+                    signedUp: import("zod").ZodBoolean;
+                    steps: import("zod").ZodArray<import("zod").ZodObject<{
+                        step: import("zod").ZodEnum<{
+                            pages: "pages";
+                            install: "install";
+                            extension: "extension";
+                            activity: "activity";
+                            payout: "payout";
+                        }>;
+                        done: import("zod").ZodBoolean;
+                        doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    done: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    current: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        pages: "pages";
+                        install: "install";
+                        extension: "extension";
+                        activity: "activity";
+                        payout: "payout";
+                    }>>;
+                    since: import("zod").ZodNullable<import("zod").ZodString>;
+                    stuck: import("zod").ZodBoolean;
+                    extension: import("zod").ZodNullable<import("zod").ZodObject<{
+                        label: import("zod").ZodString;
+                        signedInAt: import("zod").ZodString;
+                        active: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        modelName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    firstActivity: import("zod").ZodNullable<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        pageLabel: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+                payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
+                    text: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
                 invite: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -777,6 +1027,9 @@ export declare const peopleRouteSchemas: {
             }, import("zod/v4/core").$strip>>;
             rights: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodEnum<{
                 customs_lead: "customs_lead";
+                records_customs: "records_customs";
+                submits_shift: "submits_shift";
+                sees_own_pay: "sees_own_pay";
             }>>>;
             onboarding: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
                 step: import("zod").ZodString;
@@ -874,6 +1127,7 @@ export declare const peopleRouteSchemas: {
                             disabled: "disabled";
                             invited: "invited";
                         }>;
+                        lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     agentKeys: import("zod").ZodArray<import("zod").ZodObject<{
                         agentKeyId: import("zod").ZodNumber;
@@ -939,6 +1193,9 @@ export declare const peopleRouteSchemas: {
                     rights: import("zod").ZodArray<import("zod").ZodObject<{
                         right: import("zod").ZodEnum<{
                             customs_lead: "customs_lead";
+                            records_customs: "records_customs";
+                            submits_shift: "submits_shift";
+                            sees_own_pay: "sees_own_pay";
                         }>;
                         grantedAt: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
@@ -951,6 +1208,7 @@ export declare const peopleRouteSchemas: {
                     importNotes: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodString;
                         text: import("zod").ZodString;
+                        settledAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
@@ -1014,6 +1272,54 @@ export declare const peopleRouteSchemas: {
                     createdAt: import("zod").ZodString;
                     decidedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     decisionNote: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                start: import("zod").ZodNullable<import("zod").ZodObject<{
+                    newcomer: import("zod").ZodBoolean;
+                    signedUp: import("zod").ZodBoolean;
+                    steps: import("zod").ZodArray<import("zod").ZodObject<{
+                        step: import("zod").ZodEnum<{
+                            pages: "pages";
+                            install: "install";
+                            extension: "extension";
+                            activity: "activity";
+                            payout: "payout";
+                        }>;
+                        done: import("zod").ZodBoolean;
+                        doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    done: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    current: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        pages: "pages";
+                        install: "install";
+                        extension: "extension";
+                        activity: "activity";
+                        payout: "payout";
+                    }>>;
+                    since: import("zod").ZodNullable<import("zod").ZodString>;
+                    stuck: import("zod").ZodBoolean;
+                    extension: import("zod").ZodNullable<import("zod").ZodObject<{
+                        label: import("zod").ZodString;
+                        signedInAt: import("zod").ZodString;
+                        active: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        modelName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    firstActivity: import("zod").ZodNullable<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        pageLabel: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+                payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
+                    text: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
@@ -1117,6 +1423,7 @@ export declare const peopleRouteSchemas: {
                             disabled: "disabled";
                             invited: "invited";
                         }>;
+                        lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     agentKeys: import("zod").ZodArray<import("zod").ZodObject<{
                         agentKeyId: import("zod").ZodNumber;
@@ -1182,6 +1489,9 @@ export declare const peopleRouteSchemas: {
                     rights: import("zod").ZodArray<import("zod").ZodObject<{
                         right: import("zod").ZodEnum<{
                             customs_lead: "customs_lead";
+                            records_customs: "records_customs";
+                            submits_shift: "submits_shift";
+                            sees_own_pay: "sees_own_pay";
                         }>;
                         grantedAt: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
@@ -1194,6 +1504,7 @@ export declare const peopleRouteSchemas: {
                     importNotes: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodString;
                         text: import("zod").ZodString;
+                        settledAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
@@ -1257,6 +1568,348 @@ export declare const peopleRouteSchemas: {
                     createdAt: import("zod").ZodString;
                     decidedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     decisionNote: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                start: import("zod").ZodNullable<import("zod").ZodObject<{
+                    newcomer: import("zod").ZodBoolean;
+                    signedUp: import("zod").ZodBoolean;
+                    steps: import("zod").ZodArray<import("zod").ZodObject<{
+                        step: import("zod").ZodEnum<{
+                            pages: "pages";
+                            install: "install";
+                            extension: "extension";
+                            activity: "activity";
+                            payout: "payout";
+                        }>;
+                        done: import("zod").ZodBoolean;
+                        doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    done: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    current: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        pages: "pages";
+                        install: "install";
+                        extension: "extension";
+                        activity: "activity";
+                        payout: "payout";
+                    }>>;
+                    since: import("zod").ZodNullable<import("zod").ZodString>;
+                    stuck: import("zod").ZodBoolean;
+                    extension: import("zod").ZodNullable<import("zod").ZodObject<{
+                        label: import("zod").ZodString;
+                        signedInAt: import("zod").ZodString;
+                        active: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        modelName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    firstActivity: import("zod").ZodNullable<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        pageLabel: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+                payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
+                    text: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                serverNow: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly adminPersonImportNoteSettle: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Mark one of a person's import notes «Сверено» (or take it back): the owner looked into the disagreement";
+        readonly description: "The note is named by its place in the list and its code; 409 when they no longer match. Audited.";
+        readonly params: import("zod").ZodObject<{
+            code: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+        readonly body: import("zod").ZodObject<{
+            index: import("zod").ZodNumber;
+            code: import("zod").ZodString;
+            settled: import("zod").ZodBoolean;
+        }, import("zod/v4/core").$strip>;
+        readonly response: {
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                person: import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    code: import("zod").ZodString;
+                    displayName: import("zod").ZodString;
+                    kind: import("zod").ZodEnum<{
+                        human: "human";
+                        agent: "agent";
+                        service: "service";
+                    }>;
+                    role: import("zod").ZodEnum<{
+                        owner: "owner";
+                        team_lead: "team_lead";
+                        chatter: "chatter";
+                        agent: "agent";
+                        contractor: "contractor";
+                        service: "service";
+                        content_manager: "content_manager";
+                    }>;
+                    state: import("zod").ZodEnum<{
+                        left: "left";
+                        invited: "invited";
+                        set_up: "set_up";
+                        working: "working";
+                    }>;
+                    leftOn: import("zod").ZodNullable<import("zod").ZodString>;
+                    telegram: import("zod").ZodObject<{
+                        userId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        handle: import("zod").ZodNullable<import("zod").ZodString>;
+                        reportTag: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>;
+                    logins: import("zod").ZodArray<import("zod").ZodObject<{
+                        userId: import("zod").ZodNumber;
+                        username: import("zod").ZodString;
+                        role: import("zod").ZodEnum<{
+                            owner: "owner";
+                            team_lead: "team_lead";
+                            chatter: "chatter";
+                        }>;
+                        state: import("zod").ZodEnum<{
+                            active: "active";
+                            deleted: "deleted";
+                            disabled: "disabled";
+                            invited: "invited";
+                        }>;
+                        lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    agentKeys: import("zod").ZodArray<import("zod").ZodObject<{
+                        agentKeyId: import("zod").ZodNumber;
+                        name: import("zod").ZodString;
+                        state: import("zod").ZodEnum<{
+                            active: "active";
+                            expired: "expired";
+                            revoked: "revoked";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
+                    workingPages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        modelSlug: import("zod").ZodString;
+                        modelName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    schedule: import("zod").ZodNullable<import("zod").ZodObject<{
+                        id: import("zod").ZodNumber;
+                        personId: import("zod").ZodNumber;
+                        pageId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
+                        startMinute: import("zod").ZodNumber;
+                        endMinute: import("zod").ZodNumber;
+                        start: import("zod").ZodString;
+                        end: import("zod").ZodString;
+                        weekdays: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodEnum<{
+                            mon: "mon";
+                            tue: "tue";
+                            wed: "wed";
+                            thu: "thu";
+                            fri: "fri";
+                            sat: "sat";
+                            sun: "sun";
+                        }>>>;
+                        validFrom: import("zod").ZodNullable<import("zod").ZodString>;
+                        validTo: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    pageSchedules: import("zod").ZodArray<import("zod").ZodObject<{
+                        id: import("zod").ZodNumber;
+                        personId: import("zod").ZodNumber;
+                        pageId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
+                        startMinute: import("zod").ZodNumber;
+                        endMinute: import("zod").ZodNumber;
+                        start: import("zod").ZodString;
+                        end: import("zod").ZodString;
+                        weekdays: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodEnum<{
+                            mon: "mon";
+                            tue: "tue";
+                            wed: "wed";
+                            thu: "thu";
+                            fri: "fri";
+                            sat: "sat";
+                            sun: "sun";
+                        }>>>;
+                        validFrom: import("zod").ZodNullable<import("zod").ZodString>;
+                        validTo: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    rights: import("zod").ZodArray<import("zod").ZodObject<{
+                        right: import("zod").ZodEnum<{
+                            customs_lead: "customs_lead";
+                            records_customs: "records_customs";
+                            submits_shift: "submits_shift";
+                            sees_own_pay: "sees_own_pay";
+                        }>;
+                        grantedAt: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    onboarding: import("zod").ZodArray<import("zod").ZodObject<{
+                        step: import("zod").ZodString;
+                        doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                        note: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    note: import("zod").ZodNullable<import("zod").ZodString>;
+                    importNotes: import("zod").ZodArray<import("zod").ZodObject<{
+                        code: import("zod").ZodString;
+                        text: import("zod").ZodString;
+                        settledAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    origin: import("zod").ZodEnum<{
+                        owner: "owner";
+                        import: "import";
+                        proposal: "proposal";
+                    }>;
+                    openProposals: import("zod").ZodNumber;
+                    createdAt: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                scheduleSlots: import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    personId: import("zod").ZodNumber;
+                    pageId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
+                    startMinute: import("zod").ZodNumber;
+                    endMinute: import("zod").ZodNumber;
+                    start: import("zod").ZodString;
+                    end: import("zod").ZodString;
+                    weekdays: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodEnum<{
+                        mon: "mon";
+                        tue: "tue";
+                        wed: "wed";
+                        thu: "thu";
+                        fri: "fri";
+                        sat: "sat";
+                        sun: "sun";
+                    }>>>;
+                    validFrom: import("zod").ZodNullable<import("zod").ZodString>;
+                    validTo: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                payTerms: import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    modelSlug: import("zod").ZodString;
+                    modelName: import("zod").ZodString;
+                    validFrom: import("zod").ZodString;
+                    validTo: import("zod").ZodNullable<import("zod").ZodString>;
+                    shareBasisPoints: import("zod").ZodNumber;
+                    fixPerShiftMills: import("zod").ZodNumber;
+                    note: import("zod").ZodNullable<import("zod").ZodString>;
+                    updatedAt: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                proposals: import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    kind: import("zod").ZodEnum<{
+                        update: "update";
+                        create: "create";
+                    }>;
+                    personCode: import("zod").ZodString;
+                    change: import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>;
+                    reason: import("zod").ZodString;
+                    requestedBy: import("zod").ZodNullable<import("zod").ZodString>;
+                    sourceRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    agentKeyName: import("zod").ZodString;
+                    state: import("zod").ZodEnum<{
+                        rejected: "rejected";
+                        withdrawn: "withdrawn";
+                        open: "open";
+                        accepted: "accepted";
+                    }>;
+                    createdAt: import("zod").ZodString;
+                    decidedAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    decisionNote: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                start: import("zod").ZodNullable<import("zod").ZodObject<{
+                    newcomer: import("zod").ZodBoolean;
+                    signedUp: import("zod").ZodBoolean;
+                    steps: import("zod").ZodArray<import("zod").ZodObject<{
+                        step: import("zod").ZodEnum<{
+                            pages: "pages";
+                            install: "install";
+                            extension: "extension";
+                            activity: "activity";
+                            payout: "payout";
+                        }>;
+                        done: import("zod").ZodBoolean;
+                        doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                    done: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    current: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        pages: "pages";
+                        install: "install";
+                        extension: "extension";
+                        activity: "activity";
+                        payout: "payout";
+                    }>>;
+                    since: import("zod").ZodNullable<import("zod").ZodString>;
+                    stuck: import("zod").ZodBoolean;
+                    extension: import("zod").ZodNullable<import("zod").ZodObject<{
+                        label: import("zod").ZodString;
+                        signedInAt: import("zod").ZodString;
+                        active: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                            telegram: "telegram";
+                        }>;
+                        modelName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    firstActivity: import("zod").ZodNullable<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        pageLabel: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+                payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
+                    text: import("zod").ZodString;
+                    updatedAt: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
@@ -1458,6 +2111,7 @@ export declare const peopleRouteSchemas: {
                             disabled: "disabled";
                             invited: "invited";
                         }>;
+                        lastSeenAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     agentKeys: import("zod").ZodArray<import("zod").ZodObject<{
                         agentKeyId: import("zod").ZodNumber;
@@ -1523,6 +2177,9 @@ export declare const peopleRouteSchemas: {
                     rights: import("zod").ZodArray<import("zod").ZodObject<{
                         right: import("zod").ZodEnum<{
                             customs_lead: "customs_lead";
+                            records_customs: "records_customs";
+                            submits_shift: "submits_shift";
+                            sees_own_pay: "sees_own_pay";
                         }>;
                         grantedAt: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
@@ -1535,6 +2192,7 @@ export declare const peopleRouteSchemas: {
                     importNotes: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodString;
                         text: import("zod").ZodString;
+                        settledAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
@@ -1689,6 +2347,9 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     rights: import("zod").ZodArray<import("zod").ZodEnum<{
                         customs_lead: "customs_lead";
+                        records_customs: "records_customs";
+                        submits_shift: "submits_shift";
+                        sees_own_pay: "sees_own_pay";
                     }>>;
                     updatedAt: import("zod").ZodString;
                     payTerms: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
@@ -1762,6 +2423,9 @@ export declare const peopleRouteSchemas: {
                 }, import("zod/v4/core").$strip>>;
                 rights: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodEnum<{
                     customs_lead: "customs_lead";
+                    records_customs: "records_customs";
+                    submits_shift: "submits_shift";
+                    sees_own_pay: "sees_own_pay";
                 }>>>;
                 onboarding: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
                     step: import("zod").ZodString;
@@ -1817,6 +2481,15 @@ export declare const peopleRouteSchemas: {
                     service: "service";
                     content_manager: "content_manager";
                 }>;
+                leftOn: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
+                logins: import("zod").ZodOptional<import("zod").ZodObject<{
+                    add: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
+                    remove: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
+                }, import("zod/v4/core").$strip>>;
+                agentKeys: import("zod").ZodOptional<import("zod").ZodObject<{
+                    add: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
+                    remove: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
+                }, import("zod/v4/core").$strip>>;
                 schedule: import("zod").ZodOptional<import("zod").ZodObject<{
                     pageLabel: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
                     from: import("zod").ZodNullable<import("zod").ZodString>;
@@ -1834,17 +2507,11 @@ export declare const peopleRouteSchemas: {
                         }>>>>;
                     }, import("zod/v4/core").$strip>>;
                 }, import("zod/v4/core").$strip>>;
-                leftOn: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
-                logins: import("zod").ZodOptional<import("zod").ZodObject<{
-                    add: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
-                    remove: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
-                }, import("zod/v4/core").$strip>>;
-                agentKeys: import("zod").ZodOptional<import("zod").ZodObject<{
-                    add: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
-                    remove: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
-                }, import("zod/v4/core").$strip>>;
                 rights: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodEnum<{
                     customs_lead: "customs_lead";
+                    records_customs: "records_customs";
+                    submits_shift: "submits_shift";
+                    sees_own_pay: "sees_own_pay";
                 }>>>;
                 workingPageLabels: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodString>>;
             }, import("zod/v4/core").$strip>;

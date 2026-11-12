@@ -2173,6 +2173,7 @@ export declare const clientActivityBodySchema: z.ZodObject<{
 }, z.core.$strict>;
 export declare const clientActivityResponseSchema: z.ZodObject<{
     recorded: z.ZodNumber;
+    matters: z.ZodOptional<z.ZodNumber>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 /** How often the server's tab reports. */
@@ -5031,6 +5032,7 @@ export declare const clientRouteSchemas: {
         readonly response: {
             readonly 200: z.ZodObject<{
                 recorded: z.ZodNumber;
+                matters: z.ZodOptional<z.ZodNumber>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{

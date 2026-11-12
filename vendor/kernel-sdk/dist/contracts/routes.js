@@ -11,6 +11,7 @@ import { ofLinksRouteSchemas } from "./routes-of-links";
 import { pageBrowserRouteSchemas } from "./routes-page-browser";
 import { publicationRouteSchemas } from "./routes-publications";
 import { mediaLookRouteSchemas } from "./routes-media-looks";
+import { agentDoorRouteSchemas } from "./agent-doors";
 import { agentTeamRouteSchemas } from "./agent-team";
 import { fanQueueRouteSchemas } from "./routes-fan-queues";
 import { outreachRouteSchemas } from "./routes-outreach";
@@ -24,10 +25,15 @@ import { shiftReviewRouteSchemas } from "./routes-shift-review";
 import { teamLedgerRouteSchemas } from "./routes-team-ledger";
 import { matterRouteSchemas } from "./routes-matters";
 import { agentReportRouteSchemas } from "./routes-agent-reports";
+import { accountPayRouteSchemas } from "./routes-account-pay";
+import { customOrderRouteSchemas } from "./routes-custom-orders";
 import { accountReportsRouteSchemas } from "./routes-account-reports";
 import { peopleRouteSchemas } from "./routes-people";
+import { shiftHandinRouteSchemas } from "./routes-shift-handins";
 // One sign-in across the names Hub serves: the one-time code between names (ecosystem plan §3.2).
 import { signinRouteSchemas } from "./routes-signin";
+// Система → «Состояние»: every routine and copy, from the owner's place (ecosystem plan, package P).
+import { systemStateRouteSchemas } from "./routes-system-state";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
@@ -38,7 +44,7 @@ import { agentExportPolicyEnum, agentRouteSchemas, agentSyncWaitingReasonEnum } 
 // Owner administration of the plane's KEYS. A sibling module rather than part of
 // the read plane: issuing a credential carries no evidence envelope, and folding
 // it into agentRouteSchemas would have meant loosening that module's pins.
-import { agentKeyAdminRouteSchemas } from "./routes-agent-keys";
+import { agentKeyAdminRouteSchemas, agentKeyIntrospectRouteSchemas } from "./routes-agent-keys";
 // The Fansly Sync Engine's owner routes (history requests). Owner-session, no
 // agent envelope, so a sibling module for the same reason as the keys above.
 import { syncRouteSchemas } from "./routes-sync";
@@ -6577,11 +6583,7 @@ const baseRouteSchemas = {
     ...aiOpenerRouteSchemas,
     ...shiftReviewRouteSchemas,
     ...teamLedgerRouteSchemas,
-    ...matterRouteSchemas,
-    ...agentReportRouteSchemas,
     ...accountReportsRouteSchemas,
-    ...peopleRouteSchemas,
-    ...signinRouteSchemas,
     adminAiPersonasList: {
         auth: { kind: "owner-session" },
         tags: ["admin"],
@@ -7719,4 +7721,14 @@ export const routeSchemas = {
     ...agentKeyAdminRouteSchemas,
     ...syncRouteSchemas,
     ...clientRouteSchemas,
+    ...agentDoorRouteSchemas,
+    ...agentKeyIntrospectRouteSchemas,
+    ...matterRouteSchemas,
+    ...agentReportRouteSchemas,
+    ...accountPayRouteSchemas,
+    ...peopleRouteSchemas,
+    ...signinRouteSchemas,
+    ...systemStateRouteSchemas,
+    ...customOrderRouteSchemas,
+    ...shiftHandinRouteSchemas,
 };

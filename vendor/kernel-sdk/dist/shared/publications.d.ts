@@ -4,12 +4,12 @@ export type PublicationKind = (typeof PUBLICATION_KINDS)[number];
  *  these; none named, everyone. Followers are the model's followers. */
 export declare const PUBLICATION_REPLY_LOCKS: readonly ["followers", "subscribers"];
 export type PublicationReplyLock = (typeof PUBLICATION_REPLY_LOCKS)[number];
-/** What each platform can publish: OnlyFans has no FYP (spec §6); a vault
- *  album is Fansly's (0323): its text is the album's title, its files the
- *  album as it should be, in order. */
+/** What each platform can publish: OnlyFans has no FYP (spec §6). A vault
+ *  album (Fansly 0323, OnlyFans 8-docs 2026-11-12-of-vault-album): its text is
+ *  the album's title, its files the album as it should be, in order. */
 export declare const PUBLICATION_PLATFORM_KINDS: {
     readonly fansly: readonly ["fyp_post", "subscriber_post", "paid_post", "story", "vault_album"];
-    readonly onlyfans: readonly ["subscriber_post", "paid_post", "story"];
+    readonly onlyfans: readonly ["subscriber_post", "paid_post", "story", "vault_album"];
 };
 /** spec §4, in the order a publication lives through them. */
 export declare const PUBLICATION_STATUSES: readonly ["draft", "approved", "submitting", "scheduled", "processing", "published", "not_published", "rejected", "unknown", "missed", "withdrawn", "cancelled"];

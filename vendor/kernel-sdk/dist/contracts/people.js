@@ -1,5 +1,6 @@
 import { userRoles } from "../shared/index";
 import { z } from "zod";
+import { payoutDetailsSchema, personStartSchema } from "./person-start";
 import { businessDate, intId, isoDateTime, isoTimestamp, mills, platformEnum } from "./primitives";
 /**
  * The people registry (ecosystem plan 2026-11-12, package A), in shadow: one
@@ -29,8 +30,14 @@ export const PERSON_KINDS = ["human", "agent", "service"];
 export const PERSON_ROLES = ["owner", "team_lead", "chatter", "content_manager", "contractor", "agent", "service"];
 /** invited → set_up (оформлен) → working → left. */
 export const PERSON_STATES = ["invited", "set_up", "working", "left"];
-/** Narrow rights beside the role. customs_lead — «ведёт кастомы». */
-export const PERSON_RIGHTS = ["customs_lead"];
+/**
+ * Narrow rights beside the role. customs_lead — «ведёт кастомы»; records_customs — «записывает кастомы в
+ * системе»: the person gets the custom checks' matters (an unrecorded custom, «отдайте фану»), off by default;
+ * submits_shift — «сдаёт смену в системе»: the person's switch of the shift report in Hub (ecosystem package F;
+ * off — «Мои смены» as before); sees_own_pay — «видит свои деньги»: the person's switch of «Мои деньги» on «Мои
+ * смены» (ecosystem package H1; off — the screen as before). Never anyone's rates.
+ */
+export const PERSON_RIGHTS = ["customs_lead", "records_customs", "submits_shift", "sees_own_pay"];
 export const PERSON_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 /** Where a record came from: the owner's screen, the one-off import, an agent's accepted proposal. */
 export const PERSON_ORIGINS = ["owner", "import", "proposal"];
@@ -90,6 +97,8 @@ export const personLoginSchema = z.object({
     role: loginRoleEnum,
     /** active — signs in; invited — the invite link is not used yet; disabled; deleted. */
     state: z.enum(["active", "invited", "disabled", "deleted"]),
+    /** The login's latest use: a device sign-in (the extension, the app) or a web session, whichever is later; null — never. */
+    lastSeenAt: isoTimestamp.nullable(),
 });
 export const personAgentKeySchema = z.object({
     agentKeyId: intId,
@@ -117,6 +126,8 @@ export const personImportNoteSchema = z.object({
     code: z.string(),
     /** It in words, for the owner. */
     text: z.string(),
+    /** When the owner marked it «Сверено» (looked into, nothing more to do); null — not yet. */
+    settledAt: isoTimestamp.nullable(),
 });
 export const personTelegramSchema = z.object({
     userId: z.number().int().positive().nullable(),
@@ -221,6 +232,13 @@ export const personInviteInputSchema = z.object({
     pageLabels: z.array(z.string().min(1)).max(100),
     expiresInHours: z.number().int().min(1).max(720).optional(),
 });
+export const adminPersonPayTermBodySchema = z.object({
+    modelSlug: z.string().min(1),
+    validFrom: businessDate,
+    shareBasisPoints: z.number().int().min(0).max(10_000),
+    fixPerShiftMills: mills.min(0).max(Number.MAX_SAFE_INTEGER),
+    note: z.string().trim().max(500).nullable().optional(),
+});
 export const adminPersonCreateBodySchema = z.object({
     code: personCodeSchema,
     kind: personKindEnum.optional(),
@@ -237,6 +255,8 @@ export const adminPersonCreateBodySchema = z.object({
     agentKeys: personFields.agentKeys.optional(),
     /** Invite a login for the person in the same transaction (a human only). */
     invite: personInviteInputSchema.optional(),
+    /** Pay terms set in the same transaction (a human only; one per model). Money: the owner's only — never in a proposal. */
+    payTerms: z.array(adminPersonPayTermBodySchema).max(20).optional(),
 });
 export const adminPersonUpdateBodySchema = z.object({
     displayName: personFields.displayName.optional(),
@@ -252,12 +272,11 @@ export const adminPersonUpdateBodySchema = z.object({
     logins: personFields.logins.optional(),
     agentKeys: personFields.agentKeys.optional(),
 }).refine((body) => Object.values(body).some((value) => value !== undefined), "nothing to change");
-export const adminPersonPayTermBodySchema = z.object({
-    modelSlug: z.string().min(1),
-    validFrom: businessDate,
-    shareBasisPoints: z.number().int().min(0).max(10_000),
-    fixPerShiftMills: mills.min(0).max(Number.MAX_SAFE_INTEGER),
-    note: z.string().trim().max(500).nullable().optional(),
+/** «Сверено» on one import note of a person (or taken back): the note by its place in the list and its code. */
+export const adminPersonImportNoteSettleBodySchema = z.object({
+    index: z.number().int().min(0).max(1_000),
+    code: z.string().min(1).max(100),
+    settled: z.boolean(),
 });
 // ── agents' proposals ────────────────────────────────────────────────────────
 const proposalWords = {
@@ -269,8 +288,8 @@ const proposalWords = {
     sourceRef: z.string().trim().min(1).max(500).optional(),
 };
 const proposalUpdate = z.object({ kind: z.literal("update"), personCode: personCodeSchema, change: adminPersonUpdateBodySchema });
-const proposalCreate = z.object({ kind: z.literal("create"), person: adminPersonCreateBodySchema.omit({ invite: true }) });
-/** What a proposal changes: the owner's edit of an existing person, or a new person (never an invitation). */
+const proposalCreate = z.object({ kind: z.literal("create"), person: adminPersonCreateBodySchema.omit({ invite: true, payTerms: true }) });
+/** What a proposal changes: the owner's edit of an existing person, or a new person (never an invitation, never pay terms). */
 export const personProposalChangeSchema = z.discriminatedUnion("kind", [proposalUpdate, proposalCreate]);
 export const agentPersonProposalBodySchema = z.discriminatedUnion("kind", [
     proposalUpdate.extend(proposalWords),
@@ -317,6 +336,10 @@ export const adminPersonResponseSchema = z.object({
     payTerms: z.array(personPayTermSchema),
     /** The person's proposals, newest first. */
     proposals: z.array(personProposalSchema),
+    /** «Ввод»: the newcomer's way to the first shift as Hub sees it (person-start.ts); null — no login, not a human. */
+    start: personStartSchema.nullable(),
+    /** Where the person's payouts go, as they wrote it on «Начало». Money-adjacent: the owner's card only. */
+    payoutDetails: payoutDetailsSchema,
     serverNow: isoTimestamp,
 });
 export const adminPersonCreateResponseSchema = adminPersonResponseSchema.extend({

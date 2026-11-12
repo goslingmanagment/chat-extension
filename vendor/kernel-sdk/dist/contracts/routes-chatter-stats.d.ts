@@ -190,6 +190,7 @@ export declare const chatterStatsRouteSchemas: {
                     streakDays: import("zod").ZodNumber;
                     longestStreakDays: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>;
+                ruleFrom: import("zod").ZodOptional<import("zod").ZodString>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };
@@ -391,6 +392,7 @@ export declare const chatterStatsRouteSchemas: {
                         streakDays: import("zod").ZodNumber;
                         longestStreakDays: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>;
+                    ruleFrom: import("zod").ZodOptional<import("zod").ZodString>;
                     serverNow: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
@@ -510,14 +512,18 @@ export declare const chatterStatsRouteSchemas: {
                     sales: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 outside: import("zod").ZodObject<{
-                    visitsNetMills: import("zod").ZodNumber;
-                    nobodyNetMills: import("zod").ZodNumber;
                     daily: import("zod").ZodArray<import("zod").ZodObject<{
+                        potNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
+                        waitingNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
+                        decideNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         date: import("zod").ZodString;
                         visitsNetMills: import("zod").ZodNumber;
                         nobodyNetMills: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>>;
                     pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        potNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
+                        waitingNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
+                        decideNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
                         pageLabel: import("zod").ZodString;
                         visitsNetMills: import("zod").ZodNumber;
                         nobodyNetMills: import("zod").ZodNumber;
@@ -534,8 +540,21 @@ export declare const chatterStatsRouteSchemas: {
                         }>;
                         netMills: import("zod").ZodNumber;
                         visitBy: import("zod").ZodNullable<import("zod").ZodString>;
+                        home: import("zod").ZodOptional<import("zod").ZodEnum<{
+                            waiting: "waiting";
+                            visit: "visit";
+                            pot: "pot";
+                            decide: "decide";
+                            nobody: "nobody";
+                        }>>;
                     }, import("zod/v4/core").$strip>>;
+                    potNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
+                    waitingNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
+                    decideNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;
+                    visitsNetMills: import("zod").ZodNumber;
+                    nobodyNetMills: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>;
+                ruleFrom: import("zod").ZodOptional<import("zod").ZodString>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };

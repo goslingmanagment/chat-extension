@@ -1,3 +1,4 @@
+import { z } from "zod";
 export declare const publicationFileRouteSchemas: {
     readonly adminPublicationFileUpload: {
         readonly auth: {
@@ -5,88 +6,88 @@ export declare const publicationFileRouteSchemas: {
         };
         readonly tags: readonly ["admin"];
         readonly summary: string;
-        readonly querystring: import("zod").ZodObject<{
-            modelSlug: import("zod").ZodOptional<import("zod").ZodString>;
-            modelId: import("zod").ZodOptional<import("zod").ZodCoercedNumber<unknown>>;
-            pageLabel: import("zod").ZodOptional<import("zod").ZodString>;
-            name: import("zod").ZodOptional<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+        readonly querystring: z.ZodObject<{
+            modelSlug: z.ZodOptional<z.ZodString>;
+            modelId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+            pageLabel: z.ZodOptional<z.ZodString>;
+            name: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
         readonly response: {
-            readonly 409: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 413: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 415: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 507: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 400: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 401: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 403: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 404: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 200: import("zod").ZodObject<{
-                file: import("zod").ZodObject<{
-                    id: import("zod").ZodNumber;
-                    modelId: import("zod").ZodNumber;
-                    modelSlug: import("zod").ZodString;
-                    sha256: import("zod").ZodString;
-                    byteSize: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    mimeType: import("zod").ZodNullable<import("zod").ZodString>;
-                    originalName: import("zod").ZodNullable<import("zod").ZodString>;
-                    createdByUserId: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    createdAt: import("zod").ZodString;
-                    storedAt: import("zod").ZodString;
-                    stored: import("zod").ZodBoolean;
-                    bytesDeletedAt: import("zod").ZodNullable<import("zod").ZodString>;
-                    retainUntil: import("zod").ZodNullable<import("zod").ZodString>;
-                    uses: import("zod").ZodArray<import("zod").ZodObject<{
-                        publicationId: import("zod").ZodNumber;
-                        pageLabel: import("zod").ZodString;
-                        status: import("zod").ZodEnum<{
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 413: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 415: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 507: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                file: z.ZodObject<{
+                    id: z.ZodNumber;
+                    modelId: z.ZodNumber;
+                    modelSlug: z.ZodString;
+                    sha256: z.ZodString;
+                    byteSize: z.ZodNullable<z.ZodNumber>;
+                    mimeType: z.ZodNullable<z.ZodString>;
+                    originalName: z.ZodNullable<z.ZodString>;
+                    createdByUserId: z.ZodNullable<z.ZodNumber>;
+                    createdAt: z.ZodString;
+                    storedAt: z.ZodString;
+                    stored: z.ZodBoolean;
+                    bytesDeletedAt: z.ZodNullable<z.ZodString>;
+                    retainUntil: z.ZodNullable<z.ZodString>;
+                    uses: z.ZodArray<z.ZodObject<{
+                        publicationId: z.ZodNumber;
+                        pageLabel: z.ZodString;
+                        status: z.ZodEnum<{
                             unknown: "unknown";
                             cancelled: "cancelled";
                             scheduled: "scheduled";
@@ -100,12 +101,12 @@ export declare const publicationFileRouteSchemas: {
                             missed: "missed";
                             withdrawn: "withdrawn";
                         }>;
-                        publishAt: import("zod").ZodString;
-                        statusChangedAt: import("zod").ZodString;
-                    }, import("zod/v4/core").$strip>>;
-                }, import("zod/v4/core").$strip>;
-                created: import("zod").ZodBoolean;
-            }, import("zod/v4/core").$strip>;
+                        publishAt: z.ZodString;
+                        statusChangedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                created: z.ZodBoolean;
+            }, z.core.$strip>;
         };
     };
     readonly agentPublicationFileUpload: {
@@ -115,102 +116,102 @@ export declare const publicationFileRouteSchemas: {
         };
         readonly tags: readonly ["agent"];
         readonly summary: string;
-        readonly params: import("zod").ZodObject<{
-            pageLabel: import("zod").ZodString;
-        }, import("zod/v4/core").$strip>;
-        readonly querystring: import("zod").ZodObject<{
-            name: import("zod").ZodOptional<import("zod").ZodString>;
-        }, import("zod/v4/core").$strict>;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            name: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
         readonly response: {
-            readonly 409: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 413: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 415: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 429: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 503: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 507: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 400: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 401: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 403: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 404: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 200: import("zod").ZodObject<{
-                file: import("zod").ZodObject<{
-                    id: import("zod").ZodNumber;
-                    modelId: import("zod").ZodNumber;
-                    modelSlug: import("zod").ZodString;
-                    sha256: import("zod").ZodString;
-                    byteSize: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    mimeType: import("zod").ZodNullable<import("zod").ZodString>;
-                    originalName: import("zod").ZodNullable<import("zod").ZodString>;
-                    createdByUserId: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    createdAt: import("zod").ZodString;
-                    storedAt: import("zod").ZodString;
-                    stored: import("zod").ZodBoolean;
-                    bytesDeletedAt: import("zod").ZodNullable<import("zod").ZodString>;
-                    retainUntil: import("zod").ZodNullable<import("zod").ZodString>;
-                    uses: import("zod").ZodArray<import("zod").ZodObject<{
-                        publicationId: import("zod").ZodNumber;
-                        pageLabel: import("zod").ZodString;
-                        status: import("zod").ZodEnum<{
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 413: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 415: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 507: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                file: z.ZodObject<{
+                    id: z.ZodNumber;
+                    modelId: z.ZodNumber;
+                    modelSlug: z.ZodString;
+                    sha256: z.ZodString;
+                    byteSize: z.ZodNullable<z.ZodNumber>;
+                    mimeType: z.ZodNullable<z.ZodString>;
+                    originalName: z.ZodNullable<z.ZodString>;
+                    createdByUserId: z.ZodNullable<z.ZodNumber>;
+                    createdAt: z.ZodString;
+                    storedAt: z.ZodString;
+                    stored: z.ZodBoolean;
+                    bytesDeletedAt: z.ZodNullable<z.ZodString>;
+                    retainUntil: z.ZodNullable<z.ZodString>;
+                    uses: z.ZodArray<z.ZodObject<{
+                        publicationId: z.ZodNumber;
+                        pageLabel: z.ZodString;
+                        status: z.ZodEnum<{
                             unknown: "unknown";
                             cancelled: "cancelled";
                             scheduled: "scheduled";
@@ -224,12 +225,12 @@ export declare const publicationFileRouteSchemas: {
                             missed: "missed";
                             withdrawn: "withdrawn";
                         }>;
-                        publishAt: import("zod").ZodString;
-                        statusChangedAt: import("zod").ZodString;
-                    }, import("zod/v4/core").$strip>>;
-                }, import("zod/v4/core").$strip>;
-                created: import("zod").ZodBoolean;
-            }, import("zod/v4/core").$strip>;
+                        publishAt: z.ZodString;
+                        statusChangedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                created: z.ZodBoolean;
+            }, z.core.$strip>;
         };
     };
     readonly agentPublicationFileLookup: {
@@ -239,72 +240,72 @@ export declare const publicationFileRouteSchemas: {
         };
         readonly tags: readonly ["agent"];
         readonly summary: string;
-        readonly params: import("zod").ZodObject<{
-            pageLabel: import("zod").ZodString;
-        }, import("zod/v4/core").$strip>;
-        readonly body: import("zod").ZodObject<{
-            files: import("zod").ZodArray<import("zod").ZodObject<{
-                sha256: import("zod").ZodString;
-                byteSize: import("zod").ZodNumber;
-            }, import("zod/v4/core").$strict>>;
-            keep: import("zod").ZodDefault<import("zod").ZodBoolean>;
-        }, import("zod/v4/core").$strict>;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            files: z.ZodArray<z.ZodObject<{
+                sha256: z.ZodString;
+                byteSize: z.ZodNumber;
+            }, z.core.$strict>>;
+            keep: z.ZodDefault<z.ZodBoolean>;
+        }, z.core.$strict>;
         readonly response: {
-            readonly 429: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 503: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 400: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 401: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 403: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 404: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 200: import("zod").ZodObject<{
-                files: import("zod").ZodArray<import("zod").ZodObject<{
-                    sha256: import("zod").ZodString;
-                    byteSize: import("zod").ZodNumber;
-                    file: import("zod").ZodNullable<import("zod").ZodObject<{
-                        id: import("zod").ZodNumber;
-                        sha256: import("zod").ZodString;
-                        byteSize: import("zod").ZodNumber;
-                        mimeType: import("zod").ZodString;
-                        originalName: import("zod").ZodNullable<import("zod").ZodString>;
-                    }, import("zod/v4/core").$strip>>;
-                }, import("zod/v4/core").$strip>>;
-            }, import("zod/v4/core").$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                files: z.ZodArray<z.ZodObject<{
+                    sha256: z.ZodString;
+                    byteSize: z.ZodNumber;
+                    file: z.ZodNullable<z.ZodObject<{
+                        id: z.ZodNumber;
+                        sha256: z.ZodString;
+                        byteSize: z.ZodNumber;
+                        mimeType: z.ZodString;
+                        originalName: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
         };
     };
     readonly adminPublicationFileList: {
@@ -313,62 +314,62 @@ export declare const publicationFileRouteSchemas: {
         };
         readonly tags: readonly ["admin"];
         readonly summary: "Uploaded files of publications (metadata only), newest first, with who uses them and when Hub deletes the bytes";
-        readonly querystring: import("zod").ZodObject<{
-            modelSlug: import("zod").ZodOptional<import("zod").ZodString>;
-            includeDeleted: import("zod").ZodPipe<import("zod").ZodDefault<import("zod").ZodEnum<{
+        readonly querystring: z.ZodObject<{
+            modelSlug: z.ZodOptional<z.ZodString>;
+            includeDeleted: z.ZodPipe<z.ZodDefault<z.ZodEnum<{
                 true: "true";
                 false: "false";
-            }>>, import("zod").ZodTransform<boolean, "true" | "false">>;
-            limit: import("zod").ZodDefault<import("zod").ZodCoercedNumber<unknown>>;
-        }, import("zod/v4/core").$strip>;
+            }>>, z.ZodTransform<boolean, "true" | "false">>;
+            limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+        }, z.core.$strip>;
         readonly response: {
-            readonly 400: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 401: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 403: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 404: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 200: import("zod").ZodObject<{
-                files: import("zod").ZodArray<import("zod").ZodObject<{
-                    id: import("zod").ZodNumber;
-                    modelId: import("zod").ZodNumber;
-                    modelSlug: import("zod").ZodString;
-                    sha256: import("zod").ZodString;
-                    byteSize: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    mimeType: import("zod").ZodNullable<import("zod").ZodString>;
-                    originalName: import("zod").ZodNullable<import("zod").ZodString>;
-                    createdByUserId: import("zod").ZodNullable<import("zod").ZodNumber>;
-                    createdAt: import("zod").ZodString;
-                    storedAt: import("zod").ZodString;
-                    stored: import("zod").ZodBoolean;
-                    bytesDeletedAt: import("zod").ZodNullable<import("zod").ZodString>;
-                    retainUntil: import("zod").ZodNullable<import("zod").ZodString>;
-                    uses: import("zod").ZodArray<import("zod").ZodObject<{
-                        publicationId: import("zod").ZodNumber;
-                        pageLabel: import("zod").ZodString;
-                        status: import("zod").ZodEnum<{
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                files: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    modelId: z.ZodNumber;
+                    modelSlug: z.ZodString;
+                    sha256: z.ZodString;
+                    byteSize: z.ZodNullable<z.ZodNumber>;
+                    mimeType: z.ZodNullable<z.ZodString>;
+                    originalName: z.ZodNullable<z.ZodString>;
+                    createdByUserId: z.ZodNullable<z.ZodNumber>;
+                    createdAt: z.ZodString;
+                    storedAt: z.ZodString;
+                    stored: z.ZodBoolean;
+                    bytesDeletedAt: z.ZodNullable<z.ZodString>;
+                    retainUntil: z.ZodNullable<z.ZodString>;
+                    uses: z.ZodArray<z.ZodObject<{
+                        publicationId: z.ZodNumber;
+                        pageLabel: z.ZodString;
+                        status: z.ZodEnum<{
                             unknown: "unknown";
                             cancelled: "cancelled";
                             scheduled: "scheduled";
@@ -382,14 +383,14 @@ export declare const publicationFileRouteSchemas: {
                             missed: "missed";
                             withdrawn: "withdrawn";
                         }>;
-                        publishAt: import("zod").ZodString;
-                        statusChangedAt: import("zod").ZodString;
-                    }, import("zod/v4/core").$strip>>;
-                }, import("zod/v4/core").$strip>>;
-                storedTotalBytes: import("zod").ZodNumber;
-                fileMaxBytes: import("zod").ZodNumber;
-                totalMaxBytes: import("zod").ZodNumber;
-            }, import("zod/v4/core").$strip>;
+                        publishAt: z.ZodString;
+                        statusChangedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                storedTotalBytes: z.ZodNumber;
+                fileMaxBytes: z.ZodNumber;
+                totalMaxBytes: z.ZodNumber;
+            }, z.core.$strip>;
         };
     };
     readonly adminPublicationFileGet: {
@@ -398,56 +399,56 @@ export declare const publicationFileRouteSchemas: {
         };
         readonly tags: readonly ["admin"];
         readonly summary: "One uploaded file of publications (metadata only), with its uses and retention";
-        readonly params: import("zod").ZodObject<{
-            fileId: import("zod").ZodCoercedNumber<unknown>;
-        }, import("zod/v4/core").$strip>;
+        readonly params: z.ZodObject<{
+            fileId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
         readonly response: {
-            readonly 400: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 401: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 403: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 404: import("zod").ZodObject<{
-                error: import("zod").ZodString;
-                message: import("zod").ZodString;
-                statusCode: import("zod").ZodNumber;
-                reason: import("zod").ZodOptional<import("zod").ZodString>;
-                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>;
-            readonly 200: import("zod").ZodObject<{
-                id: import("zod").ZodNumber;
-                modelId: import("zod").ZodNumber;
-                modelSlug: import("zod").ZodString;
-                sha256: import("zod").ZodString;
-                byteSize: import("zod").ZodNullable<import("zod").ZodNumber>;
-                mimeType: import("zod").ZodNullable<import("zod").ZodString>;
-                originalName: import("zod").ZodNullable<import("zod").ZodString>;
-                createdByUserId: import("zod").ZodNullable<import("zod").ZodNumber>;
-                createdAt: import("zod").ZodString;
-                storedAt: import("zod").ZodString;
-                stored: import("zod").ZodBoolean;
-                bytesDeletedAt: import("zod").ZodNullable<import("zod").ZodString>;
-                retainUntil: import("zod").ZodNullable<import("zod").ZodString>;
-                uses: import("zod").ZodArray<import("zod").ZodObject<{
-                    publicationId: import("zod").ZodNumber;
-                    pageLabel: import("zod").ZodString;
-                    status: import("zod").ZodEnum<{
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                id: z.ZodNumber;
+                modelId: z.ZodNumber;
+                modelSlug: z.ZodString;
+                sha256: z.ZodString;
+                byteSize: z.ZodNullable<z.ZodNumber>;
+                mimeType: z.ZodNullable<z.ZodString>;
+                originalName: z.ZodNullable<z.ZodString>;
+                createdByUserId: z.ZodNullable<z.ZodNumber>;
+                createdAt: z.ZodString;
+                storedAt: z.ZodString;
+                stored: z.ZodBoolean;
+                bytesDeletedAt: z.ZodNullable<z.ZodString>;
+                retainUntil: z.ZodNullable<z.ZodString>;
+                uses: z.ZodArray<z.ZodObject<{
+                    publicationId: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    status: z.ZodEnum<{
                         unknown: "unknown";
                         cancelled: "cancelled";
                         scheduled: "scheduled";
@@ -461,10 +462,39 @@ export declare const publicationFileRouteSchemas: {
                         missed: "missed";
                         withdrawn: "withdrawn";
                     }>;
-                    publishAt: import("zod").ZodString;
-                    statusChangedAt: import("zod").ZodString;
-                }, import("zod/v4/core").$strip>>;
-            }, import("zod/v4/core").$strip>;
+                    publishAt: z.ZodString;
+                    statusChangedAt: z.ZodString;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly publicVaultUploadFile: {
+        readonly auth: {
+            readonly kind: "public";
+        };
+        readonly tags: readonly ["ofapi"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            token: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodString;
+            readonly 206: z.ZodString;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 416: z.ZodString;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
         };
     };
 };

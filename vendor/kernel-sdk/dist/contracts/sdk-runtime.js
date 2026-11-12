@@ -21,6 +21,8 @@ export const SDK_EXCLUDED_OPERATIONS = [
     // The always-on ChatSpace tab's screen: a redirect and a KasmVNC passthrough.
     "chatspaceBrowserScreenOpen",
     "chatspaceBrowserScreen",
+    // A large vault album file, downloaded by OnlyFansAPI by its link (binary).
+    "publicVaultUploadFile",
 ];
 export class KernelApiError extends Error {
     category;

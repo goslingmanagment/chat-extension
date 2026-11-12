@@ -1,5 +1,5 @@
 import { errorResponseSchema } from "./primitives";
-import { agentPostCommandResponseSchema, agentPostDeleteBodySchema, agentPostParamsSchema, agentPublicationChangesQuerySchema, agentPublicationChangesResponseSchema, agentPublicationCreateBodySchema, agentPublicationListQuerySchema, agentPublicationMediaQuerySchema, agentPublicationMediaResponseSchema, agentPublicationTargetsResponseSchema, publicationApproveBodySchema, publicationApproveResponseSchema, publicationCreateBodySchema, publicationDetailSchema, publicationIdParamsSchema, publicationListQuerySchema, publicationListResponseSchema, publicationPageParamsSchema, publicationResolveBodySchema, publicationResolveResponseSchema, publicationSchema, publicationSettingsListResponseSchema, publicationSettingsSchema, publicationSettingsUpdateBodySchema, publicationUpdateBodySchema, publicationQueueListResponseSchema, publicationQueueRefreshBodySchema, publicationQueueRefreshResponseSchema, publicationQueueSnapshotSchema, publicationWithdrawPageBodySchema, publicationWithdrawResponseSchema, } from "./publications";
+import { agentPostCommandResponseSchema, agentPostDeleteBodySchema, agentPostParamsSchema, agentPublicationChangesQuerySchema, agentPublicationChangesResponseSchema, agentPublicationCreateBodySchema, agentPublicationListQuerySchema, agentPublicationMediaQuerySchema, agentPublicationMediaResponseSchema, agentPublicationTargetsResponseSchema, agentVaultAlbumQuoteBodySchema, agentVaultAlbumQuoteResponseSchema, publicationApproveBodySchema, publicationApproveResponseSchema, publicationCreateBodySchema, publicationDetailSchema, publicationIdParamsSchema, publicationListQuerySchema, publicationListResponseSchema, publicationPageParamsSchema, publicationResolveBodySchema, publicationResolveResponseSchema, publicationSchema, publicationSettingsListResponseSchema, publicationSettingsSchema, publicationSettingsUpdateBodySchema, publicationUpdateBodySchema, publicationQueueListResponseSchema, publicationQueueRefreshBodySchema, publicationQueueRefreshResponseSchema, publicationQueueSnapshotSchema, publicationWithdrawPageBodySchema, publicationWithdrawResponseSchema, } from "./publications";
 // Publications (docs/plans/2026-10-23-wall-posts, spec §9). The owner's routes
 // draft, approve, cancel, answer "unknown" and set the pages' publishing; an
 // agent key with write:publication_drafts drafts on its own pages, reads
@@ -200,6 +200,16 @@ export const publicationRouteSchemas = {
             + " write:publication_drafts or withdraw:publications). On OnlyFans it spends OnlyFansAPI credits",
         params: publicationPageParamsSchema,
         response: { 200: publicationQueueRefreshResponseSchema, ...agentErrors },
+    },
+    agentVaultAlbumQuote: {
+        auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],
+        summary: "The price of a vault album before «да» (needs write:publication_drafts): the album new, found or"
+            + " similar titles; per file its credits, already on the page, too big; the order when it is not the folder's;"
+            + " the sum in credits and dollars; the albums' day ceiling, spent, left, the balance; whether sending is on."
+            + " Sends nothing to the platform; an old list of the page's albums asks the minutely job for a walk",
+        params: publicationPageParamsSchema,
+        body: agentVaultAlbumQuoteBodySchema,
+        response: { 200: agentVaultAlbumQuoteResponseSchema, ...agentErrors },
     },
     agentPublicationTargets: {
         auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],

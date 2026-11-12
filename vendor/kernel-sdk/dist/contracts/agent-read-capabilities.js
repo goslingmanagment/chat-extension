@@ -126,6 +126,39 @@ export const AGENT_CAPABILITIES = [
      * read in the app. Nothing of the hub's data is read through it.
      */
     "write:reports",
+    /**
+     * «Состояние» (ecosystem plan, package P): a reporter sends its whole list of
+     * routines and copies (`agentSystemRoutines`, `agentSystemCopies`): when each
+     * last ran and what it came to, when each copy was taken. Writes nothing
+     * else and reads nothing back; the page grant does not widen it.
+     */
+    "write:system_state",
+    /**
+     * «Кто этот ключ» for another service's server (ledger, ContentOps,
+     * TaskIndex; ecosystem plan §3.3): an agent shows the service its hub key,
+     * the service sends Hub the key's sha256 with its OWN key holding this
+     * capability (`agentKeyIntrospect`), and learns the agent's code, whether the
+     * key is active and when it expires — never a key, a digest or a grant.
+     * Reads nothing of a page: the key's page grant does not widen it.
+     */
+    "introspect:agent_keys",
+    /**
+     * Custom orders (ecosystem plan 2026-11-12, package I): create an order from
+     * the card's fields and the fan's link (Gengar's `/tz`), update its fields,
+     * write what the model's group says (partly shot, shot, a revision, a
+     * refusal) with the model's message, attach a Telegram card, report the
+     * cards no order has, and read the orders of the key's pages. Never money:
+     * a payment is a person's «Это оплата?»; never «отдали»: that is the chatter's.
+     */
+    "write:customs",
+    /**
+     * The shift report «со слов» (ecosystem plan 2026-11-12, package F): read a
+     * person's draft as the person sees it, set what they say of a sale, the
+     * comment and «мимо площадки», and hand the shift in — every write with the
+     * Telegram sender's id, which must be the person's, and the hand-in also with
+     * the message it was said in. Gengar's /smena. Never another person's money.
+     */
+    "write:shift_reports",
 ];
 const AGENT_CAPABILITY_SET = new Set(AGENT_CAPABILITIES);
 /**
