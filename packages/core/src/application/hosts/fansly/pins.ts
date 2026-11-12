@@ -97,10 +97,13 @@ const cut = (text: string, max: number): string => {
   return chars.length <= max ? chars.join('') : `${chars.slice(0, max - 1).join('')}…`;
 };
 
-/** A pin of a chat as MAIN names it: the creator's own name for the fan first, then the display name, then the handle. */
+/**
+ * A pin of a chat as MAIN names it: the creator's own name for the fan first, then the display name, then the handle
+ * as it is, without «@» — Fansly's own row shows a fan who has no display name by the bare handle, in bold.
+ */
 export function pinTargetOf(meta: FanslyChatMeta & { readonly fanId: string }, fallback: string): FanslyPinTarget {
   const username = meta.username !== null && /^[A-Za-z0-9_.-]{1,64}$/.test(meta.username) ? meta.username : null;
-  const named = meta.customName ?? meta.displayName ?? (username === null ? null : `@${username}`);
+  const named = meta.customName ?? meta.displayName ?? username;
   const name = cut(named === null || named.trim() === '' ? fallback : named, FANSLY_PIN_LIMITS.nameMaxChars);
   return { groupId: meta.groupId, fanId: meta.fanId, name, ...(username === null ? {} : { username }) };
 }
