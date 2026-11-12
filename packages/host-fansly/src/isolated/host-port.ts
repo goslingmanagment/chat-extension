@@ -88,7 +88,9 @@ import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
 import { createHeaderSlots, type HeaderSlots } from './header-slot';
 import { createInboxMarks } from './inbox-marks';
+import { createInboxFilters } from './inbox-filters';
 import { createInboxSlots, type InboxSlots } from './inbox-slot';
+import { createSearchSlot, type SearchSlot } from './search-slot';
 import { createMessageAuthors } from './message-authors';
 import { createTabLabel } from './tab-label';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
@@ -157,6 +159,8 @@ export interface FanslyPort extends FanslyHostPort {
   readonly header: HeaderSlots;
   /** 2026-11-12: ordered closed roots right after the filter chips of the route's list of chats (the strip of pins). */
   readonly inbox: InboxSlots;
+  /** 2026-11-13: one closed root in the search row of the route's list of chats, before Fansly's sort control. */
+  readonly search: SearchSlot;
   /** Bounded early backlog; the tab's transport subscribes before its first presence. */
   onSoundBatch(listener: (batch: SoundBatch) => void): Unsubscribe;
   /** Resolves once MAIN's first state was taken (or asked in vain, or at once without MAIN). */
@@ -230,6 +234,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const header = createHeaderSlots(doc, mounts.registry);
   const wholeName = createWholeName(FANSLY_SELECTORS.headerName);
   const inbox = createInboxSlots(doc, mounts.registry);
+  const search = createSearchSlot(doc, mounts.registry);
+  // 2026-11-13: Fansly's filter chips of the route's list, for the strips of «Фильтры над чатами».
+  const filters = createInboxFilters(doc, { win, diag: (event, detail) => diag({ event, detail }) });
   // The rows' pins ask MAIN for a row's chat and hand a person's click to the application.
   const inboxMarks = createInboxMarks(doc, {
     meta: (groupId) => chatMeta(groupId),
@@ -569,6 +576,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const routeList = [...inboxes].find((element) => element.tagName === 'DIV' && element.closest('app-messages-route') !== null) ?? null;
     inboxMarks.place(routeList ?? [...inboxes].find((element) => element.tagName === 'DIV') ?? null);
     inbox.sync(routeList);
+    search.sync(routeList);
+    filters.sync(routeList);
     followPointer(routeList);
     // «Кто написал»: like the field above, a container still on the page when the route moved is the old chat's.
     const chatBox = routeState.name === 'chat' ? (conversation?.container ?? null) : null;
@@ -596,6 +605,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (next === creator) return false;
     fanLabels.clear();
     inboxMarks.clear();
+    filters.facts(null);
     forgetWords();
     metas.clear();
     // Another creator's chats: what the application said of the old one's goes until it says again.
@@ -651,7 +661,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (disposed) return;
     companion = { ...state.identity.fbuddy };
     network = state.contract;
-    // MAIN says every last word again right after this answer: the words held are the old stream's.
+    // MAIN says every last word again right after this answer: the words held are the old stream's. So are the filters' facts.
+    filters.facts(null);
     inboxMarks.clear();
     forgetWords();
     metas.clear();
@@ -721,6 +732,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         for (const listener of [...deletedListeners]) listener(event.p.groupId);
         return;
       case 'fx.coverage':
+        return;
+      case 'fx.filters':
+        filters.facts(event.p);
         return;
     }
   };
@@ -983,6 +997,19 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         };
       },
     },
+    filters: {
+      read: () => filters.read(),
+      names: () => filters.names(),
+      unread: () => filters.unread(),
+      hide: (on) => {
+        if (!disposed) filters.hide(on);
+      },
+      onChange: (listener) => filters.onChange(listener),
+      select: (ref) => !disposed && filters.select(ref),
+      unpin: (ref) => !disposed && filters.unpin(ref),
+      pin: () => !disposed && filters.pin(),
+      refresh: () => !disposed && filters.refresh(),
+    },
   };
 
   const dispose = (): void => {
@@ -1002,6 +1029,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     mounts.dispose();
     header.dispose();
     inbox.dispose();
+    search.dispose();
+    filters.dispose();
     pointerListeners.clear();
     followPointer(null);
     toggleListeners.clear();
@@ -1054,6 +1083,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     kind: FANSLY_KIND,
     header,
     inbox,
+    search,
     platform: FANSLY_PLATFORM,
     ready,
     identity,

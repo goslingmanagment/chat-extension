@@ -381,6 +381,24 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
       { groupId: Number(group), word: 'fan' },
     ],
   },
+  'fx.filters': {
+    valid: [
+      { tiers: null, lists: null, unread: null },
+      {
+        tiers: [{ id: '700000000000000401', name: '⋆˙⟡ my friend ⋆˙⟡', color: '#4781b4' }, { id: '700000000000000402', name: 'my bff', color: null }],
+        lists: [{ id: '700000000000000411', label: '[FB] $0-$50 Spenders' }, { id: '700000000000000412', label: '🟡 Потенциал' }],
+        unread: { ids: ['700000000000000411', '700000000000000412'], rows: [{ u: 3, s: true, t: '700000000000000401', l: [0, 1] }, { u: 1, s: false, t: null, l: [] }] },
+      },
+    ],
+    invalid: [
+      // Never a fan's name or a message: ids, the creator's own names, counts.
+      { tiers: null, lists: null, unread: { ids: [], rows: [{ u: 2, s: false, t: null, l: [], name: 'fan' }] } },
+      { tiers: [{ id: 'tier', name: 'x', color: null }], lists: null, unread: null },
+      { tiers: null, lists: [{ id: '700000000000000411', label: '' }], unread: null },
+      { tiers: null, lists: null, unread: { ids: [], rows: [{ u: 0, s: false, t: null, l: [] }] } },
+      { tiers: null, lists: null },
+    ],
+  },
   'fx.coverage': {
     valid: [
       { groupIds: 'all', state: 'unknown', reason: 'socket' },

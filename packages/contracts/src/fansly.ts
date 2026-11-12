@@ -18,6 +18,7 @@ import { FeatureIdSchema } from './features';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_LIMITS, StartProofV1Schema } from './hi-start-proof';
 import type { Unsubscribe } from './host';
 import { LIVE_TEXT_LIMITS } from './limits';
+import type { FanslyFilterActions, FanslyFilterNames, FanslyFilterRead, FanslyFilterUnread } from './fansly-filters';
 import type { FanslyInboxMark } from './settings-ext';
 import { nativeIdsAscending as ascending, CountSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from './primitives';
 
@@ -389,6 +390,21 @@ export interface FanslyPagePort {
   /** 2026-11-12: whether the pointer is over the column of the list of chats (`div.messages-list-wrapper` of the route). */
   readonly inboxPointer: {
     inside(): boolean;
+    onChange(listener: () => void): Unsubscribe;
+  };
+  /**
+   * 2026-11-13, the filters above the chats (contracts fansly-filters.ts): Fansly's block of filter chips of the route's
+   * list, read from the page (never the mini chat's), its own chips' clicks in the person's handler, its block hidden
+   * while a strip of ours stands; the full names and the unread by filter facts of MAIN's `fx.filters`.
+   */
+  readonly filters: FanslyFilterActions & {
+    read(): FanslyFilterRead;
+    names(): FanslyFilterNames;
+    /** null — MAIN's copy is not there or not trusted. */
+    unread(): FanslyFilterUnread | null;
+    /** Fansly's own block hidden (true) or as it is (false); the block of a list that came later follows. */
+    hide(on: boolean): void;
+    /** The block, the width, the names or the unread changed (coalesced, one call a turn). */
     onChange(listener: () => void): Unsubscribe;
   };
 }

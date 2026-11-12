@@ -9,6 +9,7 @@
     "./hosts/fansly/fan-marks": "./src/hosts/fansly/FanMarks.tsx",
     "./hosts/fansly/deleted": "./src/hosts/fansly/DeletedMessages.tsx",
     "./hosts/fansly/pins": "./src/hosts/fansly/pins/index.ts",
+    "./hosts/fansly/filters": "./src/hosts/fansly/filters/index.ts",
     ".": "./src/index.ts",
     "./kit": "./src/kit/index.ts",
     "./kit/tokens": "./src/kit/tokens.ts",

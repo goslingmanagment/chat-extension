@@ -25,6 +25,7 @@
 // FS-NEW-*) and its greeting send (`fansly.followers.send`, send-fansly.ts);
 // `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
 // `fansly.pins.*` — the person's temporary chat pins in this browser (2026-11-12, fansly-pins.ts);
+// `fansly.filters.*` — «Фильтры над чатами»: the strip chosen and the memory of «Четыре группы» (2026-11-13, fansly-filters.ts);
 // (voice notes are on both sites since 1.47.0: the shared `voice.*` of
 // tab-messages.ts);
 // `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
@@ -43,6 +44,7 @@ import { FanGoneSchema } from './fan-account';
 import { FanBadgesSchema, FbuddyStateSchema } from './fan-badges';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { FanslyPinListSchema, FanslyPinTargetSchema } from './fansly-pins';
+import { FanslyFilterMemoChangeSchema, FanslyFilterMemoSchema } from './fansly-filters';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { SEND_ATTRIBUTION_COMPOSED_WITH } from './hub/attribution';
@@ -55,7 +57,7 @@ import { CountSchema, EpochMsSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMi
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
 import { VAULT_TAB_ROUTES } from './vault-fansly';
 import { NOTE_LIMITS } from './notes';
-import { FANSLY_INBOX_MARKS, FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
+import { FANSLY_FILTER_STRIPS, FANSLY_INBOX_MARKS, FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { NEWCOMER_CHECK_FILTERS, NEWCOMERS_TABS } from './vm/actions';
@@ -904,6 +906,15 @@ export const FANSLY_TAB_REQUESTS = {
   /** 2026-10-29: the mark of a chat waiting for a reply in Fansly's list of chats, as `settings.ext` holds it (chosen on the settings page). */
   'fansly.inbox.mark': { req: Empty, res: z.strictObject({ mark: z.enum(FANSLY_INBOX_MARKS) }), from: TAB, hosts: FANSLY },
 
+  // ── the filters above the chats (2026-11-13, contracts fansly-filters.ts) ──
+  /**
+   * The strip the person chose on the settings page (`settings.ext`) and the creator's memory of «Четыре группы» in
+   * this browser: the tier and the list picked last from its menus. Nobody signed in: no memory, nothing written.
+   */
+  'fansly.filters.read': { req: z.strictObject({ hostAccountId: NativeIdSchema }), res: z.strictObject({ strip: z.enum(FANSLY_FILTER_STRIPS), memo: FanslyFilterMemoSchema }), from: TAB, hosts: FANSLY },
+  /** A group's pick remembered (null — forgotten); the answer is the creator's memory after it. */
+  'fansly.filters.remember': { req: FanslyFilterMemoChangeSchema, res: z.strictObject({ memo: FanslyFilterMemoSchema }), from: TAB, hosts: FANSLY },
+
   // ── temporary chat pins (2026-11-12, contracts fansly-pins.ts) ──
   /**
    * The creator's pins as this browser keeps them, the expired ones gone, and whether the person's switch «Закрепы
@@ -1045,6 +1056,8 @@ export const FANSLY_TAB_EVENTS = {
   'fansly.notes.viewChanged': { payload: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), to: TAB },
   /** 2026-10-29: the person chose another mark for the list of chats on the settings page: every Fansly tab follows it. */
   'fansly.inbox.markChanged': { payload: z.strictObject({ mark: z.enum(FANSLY_INBOX_MARKS) }), to: TAB },
+  /** 2026-11-13: the person chose another look for the filters above the chats on the settings page: every Fansly tab follows it. */
+  'fansly.filters.stripChanged': { payload: z.strictObject({ strip: z.enum(FANSLY_FILTER_STRIPS) }), to: TAB },
   /** 2026-11-12: a creator's pins changed (a pin, an unpin, an expiry), in any tab: every Fansly tab of that creator follows. */
   'fansly.pins.changed': { payload: z.strictObject({ hostAccountId: NativeIdSchema, pins: FanslyPinListSchema }), to: TAB },
   /** 2026-11-12: «Закрепы чатов» switched on the settings page: every Fansly tab follows it. */

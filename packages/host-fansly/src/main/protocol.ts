@@ -43,6 +43,8 @@ export const VAULT_UPLOAD_ALIVE_MS = 30_000;
 export const VAULT_UPLOADS_KEPT = 500;
 /** Who has the last word in a chat (2026-10-29): the mark of the list of chats. */
 export const EVT_LAST_WORD = 'fx.lastWord';
+/** 2026-11-13: what the page's answers say of its filter chips (filters.ts), a state said again after `fx.state`. */
+export const EVT_FILTERS = 'fx.filters';
 
 /** TO_MAIN_FANSLY_TYPES MAIN answers itself (`probe` is the boot's). */
 export const REQ_STATE = 'fx.state';

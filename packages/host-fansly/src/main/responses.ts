@@ -15,6 +15,8 @@
 // | `/account/me`                          | me        | `account.id` — the creator                       |
 // | `/account?ids=`                        | accounts  | an array — the page's account cache: avatars (P7b) |
 // | `/message/automated`                   | automated | an array — the welcome texts                     |
+// | `/settings`                            | settings  | an array, or the entry a write saved — the pinned lists of the filters (2026-11-13) |
+// | `/message/ack/all`                     | ackAll    | anything: «Mark as read» of every chat (2026-11-13) |
 // | exactly `/vault/albums/media`          | vault     | `success` alone: the page reads no more (P3a)    |
 // | `/media/vaultnew`                      | vaultLoad | not read: its address names the album (P13a)     |
 // | `/media/upload/complete`, `/media/upload/<id>` | upload | `id`, `fileName`, `fileSize` — an upload's answer (2026-11-04) |
@@ -53,7 +55,7 @@ import type { Guard } from '@cg/host-kit/main/guard';
 
 import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, DRAIN_CHARS_PER_MS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
 
-export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultLoad' | 'upload';
+export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultLoad' | 'upload' | 'settings' | 'ackAll';
 
 /** An answer of the API by its address: of the table, or `other` — an API answer MAIN does not read. */
 export interface ApiCall {
@@ -64,6 +66,8 @@ export interface ApiCall {
   readonly limit?: number | null;
   /** `vaultLoad`: the album its address names; null — a type album (no `albumId=`). */
   readonly albumId?: string | null;
+  /** `unread`: the first page of a read (no `before`, or `0`): the page starts its unread over with it. */
+  readonly first?: boolean;
 }
 
 const OTHER: ApiCall = { kind: 'other', groupId: null };
@@ -114,8 +118,14 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
       }
       case 'messages':
         return param(query, 'ids') === null ? OTHER : { kind: 'byIds', groupId: null };
-      case 'message/unread':
-        return { kind: 'unread', groupId: null };
+      case 'message/unread': {
+        const before = param(query, 'before');
+        return { kind: 'unread', groupId: null, first: before === null || before === '' || before === '0' };
+      }
+      case 'settings':
+        return { kind: 'settings', groupId: null };
+      case 'message/ack/all':
+        return { kind: 'ackAll', groupId: null };
       case 'messaging/groups':
         return { kind: 'groups', groupId: null };
       case 'account/me':
@@ -144,8 +154,10 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
 /** Whether `response` has the form the table asks of its kind (the header of this file). */
 function ofForm(call: ApiCall, response: unknown): boolean {
   if (call.kind === 'other' || call.kind === 'vaultLoad') return false;
-  if (call.kind === 'vault') return true;
+  if (call.kind === 'vault' || call.kind === 'ackAll') return true;
   if (call.kind === 'automated' || call.kind === 'accounts') return Array.isArray(response);
+  // The page's read of settings is an array; its write may answer with the entry it saved.
+  if (call.kind === 'settings') return Array.isArray(response) || isPlain(response);
   if (!isPlain(response)) return false;
   switch (call.kind) {
     case 'history':
