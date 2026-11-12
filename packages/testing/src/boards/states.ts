@@ -82,6 +82,7 @@ export function boardOf(ctx: ScenarioCtx, fans: readonly BoardFan[], patch: Part
     tiers: tiers.filter((shelf) => shelf.rows.length > 0 && (shelf.range.fromMills !== null || shelf.range.toMills !== null)).map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.rows.length, pressed: false })),
     footer: { loaded: fans.length, total: fans.length, shown: null, stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete' } },
     previewOpen: selected !== null,
+    ...(fans.some((item) => item.gone !== undefined) ? { gone: { count: fans.filter((item) => item.gone !== undefined).length, filter: 'gone-show' as const } } : {}),
     ...rest,
   };
 }

@@ -67,6 +67,8 @@ export interface ChoiceItem {
   readonly label: string;
   readonly count?: number | null;
   readonly checked: boolean;
+  /** A group of its own under a heading (MenuItem.section); absent — the menu's first group. */
+  readonly section?: string;
 }
 
 /**
@@ -90,7 +92,7 @@ export function ChoiceMenu({ label, menuLabel, items, onSelect, pressed, tooltip
   const close = useCallback(() => setOpen(false), []);
   const returnFocus = useCallback(() => buttonRef.current, []);
   if (items.length < 2) return null;
-  const menuItems: MenuItem[] = items.map((item) => ({ id: item.id, label: item.label, checked: item.checked, ...(item.count === null || item.count === undefined ? {} : { hint: String(item.count) }) }));
+  const menuItems: MenuItem[] = items.map((item) => ({ id: item.id, label: item.label, checked: item.checked, ...(item.count === null || item.count === undefined ? {} : { hint: String(item.count) }), ...(item.section === undefined ? {} : { section: item.section }) }));
   return (
     <MenuAnchor>
       <Button

@@ -117,6 +117,7 @@ export { ACCENT_USES, Caret, Dot, ReadyBadge, Spinner, type AccentUse, type DotP
 export { TalkingMark, TalkingNotice } from './components/Talking';
 export { OtherPagesMark, otherPagesLine } from './components/OtherPages';
 export { FanBadge, badgeLook } from './components/FanBadge';
+export { FanGoneTag, fanGoneHint, fanGoneLabel } from './components/FanGone';
 export { Menu, MenuAnchor, menuTriggerKeys, type MenuItem, type MenuProps } from './components/Menu';
 export {
   ConfirmDialog,

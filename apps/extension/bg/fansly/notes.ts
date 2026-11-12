@@ -63,10 +63,23 @@ export function writeFailure(error: unknown): CgAnyErrorWire {
 
 const readFailure = (error: unknown): CgAnyErrorWire => (error instanceof Refused ? error.wire : error instanceof FanslyApiError ? error.toWire() : { code: 'CG-NOTE-READ' });
 
-export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<FanslyClient | null>) {
+/**
+ * `observe` — every answer of `GET /account?ids=<fan>` read here, for the badges' memory of whether Fansly returns the
+ * fan's account (bg/fansly/badges.ts); never in the way of the notes.
+ */
+export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<FanslyClient | null>, observe?: (creator: string, fanRef: string, response: unknown) => void) {
   const fans = new Map<string, string>();
   // Both tabs' reread + write must run in order, including two creates of the name (12002).
   const writes = new Map<string, Promise<unknown>>();
+
+  /** The account's answer for the badges' memory; its failure is never the notes'. The admission made it the creator's page. */
+  const seen = (creator: string, fanRef: string, response: unknown): void => {
+    try {
+      observe?.(creator, fanRef, response);
+    } catch {
+      // The memory misses one read; the notes go on.
+    }
+  };
 
   /** The admission of one request; the returned check is asked again around the call. */
   async function admit(target: Target, sender: HostSiteSender): Promise<() => boolean> {
@@ -122,6 +135,7 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
         }
       }
       const answer = await call(notesCalls.account(request.hostAccountId, fan), allowed, false);
+      seen(request.hostAccountId, fan, answer.response);
       const notes = fanNotesOf(answer.response, fan);
       if (notes === null) return { ok: false, error: { code: 'CG-NOTE-READ' } };
       return { ok: true, fanRef: fan, notes: notes.notes.slice(0, NOTES_PER_ANSWER), customName: notes.customName, readAt: new Date(kit.clock.now()).toISOString() };
@@ -133,6 +147,7 @@ export function createNotesService(kit: BackgroundKit, clientOf: () => Promise<F
   async function fresh(target: Target & { readonly fanRef: string }, allowed: () => boolean) {
     try {
       const answer = await call(notesCalls.account(target.hostAccountId, target.fanRef), allowed, false);
+      seen(target.hostAccountId, target.fanRef, answer.response);
       const notes = fanNotesOf(answer.response, target.fanRef);
       if (notes === null) throw new Refused({ code: 'CG-NOTE-READ' });
       return notes;

@@ -4,8 +4,11 @@
 // The name is the page alias, then the display name, then the @handle; a fan
 // the hub knows only by id is shown by that id.
 
+import { type FanGone } from '@cg/contracts/fan-account';
 import { type HubSpenderPeriod, type SpenderListItem } from '@cg/contracts/hub';
 import { type IsoTimestamp, type MoneyMills } from '@cg/contracts/primitives';
+
+import { fanGoneOf, hubFanAccountOf, type HubFanAccount } from '../fans/account-state';
 
 /** A fan whose lifetime is within a dollar of the period's spend made the first purchase inside the period (SP-014). */
 export const NEW_SPENDER_EPSILON_MILLS = 1000;
@@ -30,7 +33,13 @@ export interface SpenderRow {
   /** Spent in the board's period; for the lifetime board it is the lifetime itself. */
   readonly period: MoneyMills | null;
   readonly isNew: boolean;
-  readonly deleted: boolean;
+  /** The hub's word on the fan's account through this page (`accountState`, before it `accountLookupMissAt`); null — none. */
+  readonly account: HubFanAccount | null;
+  /**
+   * The page does not see the fan (2026-11-12): the hub's word merged with the site's fresher read of the account
+   * (`withAccountReads`); null — no mark. «удалён», «заблокировал», «не виден» in place of the @handle, the row muted.
+   */
+  readonly gone: FanGone | null;
   readonly weWroteAt: IsoTimestamp | null;
   readonly fanWroteAt: IsoTimestamp | null;
   /** The fan wrote last. */
@@ -103,6 +112,7 @@ export function spenderRow(item: SpenderListItem, rank: number, boardPeriod: Hub
   const preview = conversation.lastMessagePreview?.trim() ?? '';
   const username = item.fan.username?.trim() ?? '';
   const name = fanName(item.fan);
+  const account = hubFanAccountOf(item.accountState, item.accountLookupMissAt);
   return {
     fanRef: item.fan.platformUserId,
     conversationRef: conversation.platformConversationId,
@@ -112,9 +122,9 @@ export function spenderRow(item: SpenderListItem, rank: number, boardPeriod: Hub
     lifetime,
     period,
     isNew: isNewSpender(lifetime, period, boardPeriod),
-    // 1.70.0: the hub's latest account lookup through this page did not return the fan (deleted, or the page blocked),
-    // as the old extension's `deletedAt` said it: the row says «удалён».
-    deleted: item.accountLookupMissAt !== undefined && item.accountLookupMissAt !== null,
+    // The hub's word alone; the site's own read of the account is laid over it later (board.ts `withAccountReads`).
+    account,
+    gone: fanGoneOf(account, null),
     weWroteAt,
     fanWroteAt,
     waiting,

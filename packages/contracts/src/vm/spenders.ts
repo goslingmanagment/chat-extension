@@ -3,11 +3,12 @@
 // a known zero is blank, unknown is «—». The client never rebuilds page
 // totals from visible rows: every number is the hub's, with coverage and asOf.
 
+import { type FanGone } from '../fan-account';
 import { type FanBadges } from '../fan-badges';
 import { type CgErrorView } from '../errors';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchRowVM, type BatchVM } from './batch';
-import { type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from './actions';
+import { type SpendersFilter, type SpendersGoneFilter, type SpendersPeriod, type SpendersSort, type UiAction } from './actions';
 import { type HotkeyLabel } from './catalog';
 import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
@@ -29,8 +30,11 @@ export interface SpenderRowVM {
   readonly lifetimeCents?: boolean;
   /** Spent in the selected period: the period's column, plain muted ink; zero or unknown — a faint «—». */
   readonly period: MoneyMills | null;
-  /** «удалён» after the name, the whole row muted (SP-015). */
-  readonly deleted: boolean;
+  /**
+   * 2026-11-12: the page does not see the fan — «удалён», «заблокировал» (OnlyFans: «в блоке»), «не виден» in place of
+   * the @handle, with its card on hover; the whole row muted (SP-015). null — no mark.
+   */
+  readonly gone: FanGone | null;
   readonly weWroteAt: IsoTimestamp | null;
   readonly fanWroteAt: IsoTimestamp | null;
   /** The fan wrote last: «Ждёт ответа» shows the age of their message, the board's one colour. */
@@ -114,6 +118,11 @@ export interface SpendersBoardVM {
   readonly waitingFallback?: { readonly error: CgErrorView; readonly retry: UiAction } | null;
   /** 1.32.0: the batch of the board — ticked fans, how their generations go; absent — no batch here. */
   readonly batch?: BatchVM;
+  /**
+   * 2026-11-12: the fans of the loaded rows the page does not see («· N ушли» of the header) and how «Ушедшие» of
+   * «Фильтр» lets them through. Absent — the board has none and the filter is the default.
+   */
+  readonly gone?: { readonly count: number; readonly filter: SpendersGoneFilter };
   /**
    * 1.63.0: «Рассылка» in the head opens its window (the ticked fans, else the pressed tier, become its audience);
    * absent — the hub cannot write the versions here (no `outreach-fix-v1`).

@@ -14,6 +14,7 @@ const day = (locale: string) => (at: number, now: number): string => {
 export const FAN_MARKS_TEXTS: Readonly<Record<'ru' | 'en', FanMarksCopy>> = {
   ru: {
     blocklist: '⛔ Блоклист',
+    gone: { deleted: 'Удалён', blocked: 'Заблокировал', unchecked: 'Не виден' },
     listsWhere: (label, here, names) => `В списке «${label}» у ${[...(here ? ['этой модели'] : []), ...names].join(', ')}`,
     postsTitle: 'Есть в FANSLY BLOCKLIST',
     postsAbout: 'Telegram-группа, где агентства предупреждают о проблемных фанах',
@@ -24,6 +25,7 @@ export const FAN_MARKS_TEXTS: Readonly<Record<'ru' | 'en', FanMarksCopy>> = {
   },
   en: {
     blocklist: '⛔ Blocklist',
+    gone: { deleted: 'Deleted', blocked: 'Blocked', unchecked: 'Not seen' },
     listsWhere: (label, here, names) => `In the list «${label}» of ${[...(here ? ['this model'] : []), ...names].join(', ')}`,
     postsTitle: 'In FANSLY BLOCKLIST',
     postsAbout: 'A Telegram group where agencies warn about problem fans',

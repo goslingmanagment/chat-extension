@@ -234,6 +234,8 @@ export class FanslyWorld {
   /** The account's media by id: what the page uploaded. */
   readonly media = new Map<string, FakeMedia>();
   readonly uploadFilenames = new Map<string, string>();
+  /** Accounts `GET /account?ids=` no longer returns to the creator (control `gone`): deleted, or the page blocked. */
+  readonly goneAccounts = new Set<string>();
   readonly albumFilenames = new Map<string, string>();
   /** The media the page uploaded, by content (`name:size:type`): the same file again is the same medium. */
   readonly uploadedContent = new Map<string, string>();

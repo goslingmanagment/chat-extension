@@ -179,12 +179,13 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     },
     res: {
       valid: [
-        { ok: true, fans: [{ fanRef: F.fan, recentSpender: true, tier: 'gold' }], fbuddy: 'on' },
-        { ok: true, fans: [{ fanRef: F.fan, recentSpender: null, tier: null }], fbuddy: 'off' },
+        { ok: true, fans: [{ fanRef: F.fan, recentSpender: true, tier: 'gold', seen: true, seenAt: 1_762_000_000_000 }], fbuddy: 'on' },
+        { ok: true, fans: [{ fanRef: F.fan, recentSpender: null, tier: null, seen: null, seenAt: null }], fbuddy: 'off' },
+        { ok: true, fans: [{ fanRef: F.fan, recentSpender: null, tier: null, seen: false, seenAt: 1_762_000_000_000 }], fbuddy: 'failed' },
         failure,
         sharedFailure,
       ],
-      invalid: [{ ok: true, fans: [{ fanRef: F.fan, recentSpender: true, tier: 'diamond' }], fbuddy: 'on' }, { ok: true, fans: [], fbuddy: 'maybe' }, { ok: true, fans: [] }, unknownFailure],
+      invalid: [{ ok: true, fans: [{ fanRef: F.fan, recentSpender: true, tier: 'diamond', seen: null, seenAt: null }], fbuddy: 'on' }, { ok: true, fans: [{ fanRef: F.fan, recentSpender: true, tier: 'gold' }], fbuddy: 'on' }, { ok: true, fans: [], fbuddy: 'maybe' }, { ok: true, fans: [] }, unknownFailure],
     },
   },
   'fansly.online.seen': {
@@ -209,10 +210,12 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
           },
         },
         { ok: true, marks: { lists: [], blocklist: [] } },
+        { ok: true, marks: { lists: [], blocklist: [], gone: { state: 'blocked', since: null, checkedAt: '2026-11-12T09:00:00.000Z', local: false } } },
         failure,
         sharedFailure,
       ],
       invalid: [
+        { ok: true, marks: { lists: [], blocklist: [], gone: { state: 'seen', since: null, checkedAt: '2026-11-12T09:00:00.000Z', local: false } } },
         // A link off Telegram never reaches a tab.
         { ok: true, marks: { lists: [], blocklist: [{ postedAt: '2026-10-20T12:00:00.000Z', text: 'x', author: null, link: 'javascript:alert(1)', handle: 'x' }] } },
         { ok: true, marks: { lists: [{ here: true, name: 'Model Two', label: '💩 Бомж' }], blocklist: [] } },

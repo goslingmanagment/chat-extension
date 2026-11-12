@@ -99,7 +99,7 @@ import {
   type SavedSend,
 } from '../../domain/outreach';
 import { type BoardIndex } from '../../domain/spenders/board';
-import { normalizeSearch } from '../../domain/spenders/rows';
+import { normalizeSearch, type SpenderRow } from '../../domain/spenders/rows';
 import { OUTSIDE_SHELF_ID } from '../../domain/spenders/shelves';
 import { batchDispatch, createBatch, isBatchAction, type BatchPreviewPort, type OutreachCardRow } from '../boards/batch';
 import { type PageContextPort, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
@@ -299,6 +299,11 @@ const keyOf = (item: OutreachItem): string => `${item.contentType}:${item.conten
 /** Media kept from before, as the window shows them (no picture: the vault's links expire). */
 const mediaVmOf = (media: SavedMedia | null): OutreachMediaVM | null => (media === null ? null : { items: media.items.map((item) => ({ ...item, thumb: null })), posts: media.posts, priceCents: media.priceCents, problem: null });
 const iso = (ms: number | null): IsoTimestamp | null => (ms === null ? null : new Date(ms).toISOString());
+/**
+ * 2026-11-12: «Без удалённых и заблокировавших» leaves out a fan the hub confirmed the page does not see; a mark of the
+ * site's read alone (`local`, the hub not told yet) leaves out nobody, and a fresher «seen» of the site cleared it.
+ */
+const confirmedGone = (row: Pick<SpenderRow, 'gone'> | undefined): boolean => row?.gone !== undefined && row.gone !== null && !row.gone.local;
 const timeOf = (at: IsoTimestamp | null): number | null => {
   if (at === null) return null;
   const ms = Date.parse(at);
@@ -500,7 +505,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   function fansOf(index: BoardIndex): ReadonlyMap<string, AudienceFan> {
     let fans = fansCache.get(index);
     if (fans === undefined) {
-      fans = new Map(index.rows.map((row) => [row.fanRef, { fanRef: row.fanRef, lifetime: row.lifetime, fanWroteAt: row.fanWroteAt, waiting: row.waiting, gone: row.deleted }]));
+      fans = new Map(index.rows.map((row) => [row.fanRef, { fanRef: row.fanRef, lifetime: row.lifetime, fanWroteAt: row.fanWroteAt, waiting: row.waiting, gone: confirmedGone(row) }]));
       fansCache.set(index, fans);
     }
     return fans;
@@ -864,8 +869,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     return pool.filter((fanRef) => touched.has(fanRef));
   };
 
-  /** The fans of the pool whose account the site no longer finds (the board's «удалён»). */
-  const goneOf = (pool: readonly string[], index: BoardIndex): string[] => pool.filter((fanRef) => index.byFan.get(fanRef)?.deleted === true);
+  /** The fans of the pool the page does not see by the hub's word (the board's «удалён», «заблокировал», «не виден» the hub confirmed). */
+  const goneOf = (pool: readonly string[], index: BoardIndex): string[] => pool.filter((fanRef) => confirmedGone(index.byFan.get(fanRef)));
 
   /** «Не купил это видео» exists only with paid media of the vault and a site that says who bought them. */
   const canTellBought = (media: OutreachMediaVM | null): boolean => own === null && batchPort?.outreachStates !== undefined && paidIds(media).length > 0;
@@ -878,7 +883,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       handle: handleOf(fanRef),
       name: row?.name ?? keptNames.get(fanRef) ?? fanRef,
       username: row?.username ?? null,
-      ...(row?.deleted === true ? { gone: true as const } : {}),
+      ...(row === undefined || row.gone === null ? {} : { gone: row.gone }),
       tier: tierOf(index, fanRef),
       lifetime: row?.lifetime ?? null,
       selected: fanRef === selected,

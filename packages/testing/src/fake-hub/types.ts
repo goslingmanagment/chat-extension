@@ -158,6 +158,12 @@ export interface SpenderSeed {
   readonly preview?: string;
   /** 1.70.0: the page's account lookup missed the fan this long ago (`accountLookupMissAt`: deleted, or the page blocked). */
   readonly lookupMissAgoSec?: number;
+  /**
+   * 2026-11-12 (`fan-account-state-v1`): the page's word on the fan's account — its state, how long ago the page stopped
+   * seeing him (null — unknown; ignored for `seen`) and how long ago its latest answer came; null — the page never
+   * answered. Absent: a fan with `lookupMissAgoSec` is `deleted` since unknown, checked then; any other, never answered.
+   */
+  readonly account?: { readonly state: 'seen' | 'deleted' | 'blocked' | 'unchecked'; readonly sinceAgoSec: number | null; readonly checkedAgoSec: number } | null;
 }
 
 export type FakeHubCommand =

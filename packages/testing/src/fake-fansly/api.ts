@@ -140,7 +140,8 @@ const ROUTES: readonly Route[] = [
     name: 'account.byIds',
     method: 'GET',
     path: /^\/account$/,
-    run: ({ world, params }) => ({ response: idList(params.get('ids')).flatMap((id) => world.accounts.get(id) ?? []).map((account) => world.wireAccount(account)) }),
+    // An account the world lacks, or one gone from the creator's sight (control `gone`), is not in the answer.
+    run: ({ world, params }) => ({ response: idList(params.get('ids')).flatMap((id) => (world.goneAccounts.has(id) ? [] : (world.accounts.get(id) ?? []))).map((account) => world.wireAccount(account)) }),
   },
   {
     name: 'followers.new',

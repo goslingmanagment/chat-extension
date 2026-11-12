@@ -9,11 +9,18 @@
 // the hub has read the post (Ivan reopened such a chat within the ten minutes, 2026-10-30). A failed read is not kept:
 // it is answered as its failure, and only the next opening of the chat asks again. The hub's
 // answer is bounded to what a tab shows: a post's link only when it is a `https://t.me/` one.
+//
+// 2026-11-12 (`fan-account-state-v1`): the answer also says whether the page stopped seeing the fan — deleted, blocked,
+// or not seen for a reason the hub does not know yet — as one mark of the hub's `accountState` and the background's own
+// read of the fan's account (`accountRead`: the boards' and «Заметки»' reads of `GET /account?ids=`), merged each time
+// the tab asks (core domain/fans/account-state.ts), so a fresher read of ours counts even within the ten minutes.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import type { FeatureSlice } from '@cg/contracts/features/types';
+import type { FanAccountRead } from '@cg/contracts/fan-account';
 import type { FanMarks } from '@cg/contracts/hub';
 import { FANSLY_TAB_LIMITS, type FanslyFanMarks, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
+import { fanGoneOf, hubFanAccountOf, type HubFanAccount } from '@cg/core/domain/fans/account-state';
 import { admittedOn } from '@cg/core/domain/features';
 import { flagRefusal } from '@cg/core/domain/ops';
 
@@ -86,6 +93,8 @@ export function boundFanMarks(marks: FanMarks, pageLabel: string): FanslyFanMark
 interface Held {
   readonly at: number;
   answer: Promise<Answer>;
+  /** The hub's word on the fan's account; null — none. */
+  account: HubFanAccount | null;
   settled: boolean;
   ok: boolean;
   /** The answer named no list, no post and no other page's money. */
@@ -102,12 +111,15 @@ export interface FanMarksReader {
 
 const fail = (error: CgAnyErrorWire): { readonly ok: false; readonly error: CgAnyErrorWire } => ({ ok: false, error });
 
-export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'networkSession' | 'log'>, slice: FeatureSlice): FanMarksReader {
+/** `accountRead` — the background's own read of a fan's account through the creator's session (bg/fansly/badges.ts); absent — none. */
+export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'networkSession' | 'log'>, slice: FeatureSlice, accountRead?: (creator: string, fanRef: string) => FanAccountRead | null): FanMarksReader {
   const kept = new Map<string, Held>();
 
   async function ask(held: Held, pageLabel: string, request: Request): Promise<Answer> {
     try {
-      const marks = boundFanMarks(await kit.hub.facade.fanMarks({ pageLabel, fanRef: request.fanRef, ...(request.username === undefined ? {} : { username: request.username }) }), pageLabel);
+      const raw = await kit.hub.facade.fanMarks({ pageLabel, fanRef: request.fanRef, ...(request.username === undefined ? {} : { username: request.username }) });
+      const marks = boundFanMarks(raw, pageLabel);
+      held.account = hubFanAccountOf(raw.accountState ?? null, undefined);
       held.ok = true;
       held.empty = marks.lists.length === 0 && marks.blocklist.length === 0 && marks.otherPages === undefined;
       return { ok: true, marks };
@@ -119,7 +131,7 @@ export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 
   }
 
   /** A tab granted the creator's Fansly page (by either of the tab's ids for the creator, as «Онлайн» finds it), where the manifest admits the feature. */
-  async function admit(request: { readonly pageId: number; readonly hostAccountId: string }, sender: HostSiteSender, feature: 'fan-marks' | 'other-pages'): Promise<{ readonly ok: true; readonly pageLabel: string } | ReturnType<typeof fail>> {
+  async function admit(request: { readonly pageId: number; readonly hostAccountId: string }, sender: HostSiteSender, feature: 'fan-marks' | 'other-pages'): Promise<{ readonly ok: true; readonly pageLabel: string; readonly creator: string } | ReturnType<typeof fail>> {
     if (sender.kind !== 'tab') return fail({ code: 'CG-CONTEXT-CHANGED' });
     const grant = await kit.hub.page(request.pageId, sender);
     if (!grant.ok) return fail({ code: grant.code });
@@ -129,7 +141,7 @@ export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 
     if (bootstrap === null || page === undefined || page.platform !== 'fansly' || page.platformAccountId === null || !ids.includes(page.platformAccountId)) return fail({ code: 'CG-BINDING-NOT-GRANTED' });
     const admitted = admittedOn(slice, feature, null, bootstrap, page);
     if (!admitted.usable) return fail(flagRefusal(admitted));
-    return { ok: true, pageLabel: grant.page.pageLabel };
+    return { ok: true, pageLabel: grant.page.pageLabel, creator: page.platformAccountId };
   }
 
   return {
@@ -138,14 +150,21 @@ export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 
       if (!admitted.ok) return admitted;
       const who = kit.hub.session();
       if (who === null) return fail({ code: 'CG-CONTEXT-CHANGED' });
-      const { pageLabel } = admitted;
+      const { pageLabel, creator } = admitted;
+      /** The kept answer with the mark of the fan's account as it stands now. */
+      const marked = (held: Held): Promise<Answer> =>
+        held.answer.then((answer) => {
+          if (!answer.ok) return answer;
+          const gone = fanGoneOf(held.account, accountRead?.(creator, request.fanRef) ?? null);
+          return gone === null ? answer : { ok: true, marks: { ...answer.marks, gone } };
+        });
       const key = [who.hubOrigin, String(who.userId), pageLabel, request.fanRef, request.username ?? ''].join('|');
       const now = kit.clock.now();
       const held = kept.get(key);
-      if (held !== undefined && (!held.settled || now - held.at < (held.empty ? FAN_MARKS_CACHE.emptyTtlMs : FAN_MARKS_CACHE.ttlMs))) return held.answer;
+      if (held !== undefined && (!held.settled || now - held.at < (held.empty ? FAN_MARKS_CACHE.emptyTtlMs : FAN_MARKS_CACHE.ttlMs))) return marked(held);
       kept.delete(key);
       // Set before anything is awaited: a call that comes meanwhile joins this read.
-      const next: Held = { at: now, answer: Promise.resolve(fail({ code: 'CG-HUB-UNKNOWN' })), settled: false, ok: false, empty: false };
+      const next: Held = { at: now, answer: Promise.resolve(fail({ code: 'CG-HUB-UNKNOWN' })), account: null, settled: false, ok: false, empty: false };
       next.answer = ask(next, pageLabel, request).finally(() => {
         next.settled = true;
         // A failure is not kept: the next opening of the chat asks again.
@@ -153,7 +172,7 @@ export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 
       });
       kept.set(key, next);
       while (kept.size > FAN_MARKS_CACHE.max) kept.delete(kept.keys().next().value as string);
-      return next.answer;
+      return marked(next);
     },
     async otherPages(request, sender) {
       const admitted = await admit(request, sender, 'other-pages');

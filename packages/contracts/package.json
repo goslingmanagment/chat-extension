@@ -12,6 +12,7 @@
     "./notes": "./src/notes.ts",
     "./notes-fill": "./src/notes-fill.ts",
     "./fan-badges": "./src/fan-badges.ts",
+    "./fan-account": "./src/fan-account.ts",
     ".": "./src/index.ts",
     "./primitives": "./src/primitives.ts",
     "./features": "./src/features.ts",

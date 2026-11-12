@@ -20,6 +20,11 @@ export const FanBadgesReportFanSchema = z.strictObject({
   fbuddyTier: z.optional(z.nullable(FbuddyTierSchema)),
   /** Fansly's blue card, as the fan's account says it. */
   recentSpender: z.optional(z.boolean()),
+  /**
+   * 2026-11-12 (`fan-account-state-v1`, never to a hub without it): whether Fansly returned the fan's account to this
+   * read in the page's session (`GET /account?ids=`). A fan may come with it alone; the hub takes it as a signal.
+   */
+  accountSeen: z.optional(z.boolean()),
 });
 export type FanBadgesReportFan = z.infer<typeof FanBadgesReportFanSchema>;
 
@@ -30,5 +35,5 @@ export const FanBadgesReportSchema = z.strictObject({
 export type FanBadgesReport = z.infer<typeof FanBadgesReportSchema>;
 
 /** Fans kept anew (a badge the hub did not have, or had another value of), already as reported, and not of the page (yet). */
-export const FanBadgesReportResultSchema = z.object({ changed: z.number(), unchanged: z.number(), skipped: z.number(), serverNow: z.string() });
+export const FanBadgesReportResultSchema = z.object({ changed: z.number(), unchanged: z.number(), skipped: z.number(), accountSignals: z.optional(z.number()), serverNow: z.string() });
 export type FanBadgesReportResult = z.infer<typeof FanBadgesReportResultSchema>;

@@ -15,8 +15,8 @@ import { CHAT_IS_FAN, OUTREACH_FIX_CAPABILITY } from '@cg/contracts/ids';
 import { type ActionReceipt, type I18n, type PartialGap, type PreviewSource, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type SpendersStatsVM, type TargetHandle, type UiAction, type ViewMap, type VmView } from '@cg/contracts/vm';
 import { type I18nKey } from '@cg/contracts/errors';
 
-import { boardFilterCounts, indexBoard, neighbours, shelfOfFan, viewBoard, withPeriod, type BoardIndex, type BoardView } from '../../domain/spenders/board';
-import { NO_FILTERS, filterPressed, filtersActive, pressFilter, type BoardFilters } from '../../domain/spenders/filters';
+import { boardFilterCounts, goneCount, indexBoard, neighbours, shelfOfFan, viewBoard, withAccountReads, withPeriod, type BoardIndex, type BoardView } from '../../domain/spenders/board';
+import { NO_FILTERS, filterPressed, filtersActive, goneFilterOf, goneLets, pressFilter, type BoardFilters } from '../../domain/spenders/filters';
 import { moveRow, type BoardCommand } from '../../domain/spenders/keyboard';
 import { EMPTY_QUEUE, appendQueuePage, queueHasMore, queueRow, type QueueState } from '../../domain/spenders/queue';
 import { type SpenderRow } from '../../domain/spenders/rows';
@@ -58,6 +58,9 @@ const FILTER_LABELS: Readonly<Record<SpendersFilter, I18nKey>> = {
   'no-history': 'spenders.filter.noHistory',
   'silent-8-21': 'spenders.filter.silent8to21',
   'silent-over-21': 'spenders.filter.silentOver21',
+  'gone-show': 'spenders.gone.show',
+  'gone-hide': 'spenders.gone.hide',
+  'gone-only': 'spenders.gone.only',
 };
 /** A silence filter's list is counted again at most this often: a fan's silence grows by whole days. */
 const SILENCE_RECOUNT_MS = 60_000;
@@ -171,6 +174,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   let epoch = context.current().epoch;
   /** The visible list, kept while what it was computed from is the same (by identity: every change replaces its object). */
   let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly shelf: string | null; readonly tick: number; readonly view: BoardView } | null = null;
+  /** The lifetime board with the site's reads of the fans' accounts (Fansly), kept while neither changed. */
+  let accountsCache: { readonly list: BoardIndex; readonly version: number; readonly index: BoardIndex } | null = null;
   /** The list with the period's sums (X66), kept while neither board nor the period changed. */
   let listCache: { readonly list: BoardIndex; readonly delta: BoardIndex | null; readonly period: SpendersPeriod; readonly index: BoardIndex } | null = null;
   /** Row view models of the visible list: rebuilt only when the list or the selection changes, not on every keystroke. */
@@ -233,9 +238,23 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   // ── the visible list ──
 
+  /**
+   * The lifetime board with the site's own reads of the fans' accounts laid over the hub's word (2026-11-12: a fan
+   * Fansly no longer returns is «не виден» at once, one it returns again loses the hub's mark); null until it is read.
+   */
+  function accountsIndex(): BoardIndex | null {
+    const list = entryOf(LIST_PERIOD).index;
+    if (list === null) return null;
+    const version = badges.version();
+    if (accountsCache !== null && accountsCache.list === list && accountsCache.version === version) return accountsCache.index;
+    const index = withAccountReads(list, (fanRef) => badges.account(fanRef));
+    accountsCache = { list, version, index };
+    return index;
+  }
+
   /** The lifetime board with the second sums of the period's board (X66); null until the lifetime board is read. */
   function listIndex(): BoardIndex | null {
-    const list = entryOf(LIST_PERIOD).index;
+    const list = accountsIndex();
     if (list === null || period === LIST_PERIOD) return list;
     const delta = entryOf(period).index;
     if (listCache !== null && listCache.list === list && listCache.delta === delta && listCache.period === period) return listCache.index;
@@ -280,8 +299,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const platform = context.current().binding?.platform;
     if (platform === undefined || CHAT_IS_FAN[platform] || deps.source === undefined || conversationOfRow(row).conversationRef !== undefined) return undefined;
     const lookup = lookups.get(row.fanRef);
-    // A deleted fan with no name to search by has nothing to find; one whose search ran says how it went.
-    if (lookup === undefined && row.deleted) return undefined;
+    // A fan the page does not see has nothing to find; one whose search ran says how it went.
+    if (lookup === undefined && row.gone !== null) return undefined;
     return lookup ?? 'find';
   }
 
@@ -293,7 +312,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       username: row.username,
       lifetime: row.lifetime,
       period: row.period,
-      deleted: row.deleted,
+      gone: row.gone,
       weWroteAt: row.weWroteAt,
       fanWroteAt: row.fanWroteAt,
       waiting: row.waiting,
@@ -318,13 +337,15 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const tier = current === null ? null : shelfOn(current.index);
     const narrowed = applied.trim().length > 0 || filtersActive(filters) || tier !== null;
 
-    const counts = current === null ? null : boardFilterCounts(current.index, FILTERS, clock.now());
+    // «Все», the tiers and the menu count the fans «Ушедшие» lets through.
+    const counts = current === null ? null : boardFilterCounts(current.index, FILTERS, clock.now(), filters.gone);
+    const goneLoaded = current === null ? 0 : goneCount(current.index);
     const waitingTotal = (statistics && pageFlag(ctx, 'stats')) ? (queue.state.total ?? statsEntry.raw?.queueSummary.total ?? null) : null;
     const filterVMs = FILTERS.map((id) => ({
       id,
       label: msg(FILTER_LABELS[id]),
       // «Ждут ответа» is the hub's count over the whole page when it gave one; the rest count loaded rows.
-      count: counts === null ? null : id === 'waiting' && waitingTotal !== null ? waitingTotal : id === 'all' ? current?.index.loaded ?? null : counts[id],
+      count: counts === null ? null : id === 'waiting' && waitingTotal !== null ? waitingTotal : counts[id],
       // «Все» is every fan: no filter and no tier chip.
       pressed: filterPressed(filters, id) && (id !== 'all' || tier === null),
     }));
@@ -395,8 +416,13 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       shelves,
       // X67: the old extension's tier chips — the list's shelves with fans, «вне полок» aside.
       ...(index === null || index.tiers === null ? {} : {
-        tiers: index.shelves.filter((item) => item.rows.length > 0 && item.id !== OUTSIDE_SHELF_ID).map((item) => ({ id: item.id, range: item.range, fans: item.rows.length, pressed: item.id === tier })),
+        tiers: index.shelves
+          .map((item) => ({ item, fans: filters.gone === null ? item.rows.length : item.rows.filter((row) => goneLets(row, filters.gone)).length }))
+          .filter(({ item, fans }) => fans > 0 && item.id !== OUTSIDE_SHELF_ID)
+          .map(({ item, fans }) => ({ id: item.id, range: item.range, fans, pressed: item.id === tier })),
       }),
+      // «· N ушли» of the header and «Ушедшие» of «Фильтр»: there while the board has such fans, or the filter is not the default.
+      ...(index === null || (goneLoaded === 0 && filters.gone === null) ? {} : { gone: { count: goneLoaded, filter: goneFilterOf(filters) } }),
       footer: {
         loaded: sourced ? queue.state.items.length : (index?.loaded ?? 0),
         total: sourced ? queue.state.total : (index?.total ?? null),
@@ -618,6 +644,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     statsExpanded = false;
     statsOpen = false;
     viewCache = null;
+    accountsCache = null;
     listCache = null;
     shelfCache = null;
     if (searchTimer !== null) clock.clearTimer(searchTimer);
@@ -963,7 +990,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   const outreachBoard: OutreachBoardPort = {
     list() {
       const entry = entryOf(LIST_PERIOD);
-      return { index: entry.index, loading: entry.loading, error: entry.error, since: entry.since };
+      return { index: accountsIndex(), loading: entry.loading, error: entry.error, since: entry.since };
     },
     recent: () => entryOf('7d').index,
     async load(what) {

@@ -12,6 +12,7 @@ import { CHOICE_CSS } from './components/choice.css';
 import { DIALOG_CSS } from './components/dialog.css';
 import { ERROR_CSS } from './components/ErrorCard';
 import { FAN_BADGE_CSS } from './components/FanBadge';
+import { FAN_GONE_CSS } from './components/FanGone';
 import { FIELD_CSS } from './components/field.css';
 import { ICON_CSS } from './components/Icon';
 import { INDICATORS_CSS } from './components/Indicators';
@@ -42,6 +43,7 @@ export const COMPONENTS_SOURCE: StyleSource = {
     TALKING_CSS,
     OTHER_PAGES_CSS,
     FAN_BADGE_CSS,
+    FAN_GONE_CSS,
     VALUES_CSS,
     BUTTON_CSS,
     TOOLTIP_CSS,

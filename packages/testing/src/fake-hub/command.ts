@@ -37,6 +37,15 @@ const SEED_FIELDS: Readonly<Record<string, FieldCheck>> = {
   awaiting: isBoolean,
   preview: isString,
   lookupMissAgoSec: isNumber,
+  account: either(
+    oneOf(null),
+    (value) =>
+      isObject(value) &&
+      Object.keys(value as object).every((key) => key === 'state' || key === 'sinceAgoSec' || key === 'checkedAgoSec') &&
+      oneOf('seen', 'deleted', 'blocked', 'unchecked')((value as Record<string, unknown>)['state']) &&
+      either(isNumber, oneOf(null))((value as Record<string, unknown>)['sinceAgoSec']) &&
+      isNumber((value as Record<string, unknown>)['checkedAgoSec']),
+  ),
 };
 /** `spenderFans.fans`: objects with a fan id and nothing but the seed's own fields. */
 const isSpenderSeeds: FieldCheck = (value) =>

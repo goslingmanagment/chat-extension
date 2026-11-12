@@ -17,13 +17,13 @@ import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent 
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
-import { type BatchVM, type I18n, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from '@cg/contracts/vm';
+import { SPENDERS_GONE_FILTERS, type BatchVM, type I18n, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersGoneFilter, type SpendersPeriod, type SpendersSort, type UiAction } from '@cg/contracts/vm';
 
-import { chatClick, ActionButton, activeIn, CheckGlyph, FanBadge, focusQuietly, isComposing, Spinner, tabbables, TalkingMark, useAnnounce, useDispatch, useI18n, useKit, useMinuteClock, useSpokenMoney, useTooltip, ViewState, VirtualList } from '../kit';
+import { chatClick, ActionButton, activeIn, CheckGlyph, FanBadge, FanGoneTag, focusQuietly, isComposing, Spinner, tabbables, TalkingMark, useAnnounce, useDispatch, useI18n, useKit, useMinuteClock, useSpokenMoney, useTooltip, ViewState, VirtualList } from '../kit';
 import { BatchBar, BatchCheck, BatchLine, inBatch } from './batch';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, shelfTier, type BoardItem } from './rows';
-import { ChoiceMenu, FilterChip, coverageWord, isPlainKey } from './window';
+import { ChoiceMenu, FilterChip, coverageWord, isPlainKey, type ChoiceItem } from './window';
 
 export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
   lifetime: 'spenders.period.lifetime',
@@ -37,6 +37,9 @@ export const PERIOD_KEYS: Readonly<Record<SpendersPeriod, I18nKey>> = {
 const MAIN_FILTER: SpendersFilter = 'all';
 /** «Фан писал» is «Ждут ответа» under another name: the menu lists it once. */
 const SAME_AS_WAITING: SpendersFilter = 'fan-wrote';
+/** «Ушедшие» of «Фильтр», in the menu's order. */
+const GONE_FILTERS = SPENDERS_GONE_FILTERS;
+const GONE_LABELS = { 'gone-show': 'spenders.gone.show', 'gone-hide': 'spenders.gone.hide', 'gone-only': 'spenders.gone.only' } as const satisfies Record<SpendersGoneFilter, string>;
 /** Ask for the next page this many rows before the end of the loaded list. */
 const LOAD_MORE_MARGIN = 20;
 /**
@@ -241,7 +244,7 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
   const dispatch = useDispatch();
   const format = row.lifetimeCents === true ? { cents: true } : {};
   const lifetime = useSpokenMoney(row.lifetime, format);
-  const classes = ['cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : '', active ? 'is-active' : '']
+  const classes = ['cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.gone !== null ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : '', active ? 'is-active' : '']
     .filter((name) => name !== '')
     .join(' ');
   // The sticky copy is drawn for the eye: the list, its keys and the e2e find the real row by these.
@@ -277,7 +280,7 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
       <span role="cell" class="cg-bd__who">
         <span class="cg-bd__name">{row.name}</span>
         <FanBadge badges={row.badges} />
-        {row.deleted ? <span class="cg-bd__handle">{i18n.t('spenders.tag.deleted')}</span> : row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
+        {row.gone !== null ? <FanGoneTag gone={row.gone} class="cg-bd__handle" /> : row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
         <TalkingMark handle={row.handle} />
       </span>
       <LastMessage last={row.lastMessage} talked={row.weWroteAt !== null || row.fanWroteAt !== null} />
@@ -451,21 +454,29 @@ export function BoardFilters({ board }: { readonly board: SpendersBoardVM }): JS
   const othersOn = others.filter((filter) => filter.pressed);
   const hasRows = board.shelves.some((shelf) => shelf.rows.length > 0);
   const tiers = board.tiers ?? [];
+  // 2026-11-12: «Ушедшие» — a group of its own under the filters: shown (the default), hidden, or alone.
+  const gone = board.gone;
+  const goneOn = gone === undefined || gone.filter === 'gone-show' ? null : i18n.t(gone.filter === 'gone-hide' ? 'spenders.gone.hidden' : 'spenders.gone.onlyOn');
+  const goneItems: ChoiceItem[] =
+    gone === undefined
+      ? []
+      : GONE_FILTERS.map((id) => ({ id, label: i18n.t(GONE_LABELS[id]), count: id === 'gone-only' ? gone.count : null, checked: gone.filter === id, section: i18n.t('spenders.gone.filter') }));
+  const onLabels = [...othersOn.map((filter) => i18n.text(filter.label)), ...(goneOn === null ? [] : [goneOn])];
   return (
     <div class="cg-sp__filters">
       <span class="cg-sp__seg" role="group" aria-label={i18n.t('spenders.tiers')}>
         {all === undefined ? null : <FilterButton filter={all} />}
         {tiers.length < 2 ? null : tiers.map((tier) => <TierChip key={tier.id} tier={tier} />)}
       </span>
-      {others.length === 0 ? null : (
+      {others.length === 0 && goneItems.length === 0 ? null : (
         <ChoiceMenu
-          label={othersOn.length === 0 ? i18n.t('spenders.filter.menu') : othersOn.map((filter) => i18n.text(filter.label)).join(' · ')}
+          label={onLabels.length === 0 ? i18n.t('spenders.filter.menu') : onLabels.join(' · ')}
           menuLabel={i18n.t('spenders.filter.menu')}
-          pressed={othersOn.length > 0}
-          items={others.map((filter) => ({ id: filter.id, label: i18n.text(filter.label), count: filter.count, checked: filter.pressed }))}
+          pressed={onLabels.length > 0}
+          items={[...others.map((filter) => ({ id: filter.id, label: i18n.text(filter.label), count: filter.count, checked: filter.pressed })), ...goneItems]}
           onSelect={(id) => {
-            const filter = others.find((item) => item.id === id);
-            if (filter !== undefined) void dispatch({ type: 'SetSpendersFilter', filter: filter.id });
+            const filter = others.find((item) => item.id === id)?.id ?? GONE_FILTERS.find((item) => item === id);
+            if (filter !== undefined) void dispatch({ type: 'SetSpendersFilter', filter });
           }}
         />
       )}
@@ -870,7 +881,9 @@ ${/* «в разговоре» takes the handle's place: the name says who it is
 .cg-bd__spent { color: var(--cg-ink-strong); font-weight: 600; }
 .cg-bd__per { color: var(--cg-ink-muted); font-size: var(--cg-text-sm2); }
 .cg-bd__none { color: var(--cg-bd-ghost); font-weight: 400; }
-.cg-bd__row.is-deleted :is(.cg-bd__name, .cg-bd__handle, .cg-bd__last, .cg-bd__us, .cg-bd__wrote, .cg-bd__spent, .cg-bd__per) { color: var(--cg-bd-ghost); font-weight: 400; }
+.cg-bd__row.is-deleted :is(.cg-bd__name, .cg-bd__handle, .cg-bd__last, .cg-bd__us, .cg-bd__wait, .cg-bd__wrote, .cg-bd__spent, .cg-bd__per) { color: var(--cg-bd-ghost); font-weight: 400; }
+/* 2026-11-12: «заблокировал» stays noticeable on the muted row. */
+.cg-bd__row.is-deleted .cg-gone.is-blocked { color: var(--cg-warn-ink); font-weight: 500; }
 .cg-bd__act { display: flex; justify-content: flex-end; align-items: center; gap: 6px; overflow: visible; }
 .cg-bd__open {
   visibility: hidden; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: var(--cg-r-sm);

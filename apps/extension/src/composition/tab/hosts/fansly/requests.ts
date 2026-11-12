@@ -7,6 +7,7 @@
 // does not fit is dropped, never half-read.
 
 import type { CgErrorWire } from '@cg/contracts/errors';
+import type { FanAccountRead } from '@cg/contracts/fan-account';
 import type { FanBadges, FbuddyState } from '@cg/contracts/fan-badges';
 import type { OtherPageVM } from '@cg/contracts/vm';
 import {
@@ -54,10 +55,16 @@ const FAN_BADGES_TIMEOUT_MS = 35_000;
  * «Онлайн», Spenders, «Рассылка» and «Новые» of a Fansly tab ask (core boards/badges.ts). null — not read.
  */
 export function fanBadgesRead(rpc: FanslyRpc) {
-  return async (pageId: number, account: string, fanRefs: readonly string[]): Promise<{ readonly fans: ReadonlyMap<string, FanBadges>; readonly fbuddy: FbuddyState } | null> => {
+  return async (pageId: number, account: string, fanRefs: readonly string[]): Promise<{ readonly fans: ReadonlyMap<string, FanBadges>; readonly fbuddy: FbuddyState; readonly accounts: ReadonlyMap<string, FanAccountRead> } | null> => {
     const answer = await fanslyRequest(rpc, 'fansly.fans.badges', { pageId, hostAccountId: account, fanRefs: [...fanRefs] }, FAN_BADGES_TIMEOUT_MS);
     if (!answer.ok || !answer.payload.ok) return null;
-    return { fans: new Map(answer.payload.fans.map(({ fanRef, ...badges }) => [fanRef, badges])), fbuddy: answer.payload.fbuddy };
+    const fans = new Map<string, FanBadges>();
+    const accounts = new Map<string, FanAccountRead>();
+    for (const { fanRef, recentSpender, tier, seen, seenAt } of answer.payload.fans) {
+      fans.set(fanRef, { recentSpender, tier });
+      if (seen !== null && seenAt !== null) accounts.set(fanRef, { seen, at: seenAt });
+    }
+    return { fans, fbuddy: answer.payload.fbuddy, accounts };
   };
 }
 

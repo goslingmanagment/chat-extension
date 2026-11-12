@@ -35,6 +35,30 @@ export function readRecentSpenders(response: unknown, asked: readonly string[]):
   return found;
 }
 
+/** This many fans asked and not one of them returned: the answer says nothing (more likely an anomaly than all gone). */
+export const ACCOUNTS_NONE_RETURNED_MIN = 5;
+
+/**
+ * `GET /account?ids=` (2026-11-12): which of the ids sent in this very read Fansly returned, whatever their flags — a
+ * fan who deleted his account or blocked the page is not in the answer. Unlike `readRecentSpenders` an account without
+ * `userFlags` counts: it was returned. Null — the answer says nothing: not a list of accounts, ANY entry that is not an
+ * object with a string `id`, or `ACCOUNTS_NONE_RETURNED_MIN` or more asked and none of them returned. For a single id an
+ * empty list is that fan not seen.
+ */
+export function readAccountsSeen(response: unknown, asked: readonly string[]): Map<string, boolean> | null {
+  const list = Array.isArray(response) ? response : record(response)?.['accounts'];
+  if (!Array.isArray(list)) return null;
+  const returned = new Set<string>();
+  for (const entry of list) {
+    const id = record(entry)?.['id'];
+    if (typeof id !== 'string') return null;
+    returned.add(id);
+  }
+  const wanted = [...new Set(asked)];
+  if (wanted.length >= ACCOUNTS_NONE_RETURNED_MIN && !wanted.some((id) => returned.has(id))) return null;
+  return new Map(wanted.map((id) => [id, returned.has(id)]));
+}
+
 const isTier = (value: unknown): value is FbuddyTier => typeof value === 'string' && (FBUDDY_TIERS as readonly string[]).includes(value);
 
 /**

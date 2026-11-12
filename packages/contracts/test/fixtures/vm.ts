@@ -310,7 +310,7 @@ const ROW_BASE: C.SpenderRowVM = {
   username: 'fan_1',
   lifetime: 599_600,
   period: 25_000,
-  deleted: false,
+  gone: null,
   weWroteAt: null,
   fanWroteAt: null,
   waiting: false,
