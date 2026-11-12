@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { $, browser } from '@wdio/globals';
 
 import { readLocalStorage, readReport, writeLocalStorage } from '../../support/extension';
+import { setFanslyNeighbor } from '../../support/fansly-neighbor';
 import { FANSLY_MAIN, callFansly, fanslyStandUrl, waitForFanslyStandReady } from '../../support/fansly-stand';
 import { openOptions, waitForOptions } from '../../support/pages';
 import { around, lap, scenario, type Box, type See } from '../kit';
@@ -194,13 +195,13 @@ async function leaveList(): Promise<void> {
 }
 
 /** A row's pin button: the pointer over the row, then the button once it has faded in. */
-async function hoverRow(group: string): Promise<{ x: number; y: number }> {
+async function hoverRow(group: string, timeout = 5_000): Promise<{ x: number; y: number }> {
   const at = await centre(rowOf(group));
   await pointTo(at.x - 60, at.y);
   await browser.waitUntil(async () => browser.execute((sel: string) => {
     const box = document.querySelector(sel)?.parentElement;
     return box !== null && box !== undefined && box.style.opacity === '1';
-  }, buttonOf(group)), { timeout: 5_000, interval: 50, timeoutMsg: `no pin button on the row of ${group}` });
+  }, buttonOf(group)), { timeout, interval: 50, timeoutMsg: `no pin button on the row of ${group}` });
   await browser.pause(150);
   return centre(buttonOf(group));
 }
@@ -392,14 +393,37 @@ scenario(
     }
     save();
 
+    // ── A9 (the last part): a click on a pinned row's time, outside its pin button, opens the chat ──
+    const time = await browser.execute((sel: string) => {
+      const node = document.querySelector(sel);
+      const rect = node?.getBoundingClientRect();
+      return rect === undefined ? null : { x: rect.x + 3, y: rect.y + 3 };
+    }, `${rowOf(r1)} .message-time`);
+    if (time !== null) {
+      await pointTo(time.x - 80, time.y + 10);
+      await browser.pause(200);
+      const hit = await browser.execute((x: number, y: number) => {
+        const node = document.elementFromPoint(x, y);
+        return node === null ? null : node.closest('[data-cg-inbox]') !== null ? 'ours' : node.className || node.localName;
+      }, time.x, time.y);
+      await clickAt(time.x, time.y);
+      await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${r1}`), { timeout: 8_000 }).catch(() => undefined);
+      measures['A9-time-click'] = { at: time, elementThere: hit, opened: (await browser.getUrl()).endsWith(`/messages/${r1}`) };
+    }
+    await waitPins((report) => report.chips.some((item) => item.groupId === r1 && item.open), 'the opened chat\'s chip is not lit');
+    await leaveList();
+    await browser.pause(300);
+    await shootStrip(s, 'chip-lit-open');
+
     // ── A chip clicked: the chat opens through Fansly's router, its chip lit ──
-    await chip(r1, ' .cg-pin__open').click();
-    await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${r1}`), { timeout: 8_000, timeoutMsg: 'the chip did not open its chat' });
-    await waitPins((report) => report.chips.some((item) => item.groupId === r1 && item.open), 'the open chat\'s chip is not lit');
+    await chip(open, ' .cg-pin__open').click();
+    await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${open}`), { timeout: 8_000, timeoutMsg: 'the chip did not open its chat' });
+    await waitPins((report) => report.chips.some((item) => item.groupId === open && item.open), 'the open chat\'s chip is not lit');
     await leaveList();
     await browser.pause(300);
     await shootStrip(s, 'chip-opened');
-    measures['chip-click'] = { opened: (await browser.getUrl()).endsWith(`/messages/${r1}`) };
+    measures['chip-click'] = { opened: (await browser.getUrl()).endsWith(`/messages/${open}`) };
+    save();
 
     // ── A5: a search — Fansly's spinner under the strip, the strip in its place ──
     const strip5 = (await geometry()).strip;
@@ -599,9 +623,46 @@ scenario(
       lastFrame: settled,
       scTopMoveAfterFirstRow: firstRow === null || settled === null ? null : settled.scTop - firstRow.scTop,
       stripAtFirstRow: firstRow?.strip ?? null,
+      stripCameMs: reload.find((frame) => frame.strip > 0)?.t ?? null,
+      stripFullMs: reload.find((frame) => frame.strip >= 44)?.t ?? null,
+      slid: (reload.find((frame) => frame.strip >= 44)?.t ?? 0) > (reload.find((frame) => frame.strip > 0)?.t ?? 0),
       expiredPinGone: expired === null ? null : !((await pinsReport())?.pins.includes(expired) ?? true),
     };
     await shootStrip(s, 'after-reload');
+    save();
+
+    // ── FBuddy beside the list (its stand-in: no gap under the chips, its 400 px panel): six pins in a narrower column ──
+    await setFanslyNeighbor({ mode: 'after' });
+    await browser.refresh();
+    await waitForFanslyStandReady();
+    await waitPins((report) => report.mounted && report.height === 44, 'no strip with FBuddy', 20_000);
+    // The strip slides in once the page shows rows: the rows stand still again before the pointer goes over them.
+    await browser.pause(600);
+    const noButton: string[] = [];
+    for (let tries = 0; tries < 14; tries += 1) {
+      const now = (await pinsReport())?.pins ?? [];
+      if (now.length >= 6) break;
+      const next = (await renderedRows()).find((group) => !now.includes(group) && !noButton.includes(group));
+      if (next === undefined) break;
+      const button = await hoverRow(next, 2_000).catch(() => null);
+      if (button === null) {
+        noButton.push(next);
+        continue;
+      }
+      await clickAt(button.x, button.y);
+      await waitPins((report) => report.pins.includes(next), `${next} was not pinned`);
+    }
+    measures['fbuddy-rows-without-button'] = noButton;
+    await leaveList();
+    await waitPins((report) => report.height === 44 && report.chips.every((item) => item.state === 'shown'), 'the six chips did not settle');
+    await browser.pause(400);
+    measures['fbuddy-six-pins'] = { geometry: await geometry(), chips: (await pinsReport())?.chips.length ?? null };
+    await shootStrip(s, 'strip-fbuddy-six');
+    await setFanslyNeighbor(null);
+    await browser.refresh();
+    await waitForFanslyStandReady();
+    await waitPins((report) => report.mounted && report.height === 44, 'the strip did not come back without FBuddy', 20_000);
+    await browser.pause(400);
     save();
 
     // ── The last unpin (A2: the strip slides out once the pointer is away) ──
