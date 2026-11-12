@@ -18,7 +18,7 @@ export interface HubRouteSpec {
   readonly method: 'GET' | 'POST' | 'DELETE';
   readonly routeClass: HubRouteClass;
   /** `sdk` = already in the vendored SDK; otherwise the hub change that adds it (§8.6). */
-  readonly since: 'sdk' | 'H-2a' | 'H-5' | 'H-7b' | 'H-7c' | 'H-8b' | 'H-8c' | 'H-9c' | 'H-13' | 'H-15' | 'hub-1213';
+  readonly since: 'sdk' | 'H-2a' | 'H-5' | 'H-7b' | 'H-7c' | 'H-8b' | 'H-8c' | 'H-9c' | 'H-13' | 'H-15';
   /** The owner switch the hub checks on this route (§4.12); null = none or client-only. */
   readonly flag: ClientFeatureFlag | null;
   /** Bootstrap capabilities that must be declared before the client calls it. */
@@ -30,11 +30,8 @@ export interface HubRouteSpec {
 export const HUB_ROUTES = {
   authIssueDeviceTokenWithPassword: { method: 'POST', routeClass: 'sign-in', since: 'sdk', flag: null, capabilities: [], narrowToken: false },
   authRevokeCurrentDeviceToken: { method: 'DELETE', routeClass: 'sign-out', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
-  /**
-   * 2026-11-12 (hub #1213): a one-time link into the team's place for this device's person (the popup's «Мои смены»).
-   * Not in the vendored SDK yet: never sent until a re-vendor brings it and `since` becomes 'sdk'.
-   */
-  authWebLink: { method: 'POST', routeClass: 'account', since: 'hub-1213', flag: null, capabilities: ['web-link-v1'], narrowToken: true },
+  /** 2026-11-12 (hub #1213): a one-time link into the team's place for this device's person (the popup's «Мои смены»). */
+  authWebLink: { method: 'POST', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['web-link-v1'], narrowToken: true },
   health: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: false },
   me: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },
   clientBootstrap: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: [], narrowToken: true },

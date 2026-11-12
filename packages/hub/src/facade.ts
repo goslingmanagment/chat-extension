@@ -175,7 +175,6 @@ import { QuotaTracker } from './quota';
 import { SpendersBoardService, type BoardOptions, type BoardRequest } from './spenders-board';
 import { StreamService, type StreamNotice } from './stream';
 import { HubWire, type ClientFamilyKey } from './transport';
-import { isSdkRoute } from './sdk-transport';
 import { REQUEST_TIMEOUT_MS, callScope, clientVersionHeaders } from './wire';
 
 export interface HubFacadeOptions {
@@ -549,8 +548,7 @@ export class ChatExtensionHub implements HubFacade {
   /**
    * 2026-11-12 (hub #1213, `web-link-v1`): a one-time link into the team's place for this sign-in. Accepted, it opens a
    * narrow web session of the person: only the team's place, never an owner screen, gone with this device token.
-   * Refused here without the capability (CG-HUB-CAPABILITY), and as a contract failure while the vendored SDK has no
-   * `authWebLink` (never sent). Never repeated by itself: each click mints its own link.
+   * Refused here without the capability (CG-HUB-CAPABILITY). Never repeated by itself: each click mints its own link.
    */
   async webLink(request: WebLinkRequest): Promise<WebLink> {
     const route = 'authWebLink';
@@ -559,8 +557,6 @@ export class ChatExtensionHub implements HubFacade {
     const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
     if (!hasCapability(entry.bootstrap.capabilities, 'web-link-v1')) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, 'web-link-v1');
     if (!WebLinkRequestSchema.safeParse(request).success) throw this.ctx.failure(route, transportFailure('contract'), connection);
-    // A route of the contract the vendored SDK does not have yet (`since` 'hub-1213'): nobody can send it.
-    if (!isSdkRoute(route)) throw this.ctx.failure(route, transportFailure('contract'), connection);
     return (await this.ctx.sdk(route, { body: request }, {}, connection)) as WebLink;
   }
 
