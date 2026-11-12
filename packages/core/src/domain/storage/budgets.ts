@@ -38,6 +38,12 @@ export const LOCAL_KEYS = {
   sendAttributions: 'send.attribution',
   /** Who wrote each Fansly note: facts the hub has not answered yet — ids, an action, questionnaire labels; no text. */
   noteAttributions: 'note.attribution',
+  /**
+   * 2026-11-12: the person's temporary chat pins on Fansly (services/hosts/fansly/pins.ts): its owner and each creator's
+   * pins — ids, names, moments; no text. Kept across «Очистить локальные данные» as the person's own state; another
+   * person signing in starts it empty.
+   */
+  fanslyPins: 'fansly.pins',
 } as const;
 
 /** One stored result (an OpView: up to 64k characters of stream plus the parsed result). */
@@ -73,6 +79,8 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [LOCAL_KEYS.sendAttributions]: 512 * KiB,
   /** No text: at most 1000 facts of about 300 bytes; a fill names a few questionnaire labels. */
   [LOCAL_KEYS.noteAttributions]: 1 * MiB,
+  /** Six pins of a few hundred bytes for each creator worked on within six hours; past it the quietest creator goes. */
+  [LOCAL_KEYS.fanslyPins]: 8 * KiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
   [SESSION_KEYS.settingsExtRevision]: 64,

@@ -33,6 +33,9 @@
 //   «Новые». That is the BOARD's switch (`spenders`, `preview`,
 //   `newcomers`), and `navigation` is never asked: a page whose owner left
 //   `navigation` off still opens the fan the person chose in its board.
+// - `pins` (2026-11-12) — a chip of the person's own strip of pinned chats on
+//   Fansly: a local feature with no hub switch. A surface that names no switch
+//   gets its navigation token (the session and the site rules still stand).
 //
 // Which page: a token names a kind and a surface, not a chat, so the gate
 // asks «is the switch usable on at least one granted page» (`flagState(flag,
@@ -75,6 +78,7 @@ export const NAVIGATE_SWITCHES: Readonly<Record<Surface, readonly ClientFeatureF
   coach: ['navigation'],
   preview: ['spenders', 'preview'],
   newcomers: ['newcomers', 'preview'],
+  pins: [],
 };
 
 type State = ReturnType<TokenGateHub['flagState']>;
@@ -115,6 +119,8 @@ export async function tokenRefusal(kind: TokenKind, surface: Surface, hub: Token
   if (kind === 'generate' || kind === 'send') return null;
   if (hub.session() === null) return kind === 'navigate' ? null : { code: 'CG-AUTH-REQUIRED' };
   if (kind === 'navigate' && hub.cachedBootstrap() === null) return null;
+  // A surface with no switch of the hub's (`pins`): the person's own click opens the chat.
+  if (kind === 'navigate' && NAVIGATE_SWITCHES[surface].length === 0) return null;
   const asks: readonly Ask[] = kind === 'insert' ? insertAsks(hub, features) : NAVIGATE_SWITCHES[surface].map((flag) => () => hub.flagState(flag, null));
   let verdict = stateOf(asks);
   if (!verdict.state.usable && verdict.stale) {
