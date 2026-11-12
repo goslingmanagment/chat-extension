@@ -11,7 +11,8 @@ import { type BoardsClock } from './ports';
 /** The site's read: only the fans with another page; null: not read. */
 export type OtherPagesRead = (pageId: number, hostAccountId: string, fanRefs: readonly string[]) => Promise<ReadonlyMap<string, readonly OtherPageVM[]> | null>;
 
-export const OTHER_PAGES_ROUNDS = { batch: 100, round: 300, freshMs: 5 * 60_000, settleMs: 250 } as const;
+/** A read the hub did not answer is asked again only after the whole freshness, as before the hold existed. */
+export const OTHER_PAGES_ROUNDS = { batch: 100, round: 300, freshMs: 5 * 60_000, holdMs: 5 * 60_000, settleMs: 250 } as const;
 
 export interface OtherPagesStore {
   /** The fan's other pages; undefined: none known. */

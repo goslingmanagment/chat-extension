@@ -27,11 +27,20 @@ function page(entries: ReadonlyArray<{ readonly fan: string; readonly entrySeen?
   };
 }
 
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 5; i += 1) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+};
+
+/** The pacer's refusal of a poll before the `/account*` spacing: nothing sent, the moment it may start. */
+const early = (retryAt: number): FanslyApiError => new FanslyApiError('early', { sent: false, retryAt });
+
 function world() {
   let now = T0;
   let features: Record<string, { available: boolean; reason?: string }> = { preview: { available: true } };
   let capabilities: string[] = ['online-v1'];
   const reports: OnlinePresenceRequest[] = [];
+  const timers: Array<{ readonly id: number; readonly at: number; readonly fn: () => void }> = [];
+  let ids = 0;
   const onlinePresence = vi.fn((report: OnlinePresenceRequest) => {
     reports.push(report);
     return Promise.resolve({ recorded: report.seen.length - 1, skipped: 1, serverNow: new Date(now).toISOString() });
@@ -43,25 +52,55 @@ function world() {
       facade: { onlinePresence },
       errorWire: (error: unknown): CgErrorWire => (error as { wire?: CgErrorWire }).wire ?? { code: 'CG-HUB-UNKNOWN' },
     },
-    clock: { now: () => now },
+    clock: {
+      now: () => now,
+      setTimer: (ms: number, fn: () => void) => {
+        ids += 1;
+        timers.push({ id: ids, at: now + ms, fn });
+        return ids;
+      },
+      clearTimer: (id: number) => {
+        const index = timers.findIndex((timer) => timer.id === id);
+        if (index >= 0) timers.splice(index, 1);
+      },
+    },
     networkSession: { aliases: () => [] },
     log: { service: vi.fn() },
   } as unknown as BackgroundKit;
   const answers: Array<unknown> = [];
+  /** When each call was made. */
+  const times: number[] = [];
   const call = vi.fn((_call: FanslyCall) => {
+    times.push(now);
     const next = answers.shift();
     return next instanceof Error ? Promise.reject(next) : Promise.resolve({ response: next, status: 200 });
   });
   let client: Pick<FanslyClient, 'call'> | null = { call };
-  const online = createOnlineSeen(kit, SLICE, () => Promise.resolve(client));
+  const online = createOnlineSeen(kit, SLICE, () => Promise.resolve(client), () => 0);
   return {
     online,
     call,
     answers,
+    times,
     reports,
     onlinePresence,
     advance: (ms: number) => {
       now += ms;
+    },
+    /** Moves the clock, the background's timers firing on the way. */
+    async elapse(ms: number) {
+      const end = now + ms;
+      await flush();
+      for (;;) {
+        const due = [...timers].sort((a, b) => a.at - b.at)[0];
+        if (due === undefined || due.at > end) break;
+        timers.splice(timers.indexOf(due), 1);
+        now = due.at;
+        due.fn();
+        await flush();
+      }
+      now = end;
+      await flush();
     },
     set: (change: { readonly features?: typeof features; readonly capabilities?: string[]; readonly client?: null }) => {
       if (change.features !== undefined) features = change.features;
@@ -143,6 +182,30 @@ describe('[host:fansly] «Онлайн»: the followers Fansly saw active, repor
     expect(await w.online.seen(request, sender)).toEqual({ ok: false, error: { code: 'CG-FAN-REQUEST', httpStatus: 502 } });
     expect(w.call).toHaveBeenCalledTimes(2);
     expect(w.onlinePresence).not.toHaveBeenCalled();
+  });
+
+  it('[FS-NET-3] a read the pacer finds too early is asked again at its moment until that minute\'s turn ends; it sends nothing and holds nothing; `clear()` ends the wait', async () => {
+    const w = world();
+    w.answers.push(early(T0 + 3_000), early(T0 + 8_000), page([{ fan: FANS.a }], [{ fan: FANS.a, seen: T0 - MIN }]));
+    const answer = w.online.seen(request, sender);
+    await w.elapse(8_000);
+    expect(await answer).toEqual({ ok: true, seen: 1, recorded: 0 });
+    expect(w.times).toEqual([T0, T0 + 3_000, T0 + 8_000]);
+    // The next minute's read is told a moment past its own minute: not asked again, and not a read.
+    w.advance(MIN);
+    const turn = T0 + 8_000 + MIN;
+    w.answers.push(early(turn + MIN));
+    expect(await w.online.seen(request, sender)).toMatchObject({ ok: false, error: { code: 'CG-DATA-NOT-READY' } });
+    expect(w.call).toHaveBeenCalledTimes(4);
+    // So the next call asks at once; another person signing in ends its wait for the moment.
+    w.answers.push(early(turn + 2_000));
+    const waiting = w.online.seen(request, sender);
+    await w.elapse(500);
+    w.online.clear();
+    expect(await waiting).toMatchObject({ ok: false, error: { code: 'CG-DATA-NOT-READY' } });
+    await w.elapse(5_000);
+    expect(w.call).toHaveBeenCalledTimes(5);
+    expect(w.onlinePresence).toHaveBeenCalledTimes(1);
   });
 
   it('the hub\'s refusal of a report is the answer: never sent again by itself, the next minute\'s read reports anew', async () => {

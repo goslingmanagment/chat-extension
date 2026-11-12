@@ -1,8 +1,10 @@
 // Fansly fans' badges in the boards (2026-10-28; contracts fan-badges.ts): «Онлайн», Spenders, «Рассылка» and «Новые»
 // show beside a fan's name FBuddy's gem and Fansly's blue card. One store per board: the board says which fans it shows
 // (`want`), the store asks the site for the ones it has not asked lately — a moment later, all of them together, a
-// hundred a call (the background keeps each fan ten minutes and asks Fansly and FBuddy itself) — and tells the board
-// when an answer came. A site without badges (ChatSpace) has no `read`: the store asks nothing and knows nothing.
+// hundred a call, one round at a time (the background keeps each fan's card thirty minutes and asks Fansly and FBuddy
+// itself, Fansly's reads of a model 5 s apart) — and tells the board when an answer came. A call not answered is asked
+// again half a minute later, if the board still shows those fans. A site without badges (ChatSpace) has no `read`: the
+// store asks nothing and knows nothing.
 
 import { type FanBadgeMark, type FanBadges, type FbuddyState } from '@cg/contracts/fan-badges';
 
@@ -17,8 +19,14 @@ export const FAN_BADGES = {
   batch: 100,
   /** The fans one round asks at most: the board's first ones (the most relevant), the rest when they come up again. */
   round: 300,
-  /** A fan asked this recently is not asked again (the background keeps its answer ten minutes). */
+  /**
+   * A fan asked this recently is not asked again. Shorter than the background's thirty minutes on purpose: a card the
+   * background could not read (a cooldown; it answers the tab «unknown» all the same) is asked again in five minutes,
+   * and one it keeps is answered from its own memory, with no request to Fansly.
+   */
   freshMs: 5 * 60_000,
+  /** A fan whose call was not answered is asked again no sooner than this. */
+  holdMs: 30_000,
   /** The fans wanted within this moment go in one round. */
   settleMs: 250,
 } as const;

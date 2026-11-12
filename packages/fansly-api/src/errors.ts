@@ -13,8 +13,8 @@
 // - another status, a body that is not the envelope, no answer — an error.
 //
 // `sent` tells whether a request may have left: false — provably none (refused
-// before `fetch`: not admitted, no session, the creator cooling down, aborted
-// while waiting); true — `fetch` was called, and for a write the outcome is
+// before `fetch`: not admitted, no session, the creator cooling down, a poll too
+// early, aborted while waiting); true — `fetch` was called, and for a write the outcome is
 // the caller's to read (§8.6: a 4xx but 401 refuses, the rest is uncertain).
 // Nothing here carries a header, a body or a text of a message.
 
@@ -27,6 +27,12 @@ export type FanslyFailureKind =
   | 'session'
   /** Our own refusal: the creator cools down and the call may not wait (check, dispatch, `POST /group`). */
   | 'cooling'
+  /**
+   * Our own refusal of a poll (`badges`, `online`; 2026-11-12): the key's spacing or the lane gap since the creator's
+   * last start has not passed. `retryAt` — when it may start; its caller asks again then. Not a rate limit: never
+   * CG-FAN-RATE-LIMIT, never shown to a chatter, never counted as a limit.
+   */
+  | 'early'
   /** The caller gave up (a pause, a closed window). */
   | 'aborted'
   /**
@@ -54,6 +60,8 @@ const CODES: Readonly<Record<FanslyFailureKind, CgAnyCode>> = {
   'not-admitted': 'CG-FAN-REQUEST',
   session: 'CG-FAN-SESSION',
   cooling: 'CG-FAN-RATE-LIMIT',
+  // Not ready yet, a safe read may be asked again: what a poll told to come back later is.
+  early: 'CG-DATA-NOT-READY',
   aborted: 'CG-OP-INTERRUPTED',
   tab: 'CG-FAN-TAB',
   'rate-limited': 'CG-FAN-RATE-LIMIT',
@@ -71,7 +79,7 @@ export interface FanslyFailureFacts {
   readonly httpStatus?: number;
   /** Fansly's own code of a refusal (`error.code`), as a short token. */
   readonly fanslyCode?: string;
-  /** Not before then (a cooldown): epoch ms. */
+  /** Not before then (a cooldown, a poll too early): epoch ms. */
   readonly retryAt?: number;
   /**
    * The request went from the event page itself, not through a tab's relay frame: its `network` or `timeout` is
