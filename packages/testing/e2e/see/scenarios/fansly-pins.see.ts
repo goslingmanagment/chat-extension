@@ -796,7 +796,7 @@ scenario(
     await browser.execute(() => document.querySelector('[data-pg-fansly-pins]')?.scrollIntoView({ block: 'center' }));
     await browser.pause(300);
     const row = await s.rect('page', '[data-pg-fansly-pins]');
-    if (row !== null) await s.shot('options-pins-row', { clip: around([{ x: row.x - 500, y: row.y - 150, width: 1000, height: row.height + 220 }]) });
+    if (row !== null) await s.shot('options-pins-row', { clip: around([{ x: row.x - 500, y: row.y - 150, width: 1000, height: row.height + 270 }]) });
     await s.toChat();
 
     // ── The marks off and the pins on, then the pins off and the marks on (A7: the switch off) ──
