@@ -70,6 +70,19 @@ export class GroupService {
     this.cache.delete(groupId);
   }
 
+  /**
+   * A message of a chat the list has not loaded (the socket's): the group is read and goes on top of the list, the one
+   * row Fansly's route adds above its loaded ones (main:74291-74296, 74362).
+   */
+  fetchNewGroup(groupId: string): void {
+    this.backend.group(groupId, (detail) => {
+      if (detail === null) return;
+      this.upsert(detail);
+      if (!this.inboxIds.includes(detail.id)) this.inboxIds.unshift(detail.id);
+      this.emitGroupsChange();
+    });
+  }
+
   /** `GET /group/<id>/` on every entry into a chat; its answer refreshes the cache and tells every listener. */
   fetchGroup(groupId: string): void {
     this.backend.group(groupId, (detail) => {
@@ -241,9 +254,11 @@ export class GroupService {
     const group = this.cache.get(message.groupId);
     if (group === undefined) {
       // A chat the page has not loaded yet (beyond the list's pages): read, then on top of the list with its message.
+      // A loaded chat keeps its place: Fansly's route does not sort its loaded rows again (main:74291-74296, 74362).
       this.backend.group(message.groupId, (detail) => {
         if (detail === null || this.cache.has(detail.id)) return;
         this.upsert(detail);
+        if (!this.inboxIds.includes(detail.id)) this.inboxIds.unshift(detail.id);
         this.receive(message);
       });
       return;
@@ -253,12 +268,6 @@ export class GroupService {
     if (group.latestLoaded) group.messages = merged(group.messages, [item]);
     group.lastMessage = message;
     if (group.id !== this.activeGroupId && message.senderId !== this.creator.id) group.unread += 1;
-    // The list is sorted by the newest message (live): the chat goes on top.
-    const at = this.inboxIds.indexOf(group.id);
-    if (at !== 0) {
-      if (at > 0) this.inboxIds.splice(at, 1);
-      this.inboxIds.unshift(group.id);
-    }
     for (const listener of [...(this.messageListeners.get(group.id) ?? [])]) listener(item);
     this.emitGroupsChange();
   }

@@ -25,16 +25,16 @@ export const INBOX_PAGE = 20;
 const REFETCH_GUARD_MS = 10_000;
 /** How long Fansly's spinner stands on a search or a switch of filter (live: 240–330 ms). */
 export const INBOX_SPINNER_MS = 240;
-/** The filter chips of a creator's list, as Fansly draws them (her lists and tiers): the stand's own names. */
+/** The filter chips of a creator's list as Fansly draws them (her tiers and lists): names and counts of the stand's own. */
 const FILTERS: ReadonlyArray<readonly [string, number | null]> = [
-  ['All', 44],
-  ['Subscribers', null],
-  ['Basic tier', null],
-  ['Main tier', null],
-  ['Advanced tier', null],
-  ['Master tier', null],
-  ['VIPs', 1],
-  ['Followers', 20],
+  ['All', 12],
+  ['Fans', null],
+  ['Bronze', null],
+  ['Silver', null],
+  ['Gold', 3],
+  ['Diamond', null],
+  ['Close friends', 2],
+  ['New', 7],
 ];
 
 interface RowView extends View {

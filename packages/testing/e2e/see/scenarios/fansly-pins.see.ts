@@ -1,14 +1,30 @@
-// Fansly: temporary chat pins over Fansly's own list of chats (2026-11-12). Sofia Lane's inbox in the showcase world:
-// a row's pin button on hover, a pin from a row (its mark at once, the strip only once the pointer left the list), a
-// second from the header, a scroll far down and back, a fan's message in a pinned chat (the dot), a new chat on top, a
-// chip clicked, a search (Fansly's spinner under the strip), three pins idle, a second tab unpinning while the pointer
-// is in the strip (the placeholder, then its place closes), the light theme, 1100 px wide, 768 px high, the marks and
-// the pins each off on their own, the switch off and on, an expired pin, a reload, the last unpin.
-//
-// The measured checks of the plan (A1–A9, .cache/pins-arena/plan-final.md §4) go to `pins-measures.json` in the run's
-// folder: the numbers, not a verdict alone. What the stand cannot show is said there too (`stand`).
+// Fansly: temporary chat pins over Fansly's own list of chats (2026-11-12), on the stand in the showcase world (Sofia
+// Lane's inbox). It walks the feature and measures what must never happen, writing the numbers (not a verdict alone) to
+// `pins-measures.json` in the run's folder:
+// - A9 a row's pin button: a click and a second click 100 ms later at the same point keep the route, the focus and the
+//   unread count, and stay on the same row; a click on the centre of a hovered row's time or unread badge (a pinned row
+//   and one that is not) opens its chat and pins or unpins nothing;
+// - A2 the first pin and the last unpin: the strip's height waits while the pointer is over the list, then the scroller's
+//   top moves by 44 px one way only, with no blank band, `scrollTop` and the spacers unchanged — at the list's top and
+//   with the list scrolled (non-zero spacers);
+// - A1 a pin and an unpin with another pin present (at the top and scrolled): the scroller, `scrollTop`, the spacers
+//   identical;
+// - A3 a scroll through some ninety chats and back: the strip's box constant, our host never put in again;
+// - chips frozen: three pins, the first taken off by its row's button, the pointer on the second chip 150 ms later:
+//   the second chip's x by every frame;
+// - A4 fifteen seconds idle with three pins: no mutation of ours;
+// - A5 a search: Fansly's spinner under the strip, the strip's box constant;
+// - A6 a second tab takes off the first of three chips while the pointer is on this tab's strip: how soon this tab
+//   hears it, and the other chips' x unchanged until the pointer leaves;
+// - A7 the switch off: how soon the strip, the row buttons and the pin marks go, the dots staying;
+// - A13 back to the list from another page: the scroller's top after the first frame with rows;
+// - A8 a reload: when the strip came, against the first rows;
+// and the pictures: a row's button with and without an unread badge, in both themes and beside FBuddy's stand-in,
+// the strip with one to six pins, the header's button, the settings row. `stand` in the file says what the stand
+// cannot show. No two pictures are the same (`duplicatePictures`).
 
-import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { $, browser } from '@wdio/globals';
@@ -23,7 +39,7 @@ const LIST = '.messages-list-wrapper';
 const SLOT = '[data-host="inbox-slot"]';
 const HEADER_PIN = '[data-host="header-slot"][data-header-order="5"]';
 const rowOf = (group: string): string => `${LIST} a[href="/messages/${group}"]`;
-const buttonOf = (group: string): string => `${rowOf(group)} [data-cg-inbox="row"] button`;
+const buttonOf = (group: string): string => `${rowOf(group)} [data-cg-inbox="row"]`;
 
 interface Geometry {
   readonly scTop: number;
@@ -143,7 +159,7 @@ interface PinsReport {
   readonly visible: boolean;
   readonly held: boolean;
   readonly listInside: boolean;
-  readonly changedAt: number;
+  readonly counts: { readonly reads: number; readonly changes: number; readonly touches: number; readonly changedAt: number } | null;
   readonly mounted: boolean;
   readonly header: boolean;
   readonly hostStats: { readonly replaced: number; readonly refused: number };
@@ -156,15 +172,17 @@ async function pinsReport(): Promise<PinsReport | null> {
 
 async function waitPins(test: (report: PinsReport) => boolean, what: string, timeout = 10_000): Promise<PinsReport> {
   let last: PinsReport | null = null;
-  await browser.waitUntil(
-    async () => {
-      last = await pinsReport();
-      return last !== null && test(last);
-    },
-    { timeout, interval: 100 },
-  ).catch(() => {
-    throw new Error(`${what}; last: ${JSON.stringify(last)}`);
-  });
+  await browser
+    .waitUntil(
+      async () => {
+        last = await pinsReport();
+        return last !== null && test(last);
+      },
+      { timeout, interval: 100 },
+    )
+    .catch(() => {
+      throw new Error(`${what}; last: ${JSON.stringify(last)}`);
+    });
   return last as unknown as PinsReport;
 }
 
@@ -173,15 +191,19 @@ async function pointTo(x: number, y: number): Promise<void> {
   await browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ x: Math.round(x), y: Math.round(y), origin: 'viewport' }).perform();
 }
 
-async function centre(selector: string): Promise<{ x: number; y: number }> {
-  const box = await browser.execute((sel: string) => {
+async function boxOf(selector: string): Promise<Box | null> {
+  return browser.execute((sel: string) => {
     const node = document.querySelector(sel);
     if (node === null) return null;
     const { x, y, width, height } = node.getBoundingClientRect();
-    return { x: x + width / 2, y: y + height / 2 };
+    return { x, y, width, height };
   }, selector);
+}
+
+async function centre(selector: string): Promise<{ x: number; y: number }> {
+  const box = await boxOf(selector);
   if (box === null) throw new Error(`nothing at ${selector}`);
-  return box;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
 /** The pointer away from the list's column: on the open conversation. */
@@ -194,14 +216,24 @@ async function leaveList(): Promise<void> {
   await pointTo(conversation?.x ?? 1000, conversation?.y ?? 200);
 }
 
-/** A row's pin button: the pointer over the row, then the button once it has faded in. */
+/** A row's pin button: the pointer onto the row (two real moves), then the button once it has faded in; its centre. */
 async function hoverRow(group: string, timeout = 5_000): Promise<{ x: number; y: number }> {
+  // A row below the list's visible part is brought into it first, as a person scrolls to it.
+  const moved = await browser.execute((sel: string) => {
+    const row = document.querySelector(sel);
+    const list = row?.closest('.message-list');
+    if (row === null || row === undefined || list === null || list === undefined) return false;
+    const r = row.getBoundingClientRect();
+    const l = list.getBoundingClientRect();
+    if (r.top >= l.top && r.bottom <= Math.min(l.bottom, window.innerHeight - 160)) return false;
+    list.scrollTop += r.top - l.top - 80;
+    return true;
+  }, rowOf(group));
+  if (moved) await browser.pause(400);
   const at = await centre(rowOf(group));
-  await pointTo(at.x - 60, at.y);
-  await browser.waitUntil(async () => browser.execute((sel: string) => {
-    const box = document.querySelector(sel)?.parentElement;
-    return box !== null && box !== undefined && box.style.opacity === '1';
-  }, buttonOf(group)), { timeout, interval: 50, timeoutMsg: `no pin button on the row of ${group}` });
+  await pointTo(at.x - 90, at.y - 4);
+  await pointTo(at.x - 80, at.y);
+  await browser.waitUntil(async () => browser.execute((sel: string) => (document.querySelector(sel) as HTMLElement | null)?.style.opacity === '1', buttonOf(group)), { timeout, interval: 50, timeoutMsg: `no pin button on the row of ${group}` });
   await browser.pause(150);
   return centre(buttonOf(group));
 }
@@ -220,32 +252,67 @@ async function renderedRows(): Promise<string[]> {
 /** A chip of our strip (closed root: WebDriver reaches into it). */
 const chip = (group: string, part = '') => $(SLOT).shadow$(`.cg-pin[data-pin-group="${group}"]${part}`);
 
-/** The pointer over a chip (WebDriver's own move refuses an element of a closed root). */
-async function overChip(group: string, part = ''): Promise<{ x: number; y: number }> {
+async function chipBox(group: string, part = ''): Promise<Box> {
   const element = await chip(group, part);
   await element.waitForExist({ timeout: 5_000 });
-  const rect = (await browser.execute((node: Element) => {
+  return (await browser.execute((node: Element) => {
     const { x, y, width, height } = node.getBoundingClientRect();
     return { x, y, width, height };
   }, element as unknown as Element)) as Box;
+}
+
+/** The pointer over a chip (WebDriver's own move refuses an element of a closed root). */
+async function overChip(group: string, part = ''): Promise<{ x: number; y: number }> {
+  const rect = await chipBox(group, part);
   const at = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   await pointTo(at.x, at.y);
   return at;
 }
 
-async function shootList(s: See, name: string, height = 300): Promise<void> {
-  const list = await s.rect('page', LIST);
-  await s.shot(name, list === null ? {} : { clip: around([{ ...list, height: Math.min(list.height, height) }]) });
+/** Every frame from now until `ms` later, the x of these chips (the elements handed into the page by WebDriver). */
+async function startChipFrames(groups: readonly string[], ms: number): Promise<void> {
+  const elements = await Promise.all(groups.map(async (group) => (await chip(group)) as unknown as Element));
+  await browser.execute(
+    (limit: number, ...nodes: Element[]) => {
+      const frames: number[][] = [];
+      (window as unknown as Record<string, unknown>)['__cgChipFrames'] = frames;
+      const t0 = performance.now();
+      const tick = (): void => {
+        frames.push(nodes.map((node) => Math.round(node.getBoundingClientRect().x * 10) / 10));
+        if (performance.now() - t0 < limit) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    },
+    ms,
+    ...elements,
+  );
 }
 
-async function shootStrip(s: See, name: string): Promise<void> {
+async function readChipFrames(): Promise<number[][]> {
+  return browser.execute(() => ((window as unknown as Record<string, unknown>)['__cgChipFrames'] ?? []) as number[][]);
+}
+
+async function shootList(s: See, name: string, height = 300, from = 0): Promise<void> {
+  const list = await s.rect('page', LIST);
+  await s.shot(name, list === null ? {} : { clip: around([{ ...list, y: list.y + from, height: Math.min(list.height - from, height) }]) });
+}
+
+/** The strip with the chips over it and the first rows under it. */
+async function shootStrip(s: See, name: string, under = 150): Promise<void> {
   const strip = await s.rect('page', SLOT);
   const list = await s.rect('page', LIST);
   if (strip === null || list === null) {
     await shootList(s, name);
     return;
   }
-  await s.shot(name, { clip: around([{ x: list.x, y: strip.y - 70, width: list.width, height: strip.height + 70 + 150 }]) });
+  await s.shot(name, { clip: around([{ x: list.x, y: strip.y - 70, width: list.width, height: strip.height + 70 + under }]) });
+}
+
+/** One row as it is now (hovered: with its button), with a little of its neighbours. */
+async function shootRow(s: See, name: string, group: string): Promise<void> {
+  const row = await boxOf(rowOf(group));
+  if (row === null) throw new Error(`no row of ${group}`);
+  await s.shot(name, { clip: around([row], [10, 8, 10, 8]) });
 }
 
 async function setSettings(s: See, patch: Record<string, unknown>): Promise<void> {
@@ -255,29 +322,97 @@ async function setSettings(s: See, patch: Record<string, unknown>): Promise<void
 
 const same = (a: Geometry, b: Geometry): boolean => a.scTop === b.scTop && a.scHeight === b.scHeight && a.scrollTop === b.scrollTop && JSON.stringify(a.spacers) === JSON.stringify(b.spacers);
 
+async function scrollList(top: number): Promise<void> {
+  await browser.execute((value: number) => {
+    const list = document.querySelector('.messages-list-wrapper .message-list');
+    if (list !== null) list.scrollTop = value;
+  }, top);
+  await browser.pause(400);
+}
+
+/** Back to a chat by the stand's own router (no click of ours), its route and dock standing. */
+async function backTo(group: string): Promise<void> {
+  await callFansly('open', group);
+  await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${group}`), { timeout: 8_000, timeoutMsg: `not back on ${group}` });
+  await browser.pause(400);
+}
+
+/**
+ * A person's click on the centre of a part of a hovered row (its time, its unread badge): the chat opens, nothing is
+ * pinned or unpinned, and nothing of ours was under the pointer.
+ */
+async function clickRowPart(group: string, part: string): Promise<Record<string, unknown>> {
+  const before = (await pinsReport())?.pins ?? [];
+  await hoverRow(group);
+  const at = await centre(`${rowOf(group)} ${part}`);
+  const there = await browser.execute((x: number, y: number) => {
+    const node = document.elementFromPoint(x, y);
+    return node === null ? null : node.closest('[data-cg-inbox]') !== null ? 'ours' : (node.className || node.localName);
+  }, at.x, at.y);
+  await clickAt(at.x, at.y);
+  await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${group}`), { timeout: 8_000 }).catch(() => undefined);
+  await browser.pause(300);
+  const after = (await pinsReport())?.pins ?? [];
+  return { part, at, elementThere: there, opened: (await browser.getUrl()).endsWith(`/messages/${group}`), pinsUnchanged: JSON.stringify(before) === JSON.stringify(after) };
+}
+
 scenario(
   'fansly-pins',
   async (s) => {
     const measures: Record<string, unknown> = {
-      stand: 'the Fansly-like stand (packages/testing/fixture-fansly), not fansly.com: its rows, spinner and filters are our imitation; A8 is the reload case on the stand; FBuddy is not on the stand',
+      stand: 'the Fansly-like stand (packages/testing/fixture-fansly), not fansly.com: its rows, spinner and filters are our imitation, FBuddy is its stand-in (no gap under the chips, a line added to each row); the reload (A8) and the return to the list (A13) are the stand\'s timings, not the live site\'s',
     };
     const save = (): void => writeFileSync(join(s.out, 'pins-measures.json'), `${JSON.stringify(measures, null, 2)}\n`);
     await s.ready();
     await callFansly('setTheme', 'dark');
     const open = s.world.fansly.chats.a.group;
-    await browser.waitUntil(async () => (await renderedRows()).length > 6, { timeout: 15_000, timeoutMsg: 'no rows in the list of chats' });
+    await browser.waitUntil(async () => (await renderedRows()).length > 8, { timeout: 15_000, timeoutMsg: 'no rows in the list of chats' });
     await waitPins((report) => report.on === true, 'the pins were not read');
-    const rows = (await renderedRows()).filter((group) => group !== open);
-    const [r1, r2, r3, r4] = rows;
-    if (r1 === undefined || r2 === undefined || r3 === undefined || r4 === undefined) throw new Error('fewer than four other rows');
-    lap(`rows ${[r1, r2, r3, r4].join(', ')}, open ${open}`);
+    const groups = await callFansly('groups');
+    const unread = (group: string): number => groups.find((item) => item.id === group)?.unread ?? 0;
+    // Rows high enough in the list to be seen whole (our floating launcher's menu stands over the column's bottom).
+    const tops = await browser.execute(() => Object.fromEntries([...document.querySelectorAll('.messages-list-wrapper .message-list a[href^="/messages/"]')].map((link) => [link.getAttribute('href')?.split('/').pop() ?? '', link.getBoundingClientRect().top])));
+    const pool = (await renderedRows()).filter((group) => group !== open).slice(0, 10);
+    const high = (group: string): boolean => (tops[group] ?? 999) < 640;
+    const take = (want: (group: string) => boolean): string => {
+      const found = pool.find((group) => want(group) && high(group)) ?? pool.find(want) ?? pool[0];
+      if (found === undefined) throw new Error('not enough rows');
+      pool.splice(pool.indexOf(found), 1);
+      return found;
+    };
+    const r1 = take((group) => unread(group) > 0);
+    const rBadge = take((group) => unread(group) > 0);
+    const rPlain = take((group) => unread(group) === 0);
+    const r2 = take(() => true);
+    const r3 = take(() => true);
+    const r4 = take(() => true);
+    const r5 = take(() => true);
+    lap(`r1 ${r1}, badge ${rBadge}, plain ${rPlain}, r2 ${r2}, r3 ${r3}, open ${open}`);
 
-    // ── A9: a row's pin button, a second click 100 ms later at the same point, then a click on the row's time ──
+    // ── A row's button: on the preview's line, left of the unread badge or at the right edge, never over the time ──
+    await hoverRow(rPlain);
+    await shootRow(s, 'row-hover', rPlain);
+    await hoverRow(rBadge);
+    await shootRow(s, 'row-hover-badge', rBadge);
+    measures['row-button'] = await browser.execute((badge: string, plain: string) => {
+      const look = (group: string): Record<string, unknown> => {
+        const row = document.querySelector(`.messages-list-wrapper a[href="/messages/${group}"] app-messaging-group`);
+        const button = row?.querySelector('[data-cg-inbox="row"]');
+        const r = (sel: string): DOMRect | null => row?.querySelector(sel)?.getBoundingClientRect() ?? null;
+        const b = button?.getBoundingClientRect() ?? null;
+        const time = r('.message-time');
+        const badgeBox = r('.badge-container');
+        const overlaps = (a: DOMRect | null, c: DOMRect | null): boolean => a !== null && c !== null && a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom;
+        return { button: b === null ? null : { top: b.top - (row?.getBoundingClientRect().top ?? 0), right: (row?.getBoundingClientRect().right ?? 0) - b.right, size: b.width }, overTime: overlaps(b, time), overBadge: overlaps(b, badgeBox) };
+      };
+      return { withBadge: look(badge), withoutBadge: look(plain) };
+    }, rBadge, rPlain);
+
+    // ── A9: a click on a row's pin button and another 100 ms later at the same point ──
     await browser.$(FANSLY_MAIN.field).click();
     const focusBefore = await browser.execute(() => document.activeElement?.className ?? null);
     const unreadBefore = (await callFansly('groups')).find((group) => group.id === r2)?.unread ?? null;
     const at = await hoverRow(r2);
-    await shootList(s, 'row-hover', 420);
     const before9 = await geometry();
     await clickAt(at.x, at.y, 100);
     await browser.pause(400);
@@ -285,7 +420,6 @@ scenario(
     const under = await browser.execute((x: number, y: number) => document.elementFromPoint(x, y)?.closest('a[href^="/messages/"]')?.getAttribute('href') ?? null, at.x, at.y);
     const focusAfter = await browser.execute(() => document.activeElement?.className ?? null);
     const unreadAfter = (await callFansly('groups')).find((group) => group.id === r2)?.unread ?? null;
-    const report9 = await pinsReport();
     measures['A9'] = {
       clicks: 'pin, then the same point 100 ms later (unpins the same row)',
       route: { before: before9.path, after: after9.path, unchanged: before9.path === after9.path },
@@ -293,11 +427,17 @@ scenario(
       unread: { before: unreadBefore, after: unreadAfter, unchanged: unreadBefore === unreadAfter },
       rowUnderPointer: under,
       sameRow: under === `/messages/${r2}`,
-      pinsAfter: report9?.pins ?? null,
+      pinsAfter: (await pinsReport())?.pins ?? null,
     };
+    // A row that is not pinned: the centre of its badge, the centre of another's time.
+    const parts: Array<Record<string, unknown>> = [];
+    parts.push({ row: 'not pinned', ...(await clickRowPart(rBadge, '.badge')) });
+    await backTo(open);
+    parts.push({ row: 'not pinned', ...(await clickRowPart(rPlain, '.message-time')) });
+    await backTo(open);
     save();
 
-    // ── A pin from a row: its mark at once, the strip only once the pointer left the list (A2: the first pin) ──
+    // ── The first pin, from a row (A2 at the list's top): its mark at once, the strip once the pointer left the list ──
     const at1 = await hoverRow(r1);
     const before2 = await geometry();
     await clickAt(at1.x, at1.y);
@@ -320,22 +460,62 @@ scenario(
       scTopMove: after2.scTop - before2.scTop,
       frames: motion(framesIn),
     };
+    // A pinned row: the centre of its badge, then of its time.
+    if (unread(r1) > 0) {
+      parts.push({ row: 'pinned', ...(await clickRowPart(r1, '.badge')) });
+      await backTo(open);
+    }
+    parts.push({ row: 'pinned', ...(await clickRowPart(r1, '.message-time')) });
+    await backTo(open);
+    measures['A9-row-parts'] = parts;
     save();
 
-    // ── A second pin from the header (A1: with another pin present nothing of the list moves) ──
+    // ── A second pin from the header (A1 at the list's top) ──
     await browser.waitUntil(async () => (await $(HEADER_PIN).isExisting()) && (await $(HEADER_PIN).shadow$('.cg-ph__button').isExisting()), { timeout: 10_000, timeoutMsg: 'no pin button in the header' });
+    await leaveList();
     const before1 = await geometry();
     await $(HEADER_PIN).shadow$('.cg-ph__button').click();
-    await waitPins((report) => report.pins.includes(open), 'the open chat was not pinned from the header');
-    await browser.pause(500);
+    await waitPins((report) => report.pins.includes(open) && report.chips.length === 2 && report.chips.every((item) => item.state === 'shown'), 'the open chat was not pinned from the header');
+    await browser.pause(400);
     const after1 = await geometry();
     const header = await s.rect('page', '.message-content-header');
-    if (header !== null) await s.shot('header-pinned', { clip: around([{ ...header, width: Math.min(header.width, 520) }], 6) });
+    if (header !== null) await s.shot('header-pinned', { clip: around([{ ...header, width: Math.min(header.width, 560) }], 6) });
     await shootStrip(s, 'strip-two-pins');
-    measures['A1-pin-with-another'] = { before: before1, after: after1, identical: same(before1, after1) && JSON.stringify(before1.strip) === JSON.stringify(after1.strip) };
+    const a1: Record<string, unknown> = { top: { before: before1, after: after1, identical: same(before1, after1) && JSON.stringify(before1.strip) === JSON.stringify(after1.strip) } };
+
+    // ── A chat that was not loaded writes: it comes on top; the loaded ones keep their places ──
+    const all = await callFansly('groups');
+    const loaded = (await callFansly('inbox')).loaded;
+    const fresh = all[Math.max(loaded + 10, 60)]?.id ?? null;
+    if (fresh !== null) {
+      const before6 = await geometry();
+      const order6 = await renderedRows();
+      await callFansly('fanMessage', fresh, 'hey, found you on fansly 🙂');
+      await browser.waitUntil(async () => (await renderedRows())[0] === fresh, { timeout: 8_000, interval: 100 }).catch(() => undefined);
+      await browser.pause(300);
+      const after6 = await geometry();
+      const order = await renderedRows();
+      measures['new-chat-on-top'] = { group: fresh, onTop: order[0] === fresh, othersInOrder: JSON.stringify(order.slice(1, 8)) === JSON.stringify(order6.slice(0, 7)), stripUnchanged: JSON.stringify(before6.strip) === JSON.stringify(after6.strip) };
+      await shootStrip(s, 'new-chat-on-top', 230);
+    }
+
+    // ── A1 with the list scrolled (non-zero spacers): the header's unpin and pin again ──
+    await scrollList(1200);
+    const before1s = await geometry();
+    await $(HEADER_PIN).shadow$('.cg-ph__button').click();
+    await waitPins((report) => !report.pins.includes(open) && report.chips.length === 1, 'the header did not unpin');
+    await browser.pause(500);
+    const mid1s = await geometry();
+    await $(HEADER_PIN).shadow$('.cg-ph__button').click();
+    await waitPins((report) => report.pins.includes(open) && report.chips.length === 2 && report.chips.every((item) => item.state === 'shown'), 'the header did not pin again');
+    await browser.pause(400);
+    const after1s = await geometry();
+    a1['scrolled'] = { before: before1s, afterUnpin: mid1s, afterPin: after1s, identical: same(before1s, mid1s) && same(mid1s, after1s), spacersNonZero: before1s.spacers.some((value) => value > 0) };
+    measures['A1-pin-with-another'] = a1;
+    await scrollList(0);
     save();
 
-    // ── A3: far down the list (80 chats and more, pages loading) and back: the strip stands, our host never put in again ──
+    // ── A3: far down the list (pages loading) and back: the strip stands, our host never put in again ──
     await startMutations();
     const strips: Array<Box | null> = [];
     const stats0 = (await pinsReport())?.hostStats ?? null;
@@ -367,6 +547,7 @@ scenario(
       stripConstant: rects.size === 1,
       hostPlacedByMutation: mutations3.hostPlaced,
       hostReplacedByPort: stats3 === null || stats0 === null ? null : stats3.replaced - stats0.replaced,
+      rowButtonsShownWhileScrolling: await browser.execute(() => [...document.querySelectorAll('.messages-list-wrapper [data-cg-inbox="row"]')].filter((node) => (node as HTMLElement).style.opacity === '1').length),
     };
     save();
 
@@ -376,54 +557,19 @@ scenario(
     await waitPins((report) => report.chips.some((item) => item.groupId === r1 && item.waiting), 'no dot on the chip of the fan who wrote');
     await browser.pause(400);
     const after5 = await geometry();
-    await shootStrip(s, 'strip-dot');
+    await shootStrip(s, 'strip-dot', 230);
     measures['message-in-pinned-chat'] = { stripUnchanged: JSON.stringify(before5.strip) === JSON.stringify(after5.strip), scTopUnchanged: before5.scTop === after5.scTop };
 
-    // ── A new chat on top: a message from a chat the list had not loaded ──
-    const groups = await callFansly('groups');
-    const fresh = groups.map((group) => group.id).find((id) => !rows.includes(id) && id !== open && groups.findIndex((group) => group.id === id) > 60) ?? null;
-    if (fresh !== null) {
-      const before6 = await geometry();
-      await callFansly('fanMessage', fresh, 'hey, found you on fansly 🙂');
-      await browser.waitUntil(async () => (await renderedRows())[0] === fresh, { timeout: 8_000, interval: 100, timeoutMsg: 'the new chat did not come on top' }).catch(() => undefined);
-      await browser.pause(300);
-      const after6 = await geometry();
-      measures['new-chat-on-top'] = { group: fresh, onTop: (await renderedRows())[0] === fresh, stripUnchanged: JSON.stringify(before6.strip) === JSON.stringify(after6.strip), scTopUnchanged: before6.scTop === after6.scTop };
-      await shootStrip(s, 'new-chat-on-top');
-    }
-    save();
-
-    // ── A9 (the last part): a click on a pinned row's time, outside its pin button, opens the chat ──
-    const time = await browser.execute((sel: string) => {
-      const node = document.querySelector(sel);
-      const rect = node?.getBoundingClientRect();
-      return rect === undefined ? null : { x: rect.x + 3, y: rect.y + 3 };
-    }, `${rowOf(r1)} .message-time`);
-    if (time !== null) {
-      await pointTo(time.x - 80, time.y + 10);
-      await browser.pause(200);
-      const hit = await browser.execute((x: number, y: number) => {
-        const node = document.elementFromPoint(x, y);
-        return node === null ? null : node.closest('[data-cg-inbox]') !== null ? 'ours' : node.className || node.localName;
-      }, time.x, time.y);
-      await clickAt(time.x, time.y);
-      await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${r1}`), { timeout: 8_000 }).catch(() => undefined);
-      measures['A9-time-click'] = { at: time, elementThere: hit, opened: (await browser.getUrl()).endsWith(`/messages/${r1}`) };
-    }
+    // ── A chip clicked: the chat opens through Fansly's router, its chip lit; back by the open chat's chip ──
+    await chip(r1, ' .cg-pin__open').click();
+    await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${r1}`), { timeout: 8_000, timeoutMsg: 'the chip did not open its chat' });
     await waitPins((report) => report.chips.some((item) => item.groupId === r1 && item.open), 'the opened chat\'s chip is not lit');
     await leaveList();
     await browser.pause(300);
-    await shootStrip(s, 'chip-lit-open');
-
-    // ── A chip clicked: the chat opens through Fansly's router, its chip lit ──
+    await shootStrip(s, 'chip-opened', 80);
     await chip(open, ' .cg-pin__open').click();
     await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${open}`), { timeout: 8_000, timeoutMsg: 'the chip did not open its chat' });
-    await waitPins((report) => report.chips.some((item) => item.groupId === open && item.open), 'the open chat\'s chip is not lit');
-    await leaveList();
-    await browser.pause(300);
-    await shootStrip(s, 'chip-opened');
-    measures['chip-click'] = { opened: (await browser.getUrl()).endsWith(`/messages/${open}`) };
-    save();
+    measures['chip-click'] = { opened: true };
 
     // ── A5: a search — Fansly's spinner under the strip, the strip in its place ──
     const strip5 = (await geometry()).strip;
@@ -444,85 +590,199 @@ scenario(
     await browser.pause(600);
     save();
 
-    // ── A third pin; A4: 15 s idle with three pins — nothing of ours changes in the page ──
-    const at3 = await hoverRow(r3);
-    await clickAt(at3.x, at3.y);
-    await waitPins((report) => report.pins.length === 3, 'three pins');
-    await leaveList();
-    await waitPins((report) => report.chips.every((item) => item.state === 'shown'), 'the chips did not settle');
+    // ── Three, four and five pins (names giving way, then cut with «…») ──
+    const pinRow = async (group: string): Promise<void> => {
+      const button = await hoverRow(group);
+      await clickAt(button.x, button.y);
+      await waitPins((report) => report.pins.includes(group), `${group} was not pinned`);
+      await leaveList();
+      await waitPins((report) => report.chips.some((item) => item.groupId === group) && report.chips.every((item) => item.state === 'shown'), 'the chips did not settle');
+      await browser.pause(300);
+    };
+    await pinRow(r3);
     await shootStrip(s, 'strip-three-pins');
-    // The note's picture: the strip with its chips over the list, a row's pin button under the pointer.
-    const shown = await pinsReport();
-    const near = (await renderedRows()).slice(0, 4).find((group) => !(shown?.pins ?? []).includes(group)) ?? r4;
+    // The note's picture: the strip over the list, a row's button under the pointer.
+    const shownNow = await pinsReport();
+    const near = (await renderedRows()).slice(0, 4).find((group) => !(shownNow?.pins ?? []).includes(group)) ?? r4;
     await hoverRow(near);
     const list = await s.rect('page', LIST);
     const strip = await s.rect('page', SLOT);
     if (list !== null && strip !== null) await s.shot('note', { file: 'note-pins', clip: around([{ x: list.x, y: strip.y - 100, width: list.width, height: strip.height + 100 + 300 }]) });
     await leaveList();
-    await browser.pause(400);
+    await pinRow(r4);
+    await shootStrip(s, 'strip-four-pins', 40);
+    await pinRow(r5);
+    await shootStrip(s, 'strip-five-pins', 40);
+    for (const group of [r5, r4]) {
+      await overChip(group);
+      await browser.pause(150);
+      const x = await overChip(group, ' .cg-pin__x');
+      await clickAt(x.x, x.y);
+      await browser.pause(150);
+    }
+    await leaveList();
+    await waitPins((report) => report.chips.length === 3 && report.chips.every((item) => item.state === 'shown'), 'back to three pins');
+    save();
+
+    // ── Chips frozen: the first of three taken off by its row's button, the pointer on the second 150 ms later ──
+    const three = (await pinsReport())?.pins ?? [];
+    const [first, second, third] = three;
+    if (first !== undefined && second !== undefined && third !== undefined) {
+      const button = await hoverRow(first);
+      await startChipFrames([second, third], 1_200);
+      await clickAt(button.x, button.y);
+      await browser.pause(150);
+      await overChip(second);
+      await browser.pause(1_100);
+      const xs = await readChipFrames();
+      const whileIn = await pinsReport();
+      await leaveList();
+      await waitPins((report) => !report.chips.some((item) => item.groupId === first), 'the first chip did not close');
+      const distinct = new Set(xs.map((frame) => frame.join(',')));
+      measures['chips-frozen'] = { frames: xs.length, positions: [...distinct], unchanged: distinct.size === 1, firstWhileIn: whileIn?.chips.find((item) => item.groupId === first)?.state ?? null };
+      await pinRow(first);
+    }
+    save();
+
+    // ── A4: 15 s idle with three pins: no mutation of ours ──
     await startMutations();
     await browser.pause(15_000);
     measures['A4-idle-15s'] = await readMutations();
     save();
 
-    // ── A6: a second tab of the creator unpins while the pointer is in this tab's strip ──
-    const first = await browser.getWindowHandle();
-    await overChip(r3);
-    await waitPins((report) => report.held, 'the strip did not hold under the pointer');
-    const before7 = await geometry();
-    const second = (await browser.createWindow('window')).handle;
-    await browser.switchToWindow(second);
-    // As wide as the first: at 1200 px and below Fansly hides the list with a chat open.
-    await browser.browsingContextSetViewport({ context: second, viewport: { width: 1440, height: 900 } });
-    await browser.url(fanslyStandUrl(`/messages/${open}`));
-    await waitForFanslyStandReady();
-    await browser.waitUntil(async () => (await $(SLOT).isExisting()) && (await $(SLOT).shadow$(`.cg-pin[data-pin-group="${r3}"] .cg-pin__x`).isExisting()), { timeout: 20_000, timeoutMsg: 'no strip in the second tab' });
-    await overChip(r3);
-    await browser.pause(200);
-    const x3 = await overChip(r3, ' .cg-pin__x');
-    const clickedAt = await browser.execute(() => Date.now());
-    await clickAt(x3.x, x3.y);
-    await browser.pause(1200);
-    const secondTab = await pinsReport();
-    await browser.closeWindow();
-    await browser.switchToWindow(first);
-    const tomb = await waitPins((report) => !report.pins.includes(r3), 'the first tab did not hear the unpin', 5_000);
-    const after7 = await geometry();
-    await shootStrip(s, 'strip-placeholder-held');
-    await leaveList();
-    await waitPins((report) => !report.chips.some((item) => item.groupId === r3), 'the placeholder did not close', 5_000);
-    await browser.pause(400);
-    await shootStrip(s, 'strip-placeholder-closed');
-    measures['A6-second-tab'] = {
-      heardMs: tomb.changedAt - clickedAt,
-      withinOneSecond: tomb.changedAt - clickedAt <= 1000,
-      chipWhileHeld: tomb.chips.find((item) => item.groupId === r3)?.state ?? null,
-      secondTabPins: secondTab?.pins ?? null,
-      nothingMovedUnderPointer: JSON.stringify(before7.strip) === JSON.stringify(after7.strip) && before7.scTop === after7.scTop,
-    };
+    // ── A6: a second tab takes off the first of three chips while the pointer is on this tab's third chip ──
+    const now6 = (await pinsReport())?.pins ?? [];
+    const [c1, c2, c3] = now6;
+    if (c1 !== undefined && c2 !== undefined && c3 !== undefined) {
+      const firstTab = await browser.getWindowHandle();
+      await overChip(c3);
+      await waitPins((report) => report.held, 'the strip did not hold under the pointer');
+      const before7 = await geometry();
+      const xs7 = [(await chipBox(c2)).x, (await chipBox(c3)).x];
+      const secondTab = (await browser.createWindow('window')).handle;
+      await browser.switchToWindow(secondTab);
+      // As wide as the first: at 1200 px and below Fansly hides the list with a chat open (the stand's rule is off here).
+      await browser.browsingContextSetViewport({ context: secondTab, viewport: { width: 1440, height: 900 } });
+      await browser.url(fanslyStandUrl(`/messages/${open}`));
+      await waitForFanslyStandReady();
+      await browser.waitUntil(async () => (await $(SLOT).isExisting()) && (await $(SLOT).shadow$(`.cg-pin[data-pin-group="${c1}"] .cg-pin__x`).isExisting()), { timeout: 20_000, timeoutMsg: 'no strip in the second tab' });
+      await browser.pause(400);
+      await overChip(c1);
+      await browser.pause(200);
+      const x1 = await overChip(c1, ' .cg-pin__x');
+      const clickedAt = await browser.execute(() => Date.now());
+      await clickAt(x1.x, x1.y);
+      await browser.pause(1200);
+      const secondPins = (await pinsReport())?.pins ?? null;
+      await browser.closeWindow();
+      await browser.switchToWindow(firstTab);
+      const tomb = await waitPins((report) => !report.pins.includes(c1), 'the first tab did not hear the unpin', 5_000);
+      const after7 = await geometry();
+      const xs7after = [(await chipBox(c2)).x, (await chipBox(c3)).x];
+      await shootStrip(s, 'strip-placeholder-held', 60);
+      await leaveList();
+      await waitPins((report) => !report.chips.some((item) => item.groupId === c1), 'the placeholder did not close', 5_000);
+      await browser.pause(400);
+      await shootStrip(s, 'strip-placeholder-closed', 60);
+      const heard = tomb.counts === null ? null : tomb.counts.changedAt - clickedAt;
+      measures['A6-second-tab'] = {
+        heardMs: heard,
+        withinOneSecond: heard !== null && heard <= 1000,
+        firstChipWhileHeld: tomb.chips.find((item) => item.groupId === c1)?.state ?? null,
+        othersX: { before: xs7, whileHeld: xs7after, unchanged: JSON.stringify(xs7) === JSON.stringify(xs7after) },
+        stripUnchanged: JSON.stringify(before7.strip) === JSON.stringify(after7.strip) && before7.scTop === after7.scTop,
+        secondTabPins: secondPins,
+      };
+    }
     save();
 
-    // ── The light theme ──
+    // ── The light theme: the strip and a row's button, with and without a badge ──
     await callFansly('setTheme', 'bright');
     await browser.pause(300);
     await shootStrip(s, 'strip-light');
-    await hoverRow(r4);
-    await shootList(s, 'row-hover-light', 420);
+    const lightRows = (await renderedRows()).slice(0, 8);
+    const freshGroups = await callFansly('groups');
+    const unreadNow = (group: string): number => freshGroups.find((item) => item.id === group)?.unread ?? 0;
+    const pinsNow = (await pinsReport())?.pins ?? [];
+    const lightWith = lightRows.find((group) => group !== open && unreadNow(group) > 0 && !pinsNow.includes(group));
+    const lightWithout = lightRows.find((group) => group !== open && unreadNow(group) === 0 && !pinsNow.includes(group));
+    if (lightWith !== undefined) {
+      await hoverRow(lightWith);
+      await shootRow(s, 'row-hover-badge-light', lightWith);
+    }
+    if (lightWithout !== undefined) {
+      await hoverRow(lightWithout);
+      await shootRow(s, 'row-hover-light', lightWithout);
+    }
+    const pinnedRow = pinsNow.find((group) => group !== open && lightRows.includes(group));
+    if (pinnedRow !== undefined) {
+      await hoverRow(pinnedRow);
+      await shootRow(s, 'row-hover-pinned-light', pinnedRow);
+    }
     await leaveList();
     await callFansly('setTheme', 'dark');
+    save();
 
-    // ── 1100 px wide (the list column hidden with a chat open), then 768 px high ──
+    // ── FBuddy beside the list (its stand-in: no gap under the chips, a line added to each row) ──
+    await setFanslyNeighbor({ mode: 'after' });
+    await browser.refresh();
+    await waitForFanslyStandReady();
+    await waitPins((report) => report.mounted && report.height === 44, 'no strip with FBuddy', 20_000);
+    // The strip may slide in once the page shows rows: the rows stand still again before the pointer goes over them.
+    await browser.pause(600);
+    const fbGroups = await callFansly('groups');
+    const fbPins = (await pinsReport())?.pins ?? [];
+    const fbRows = (await renderedRows()).slice(0, 8).filter((group) => group !== open && !fbPins.includes(group));
+    const fbWith = fbRows.find((group) => (fbGroups.find((item) => item.id === group)?.unread ?? 0) > 0);
+    const fbWithout = fbRows.find((group) => (fbGroups.find((item) => item.id === group)?.unread ?? 0) === 0);
+    if (fbWith !== undefined) {
+      await hoverRow(fbWith);
+      await shootRow(s, 'row-hover-badge-fbuddy', fbWith);
+    }
+    if (fbWithout !== undefined) {
+      await hoverRow(fbWithout);
+      await shootRow(s, 'row-hover-fbuddy', fbWithout);
+    }
+    const noButton: string[] = [];
+    for (let tries = 0; tries < 14; tries += 1) {
+      const nowPins = (await pinsReport())?.pins ?? [];
+      if (nowPins.length >= 6) break;
+      const next = (await renderedRows()).find((group) => !nowPins.includes(group) && !noButton.includes(group));
+      if (next === undefined) break;
+      const button = await hoverRow(next, 2_000).catch(() => null);
+      if (button === null) {
+        noButton.push(next);
+        continue;
+      }
+      await clickAt(button.x, button.y);
+      await waitPins((report) => report.pins.includes(next), `${next} was not pinned`);
+    }
+    await leaveList();
+    await waitPins((report) => report.height === 44 && report.chips.every((item) => item.state === 'shown'), 'the six chips did not settle');
+    await browser.pause(400);
+    measures['fbuddy'] = { rowsWithoutButton: noButton, chips: (await pinsReport())?.chips.length ?? null, geometry: await geometry() };
+    await shootStrip(s, 'strip-six-fbuddy');
+    await overChip(((await pinsReport())?.pins ?? [])[2] ?? open);
+    await browser.pause(250);
+    await shootStrip(s, 'strip-six-fbuddy-hover', 40);
+    await leaveList();
+    await setFanslyNeighbor(null);
+    await browser.refresh();
+    await waitForFanslyStandReady();
+    await waitPins((report) => report.mounted && report.height === 44, 'the strip did not come back without FBuddy', 20_000);
+    await browser.pause(400);
+    save();
+
+    // ── 1100 px wide with Fansly's rule on (the list column hidden with a chat open), then 768 px high ──
     const context = await browser.getWindowHandle();
+    await callFansly('setNarrowRule', true);
     await browser.browsingContextSetViewport({ context, viewport: { width: 1100, height: 900 } });
     await browser.pause(500);
     await s.shot('narrow-1100');
     measures['narrow-1100'] = { listShown: (await geometry()).scHeight > 0, headerButton: await $(HEADER_PIN).isExisting() };
+    await callFansly('setNarrowRule', false);
     await browser.browsingContextSetViewport({ context, viewport: { width: 1440, height: 768 } });
     await browser.pause(500);
-    // A recalculation with the strip standing (a fan's message), then the last pins taken off: the band at the list's end.
-    await startFrames(1500);
-    await callFansly('fanMessage', r4, 'hello?');
-    await browser.pause(300);
     await s.shot('short-768');
     measures['short-768'] = { geometry: await geometry() };
     await browser.browsingContextSetViewport({ context, viewport: { width: 1440, height: 900 } });
@@ -536,7 +796,6 @@ scenario(
     await browser.execute(() => document.querySelector('[data-pg-fansly-pins]')?.scrollIntoView({ block: 'center' }));
     await browser.pause(300);
     const row = await s.rect('page', '[data-pg-fansly-pins]');
-    await s.shot('options-pins');
     if (row !== null) await s.shot('options-pins-row', { clip: around([{ x: row.x - 500, y: row.y - 150, width: 1000, height: row.height + 220 }]) });
     await s.toChat();
 
@@ -561,7 +820,7 @@ scenario(
     });
     const offAt = Date.now();
     await setSettings(s, { inboxMark: 'dot', pins: false });
-    await browser.waitUntil(async () => (await browser.execute(() => ((window as unknown as Record<string, { at: number | null } | undefined>)['__cgOff']?.at ?? null))) !== null, { timeout: 5_000, interval: 50, timeoutMsg: 'the pins stayed after the switch went off' });
+    await browser.waitUntil(async () => (await browser.execute(() => (window as unknown as Record<string, { at: number | null } | undefined>)['__cgOff']?.at ?? null)) !== null, { timeout: 5_000, interval: 50, timeoutMsg: 'the pins stayed after the switch went off' });
     const goneAt = await browser.execute(() => (window as unknown as Record<string, { at: number | null } | undefined>)['__cgOff']?.at ?? null);
     await browser.pause(800);
     measures['A7-switched-off'] = {
@@ -576,17 +835,45 @@ scenario(
     };
     await shootList(s, 'pins-off-marks-on', 420);
     await setSettings(s, { pins: true });
-    await waitPins((report) => report.on === true && report.mounted, 'the strip did not come back with the switch');
+    await waitPins((report) => report.on === true && report.mounted && report.height === 44, 'the strip did not come back with the switch');
     await browser.pause(500);
     save();
 
-    // ── An expired pin: the stored pins with one quiet for six hours, read again ──
+    // ── A13: to another page of the site and back by its own link: the strip is there with the list's first frame ──
+    await $('a.nav-bar-item[href="/home"]').click();
+    await browser.waitUntil(async () => (await browser.getUrl()).endsWith('/home'), { timeout: 8_000, timeoutMsg: 'not on /home' });
+    await browser.pause(400);
+    await browser.execute(() => {
+      const frames: Array<{ t: number; scTop: number; rows: number; strip: number }> = [];
+      (window as unknown as Record<string, unknown>)['__cgBack'] = frames;
+      const t0 = performance.now();
+      const tick = (): void => {
+        const list = document.querySelector('.messages-list-wrapper .message-list');
+        const host = document.querySelector('[data-host="inbox-slot"]');
+        if (list !== null) frames.push({ t: Math.round(performance.now() - t0), scTop: list.getBoundingClientRect().top, rows: list.querySelectorAll('a[href^="/messages/"]').length, strip: host === null ? -1 : host.getBoundingClientRect().height });
+        if (performance.now() - t0 < 2500) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await $('a.nav-bar-item[href="/messages"]').click();
+    await browser.pause(2_600);
+    const back = await browser.execute(() => ((window as unknown as Record<string, unknown>)['__cgBack'] ?? []) as Array<{ t: number; scTop: number; rows: number; strip: number }>);
+    const firstRows = back.find((frame) => frame.rows > 0) ?? null;
+    const lastBack = back[back.length - 1] ?? null;
+    measures['A13-back-to-list'] = { firstFrame: back[0] ?? null, firstRowFrame: firstRows, lastFrame: lastBack, scTopMoveAfterFirstRow: firstRows === null || lastBack === null ? null : lastBack.scTop - firstRows.scTop, distinctTops: [...new Set(back.filter((frame) => frame.rows > 0).map((frame) => frame.scTop))] };
+    await shootStrip(s, 'back-to-list', 100);
+    await callFansly('open', open);
+    await browser.waitUntil(async () => (await browser.getUrl()).endsWith(`/messages/${open}`), { timeout: 8_000 });
+    await browser.pause(500);
+    save();
+
+    // ── An expired pin: the stored pins with one quiet for six hours, read again with the reload (A8) ──
     await s.toPages();
     const stored = (await readLocalStorage(['fansly.pins']))['fansly.pins'] as { accounts: Record<string, Array<{ groupId: string; touchedAt: number }>> } | undefined;
     let expired: string | null = null;
     if (stored !== undefined) {
-      for (const list of Object.values(stored.accounts)) {
-        const victim = list.find((pin) => pin.groupId === open);
+      for (const pinsOf of Object.values(stored.accounts)) {
+        const victim = pinsOf.find((pin) => pin.groupId !== open) ?? pinsOf[0];
         if (victim !== undefined) {
           victim.touchedAt = Date.now() - 6 * 60 * 60 * 1000 - 60_000;
           expired = victim.groupId;
@@ -595,7 +882,6 @@ scenario(
       await writeLocalStorage({ 'fansly.pins': stored });
     }
     await s.toChat();
-    // A8 on the stand: the reload, its frames from the page's first script on.
     const preload = await browser.scriptAddPreloadScript({
       functionDeclaration: `() => {
         const frames = [];
@@ -622,53 +908,16 @@ scenario(
       firstRowFrame: firstRow,
       lastFrame: settled,
       scTopMoveAfterFirstRow: firstRow === null || settled === null ? null : settled.scTop - firstRow.scTop,
-      stripAtFirstRow: firstRow?.strip ?? null,
       stripCameMs: reload.find((frame) => frame.strip > 0)?.t ?? null,
       stripFullMs: reload.find((frame) => frame.strip >= 44)?.t ?? null,
-      slid: (reload.find((frame) => frame.strip >= 44)?.t ?? 0) > (reload.find((frame) => frame.strip > 0)?.t ?? 0),
       expiredPinGone: expired === null ? null : !((await pinsReport())?.pins.includes(expired) ?? true),
     };
-    await shootStrip(s, 'after-reload');
     save();
 
-    // ── FBuddy beside the list (its stand-in: no gap under the chips, its 400 px panel): six pins in a narrower column ──
-    await setFanslyNeighbor({ mode: 'after' });
-    await browser.refresh();
-    await waitForFanslyStandReady();
-    await waitPins((report) => report.mounted && report.height === 44, 'no strip with FBuddy', 20_000);
-    // The strip slides in once the page shows rows: the rows stand still again before the pointer goes over them.
-    await browser.pause(600);
-    const noButton: string[] = [];
-    for (let tries = 0; tries < 14; tries += 1) {
-      const now = (await pinsReport())?.pins ?? [];
-      if (now.length >= 6) break;
-      const next = (await renderedRows()).find((group) => !now.includes(group) && !noButton.includes(group));
-      if (next === undefined) break;
-      const button = await hoverRow(next, 2_000).catch(() => null);
-      if (button === null) {
-        noButton.push(next);
-        continue;
-      }
-      await clickAt(button.x, button.y);
-      await waitPins((report) => report.pins.includes(next), `${next} was not pinned`);
-    }
-    measures['fbuddy-rows-without-button'] = noButton;
-    await leaveList();
-    await waitPins((report) => report.height === 44 && report.chips.every((item) => item.state === 'shown'), 'the six chips did not settle');
-    await browser.pause(400);
-    measures['fbuddy-six-pins'] = { geometry: await geometry(), chips: (await pinsReport())?.chips.length ?? null };
-    await shootStrip(s, 'strip-fbuddy-six');
-    await setFanslyNeighbor(null);
-    await browser.refresh();
-    await waitForFanslyStandReady();
-    await waitPins((report) => report.mounted && report.height === 44, 'the strip did not come back without FBuddy', 20_000);
-    await browser.pause(400);
-    save();
-
-    // ── The last unpin (A2: the strip slides out once the pointer is away) ──
+    // ── The last unpin and a first pin again, with the list scrolled (A2 with non-zero spacers) ──
     const left = (await pinsReport())?.pins ?? [];
     await leaveList();
-    for (const group of left.slice(0, -1)) {
+    for (const group of left.filter((item) => item !== open)) {
       await overChip(group);
       await browser.pause(150);
       const x = await overChip(group, ' .cg-pin__x');
@@ -677,37 +926,71 @@ scenario(
       await leaveList();
       await browser.pause(450);
     }
+    if (!((await pinsReport())?.pins ?? []).includes(open)) {
+      await $(HEADER_PIN).shadow$('.cg-ph__button').click();
+      await waitPins((report) => report.pins.includes(open), 'the open chat was not pinned again');
+    }
+    await waitPins((report) => report.pins.length === 1 && report.chips.length === 1 && report.chips.every((item) => item.state === 'shown'), 'one pin left');
+    await scrollList(1200);
+    await overChip(open);
+    await browser.pause(250);
+    await shootStrip(s, 'chip-hover-x', 40);
+    const before8 = await geometry();
+    const x8 = await overChip(open, ' .cg-pin__x');
+    await clickAt(x8.x, x8.y);
+    await browser.pause(300);
+    const whileIn = await pinsReport();
+    await startFrames(900);
     await leaveList();
-    await waitPins((report) => report.pins.length === 1 && report.chips.length === 1, 'one pin left');
-    const last = left[left.length - 1];
-    if (last !== undefined) {
-      await overChip(last);
-      await browser.pause(250);
-      await shootStrip(s, 'chip-hover-x');
-      const before8 = await geometry();
-      const x = await overChip(last, ' .cg-pin__x');
-      await clickAt(x.x, x.y);
-      await browser.pause(300);
-      const whileIn = await pinsReport();
-      await startFrames(900);
-      await leaveList();
-      await browser.pause(950);
-      const framesOut = await readFrames();
-      const after8 = await geometry();
-      measures['A2-last-unpin'] = {
+    await browser.pause(950);
+    const framesOut = await readFrames();
+    const after8 = await geometry();
+    const a2scrolled: Record<string, unknown> = {
+      lastUnpin: {
         whilePointerInList: { height: whileIn?.height ?? null },
         before: before8,
         after: after8,
+        spacersNonZero: before8.spacers.some((value) => value > 0),
         scrollTopUnchanged: before8.scrollTop === after8.scrollTop,
         spacersUnchanged: JSON.stringify(before8.spacers) === JSON.stringify(after8.spacers),
         scTopMove: after8.scTop - before8.scTop,
         frames: motion(framesOut),
         stripGone: after8.strip === null,
-      };
-    }
+      },
+    };
+    // The first pin again from the header (the pointer is not over the list): it slides in at once.
+    const before8b = await geometry();
+    await startFrames(900);
+    await $(HEADER_PIN).shadow$('.cg-ph__button').click();
+    await browser.pause(950);
+    const framesIn8 = await readFrames();
+    const after8b = await geometry();
+    a2scrolled['firstPinFromHeader'] = {
+      before: before8b,
+      after: after8b,
+      scrollTopUnchanged: before8b.scrollTop === after8b.scrollTop,
+      spacersUnchanged: JSON.stringify(before8b.spacers) === JSON.stringify(after8b.spacers),
+      scTopMove: after8b.scTop - before8b.scTop,
+      frames: motion(framesIn8),
+    };
+    measures['A2-scrolled'] = a2scrolled;
+    await $(HEADER_PIN).shadow$('.cg-ph__button').click();
+    await waitPins((report) => report.pins.length === 0, 'the last pin did not go');
+    await browser.pause(600);
+    await scrollList(0);
+    const plainAgain = (await renderedRows()).find((group) => group !== open && (tops[group] ?? 999) < 640) ?? rPlain;
+    await hoverRow(plainAgain);
     await shootList(s, 'no-pins', 420);
+
+    // No two pictures the same.
+    const byHash = new Map<string, string[]>();
+    for (const file of readdirSync(s.out).filter((name) => name.endsWith('.png'))) {
+      const hash = createHash('sha256').update(readFileSync(join(s.out, file))).digest('hex');
+      byHash.set(hash, [...(byHash.get(hash) ?? []), file]);
+    }
+    measures['duplicatePictures'] = [...byHash.values()].filter((files) => files.length > 1);
     save();
     lap(`measures: ${join(s.out, 'pins-measures.json')}`);
   },
-  { sites: ['fansly'], showcase: true, timeout: 420_000 },
+  { sites: ['fansly'], showcase: true, timeout: 600_000 },
 );

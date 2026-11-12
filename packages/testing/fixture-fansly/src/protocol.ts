@@ -224,6 +224,11 @@ export interface FanslyStandControl {
    */
   growLastMessage(px: number): void;
   setTheme(theme: FanslyStandTheme): void;
+  /**
+   * Fansly's rule at 1200 px and below — an open chat takes the whole content, the list column is hidden. Off by
+   * default: the stand's other scenarios run narrower than that with the list beside the chat.
+   */
+  setNarrowRule(on: boolean): void;
   /** The old extension's four marks on the page (its root re-inserted before the main composer after every chat switch). */
   setOldExtension(on: boolean): void;
   /** Opens the mini-chat on a group (its own container and composer); null closes it. */

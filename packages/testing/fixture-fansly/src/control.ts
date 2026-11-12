@@ -129,6 +129,9 @@ export function installControl(app: StandApp): { markReady(): void } {
       last.style.paddingBottom = `${(Number.parseFloat(last.style.paddingBottom) || 0) + px}px`;
     },
     setTheme: (theme) => setTheme(theme),
+    setNarrowRule: (on) => {
+      document.documentElement.classList.toggle('stand-narrow-rule', on);
+    },
     setOldExtension: (on) => app.oldMarks.set(on),
     setMiniChat: (groupId) => app.miniChat.open(groupId),
     setMediaViewer: (open) => {
