@@ -31,8 +31,11 @@ import type { Requirement } from './types';
 /** The switches a Fansly entry may name: the shared vocabulary (since P4b3 it has Fansly's own six). */
 export type FanslyFeatureFlag = ClientFeatureFlag;
 
-/** Surfaces only Fansly has, named ahead of `MOUNT_SURFACES` (the PRs of each panel add them): the slot in the chat's header and the two panels. */
-export const FANSLY_SURFACES_AHEAD = ['header-slot', 'notes', 'vault'] as const;
+/**
+ * Surfaces only Fansly has, named ahead of `MOUNT_SURFACES` (the PRs of each panel add them): the slot in the chat's
+ * header, the two panels and (2026-11-12) the slot over the list of chats, where the strip of pinned chats stands.
+ */
+export const FANSLY_SURFACES_AHEAD = ['header-slot', 'notes', 'vault', 'inbox-slot'] as const;
 export type FanslySurface = MountSurfaceKind | (typeof FANSLY_SURFACES_AHEAD)[number];
 
 type Req = Requirement<FanslyFeatureFlag, HostCapability | FanslyCapability>;
@@ -106,6 +109,9 @@ const FEATURES = {
   // The other-pages mark on the rows of «Новые», a list Fansly's own answers make (`clientOtherPages`, `other-pages-v1`). No owner switch.
   'other-pages': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['other-pages-v1'] }, actions: {}, surfaces: [], source: 'hub' },
   vault: { kind: 'panel', base: { flags: ['vault'], hostCapabilities: ['vault'] }, actions: {}, surfaces: ['vault'], source: 'host-pass' },
+  // 2026-11-12: temporary chat pins — the strip over the list of chats and the open chat's button in the header. The
+  // person's own, in this browser, under a setting of theirs («Закрепы чатов»): no switch of the owner, nothing of the hub.
+  pins: { kind: 'panel', base: NOTHING, actions: {}, surfaces: ['inbox-slot', 'header-slot'], source: 'page' },
   // «Fansly через вкладку»: a setting of the person, no switch of the owner.
   'via-tab': { kind: 'service', base: { flags: [], hostCapabilities: ['relay'] }, actions: {}, surfaces: [], source: 'page' },
 } as const;

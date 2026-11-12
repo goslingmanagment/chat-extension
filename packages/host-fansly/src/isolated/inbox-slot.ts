@@ -72,6 +72,8 @@ export function createInboxSlots(doc: Document, registry: ShadowRootRegistry) {
           if (placedOnce.has(host)) replaced += 1;
           placedOnce.add(host);
           before.after(host);
+          // The gap the page leaves under its chips (Fansly's 1em; none with FBuddy): the strip sits its chips by it.
+          if (before === at) host.style.setProperty('--cg-nav-gap', at.ownerDocument.defaultView?.getComputedStyle(at).marginBottom || '0px');
         }
         before = host;
       }

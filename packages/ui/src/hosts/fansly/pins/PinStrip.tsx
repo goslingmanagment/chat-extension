@@ -160,7 +160,9 @@ export const PIN_STRIP_CSS = `
 .cg-pins { position: relative; overflow: hidden; height: 0; transition: height 200ms cubic-bezier(.2, 0, 0, 1); }
 .cg-pins[data-height='0'] { transition-duration: 160ms; }
 .cg-pins__row {
-  display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 4px 0 6px; box-sizing: border-box;
+  ${'' /* The chips sit so that the gap over them (the page's own under its chips, then ours) equals the one under them:
+  at the top of the strip under Fansly's 1em, centred where there is none (FBuddy). */}
+  display: flex; align-items: flex-start; gap: 6px; height: 44px; padding: clamp(0px, calc(14px - var(--cg-nav-gap, 16px)), 7px) 4px 0 6px; box-sizing: border-box;
   overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain;
 }
 .cg-pins__row::-webkit-scrollbar { display: none; }

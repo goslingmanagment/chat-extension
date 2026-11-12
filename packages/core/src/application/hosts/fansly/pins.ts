@@ -80,9 +80,10 @@ const EXPIRY_SLACK_MS = 1000;
 
 /** The circle's hue from the group id: the same chat, the same colour, in every tab. */
 export function pinHue(groupId: string): number {
-  let hash = 0;
-  for (let i = 0; i < groupId.length; i += 1) hash = (hash * 31 + groupId.charCodeAt(i)) % 3600;
-  return Math.floor(hash / 10);
+  // FNV-1a over the id's digits, spread by the golden ratio: neighbouring ids (one creator's chats) land far apart.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < groupId.length; i += 1) hash = Math.imul(hash ^ groupId.charCodeAt(i), 0x01000193) >>> 0;
+  return Math.floor(((hash * 0.618033988749895) % 1) * 360);
 }
 
 /** The circle's letter: the name's first letter or digit, upper case; `#` when there is none. */
@@ -276,11 +277,13 @@ export function createFanslyPins(deps: FanslyPinsDeps): FanslyPinsController {
     arm();
     const next = compute();
     const key = JSON.stringify(next);
-    if (key === viewKey) return;
-    const chipsBefore = JSON.stringify(view.chips.map((chip) => [chip.groupId, chip.state]));
-    view = next;
-    viewKey = key;
-    if (JSON.stringify(next.chips.map((chip) => [chip.groupId, chip.state])) !== chipsBefore) changedAt = deps.now();
+    if (key !== viewKey) {
+      const chipsBefore = JSON.stringify(view.chips.map((chip) => [chip.groupId, chip.state]));
+      view = next;
+      viewKey = key;
+      if (JSON.stringify(next.chips.map((chip) => [chip.groupId, chip.state])) !== chipsBefore) changedAt = deps.now();
+    }
+    // Said after every change of state: the same view object when nothing it shows moved (a component keeps its render).
     for (const listener of [...listeners]) listener(view);
   }
 

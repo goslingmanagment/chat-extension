@@ -58,7 +58,9 @@ const ROW_BOX_STYLE =
   'position:absolute;top:0;right:0;bottom:0;width:76px;box-sizing:border-box;border-radius:0 var(--border-radius-2,8px) var(--border-radius-2,8px) 0;background:linear-gradient(to right,transparent,var(--dark-3,#1a1e26) 30px);opacity:0;transition:opacity 100ms ease;pointer-events:none;z-index:3';
 const ROW_BUTTON_STYLE =
   'position:absolute;right:10px;top:22px;width:28px;height:28px;box-sizing:border-box;margin:0;padding:0;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--dark-1,#111215);color:var(--font-tint-3,#9da2ad);cursor:pointer;outline:none;pointer-events:none;transition:color 100ms ease,background-color 100ms ease;-webkit-user-drag:none;user-select:none';
-const BUTTON_HOVER = { color: 'var(--font-1,#d6dce8)', background: 'var(--dark-2,#191e26)' } as const;
+/** The button's ink and fill at rest, under the pointer, and of a pinned chat (set whole: an emptied longhand would be the browser's own button). */
+const BUTTON_REST = { color: 'var(--font-tint-3,#9da2ad)', background: 'var(--dark-1,#111215)' } as const;
+const BUTTON_HOVER = { color: 'var(--font-1,#d6dce8)', background: 'color-mix(in srgb,var(--font-1,#d6dce8) 14%,var(--dark-1,#111215))' } as const;
 const BUTTON_PINNED = 'var(--blue-1,#2699f7)';
 
 export interface InboxMarks {
@@ -166,8 +168,8 @@ export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS):
       button.title = label;
     }
     const over = button.matches(':hover');
-    button.style.color = pinned ? BUTTON_PINNED : over ? BUTTON_HOVER.color : '';
-    button.style.backgroundColor = over ? BUTTON_HOVER.background : '';
+    button.style.color = pinned ? BUTTON_PINNED : over ? BUTTON_HOVER.color : BUTTON_REST.color;
+    button.style.backgroundColor = over ? BUTTON_HOVER.background : BUTTON_REST.background;
   };
 
   const show = (box: Element, on: boolean): void => {

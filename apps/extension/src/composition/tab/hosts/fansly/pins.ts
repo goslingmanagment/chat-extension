@@ -32,6 +32,12 @@ export function startFanslyPins(env: SiteAppEnv<FanslyPort>): () => void {
   const { host, rpc, win } = env;
   const page = host.fansly;
   const gated = env.gated === undefined ? null : (env.gated as unknown as TabRpc);
+  /** The background's last refusal of a read or a change (the test build's report). */
+  let refused: string | null = null;
+  /** The test build's report, once the controller took an answer (a read that changes no view says so too). */
+  const report = (): void => {
+    if (env.probe !== null) win.setTimeout(() => place(), 0);
+  };
   const pins = createFanslyPins({
     page,
     creator: () => host.identity()?.hostAccountId ?? null,
@@ -42,10 +48,14 @@ export function startFanslyPins(env: SiteAppEnv<FanslyPort>): () => void {
     },
     async read(creator) {
       const answer = await fanslyRequest(rpc, 'fansly.pins.read', { hostAccountId: creator }, PINS_TIMEOUT_MS);
+      refused = answer.ok ? null : answer.error.code;
+      report();
       return answer.ok ? answer.payload : null;
     },
     async change(creator, op) {
       const answer = await fanslyRequest(rpc, 'fansly.pins.change', op.op === 'pin' ? { hostAccountId: creator, op: 'pin', pin: op.pin } : op.op === 'unpin' ? { hostAccountId: creator, op: 'unpin', groupId: op.groupId } : { hostAccountId: creator, op: 'touch', groupId: op.groupId, at: op.at }, PINS_TIMEOUT_MS);
+      refused = answer.ok ? null : answer.error.code;
+      report();
       return answer.ok ? answer.payload.pins : null;
     },
     // The token is asked inside the click (the tab's gate sees it through our root); the port spends it.
@@ -87,7 +97,7 @@ export function startFanslyPins(env: SiteAppEnv<FanslyPort>): () => void {
       header.slot.remove();
       header = null;
     }
-    env.probe?.set('pins', { ...pins.stats(), slot: host.inbox.available(), mounted: strip !== null, header: header !== null, hostStats: host.inbox.stats() });
+    env.probe?.set('pins', { ...pins.stats(), slot: host.inbox.available(), mounted: strip !== null, header: header !== null, hostStats: host.inbox.stats(), refused });
   };
   const sync = (): void => {
     if (env.life.aborted) return;
