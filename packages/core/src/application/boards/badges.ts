@@ -19,8 +19,12 @@ export const FAN_BADGES = {
   batch: 100,
   /** The fans one round asks at most: the board's first ones (the most relevant), the rest when they come up again. */
   round: 300,
-  /** A fan asked this recently is not asked again (the background keeps Fansly's card as long, 2026-11-12). */
-  freshMs: 30 * 60_000,
+  /**
+   * A fan asked this recently is not asked again. Shorter than the background's thirty minutes on purpose: a card the
+   * background could not read (a cooldown; it answers the tab «unknown» all the same) is asked again in five minutes,
+   * and one it keeps is answered from its own memory, with no request to Fansly.
+   */
+  freshMs: 5 * 60_000,
   /** A fan whose call was not answered is asked again no sooner than this. */
   holdMs: 30_000,
   /** The fans wanted within this moment go in one round. */
