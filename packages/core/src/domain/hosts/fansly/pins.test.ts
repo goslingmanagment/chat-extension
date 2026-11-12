@@ -114,15 +114,15 @@ describe('the strip’s chips', () => {
   const pin = (n: number): FanslyPin => ({ ...target(n), pinnedAt: T0 + n, touchedAt: T0 + n });
   const states = (shown: readonly ShownPin[]): string[] => shown.map((entry) => `${entry.pin.groupId.slice(-1)}:${entry.state}`);
 
-  it('frozen: a chip taken off is a placeholder of its place, a new one waits, names stay; then it closes and goes', () => {
-    let shown = layPinChips([], [pin(1), pin(2), pin(3)], false, false).shown;
+  it('held by the strip: a chip taken off is a placeholder of its place, a new one waits, names stay; then it closes and goes', () => {
+    let shown = layPinChips([], [pin(1), pin(2), pin(3)], 'none', false).shown;
     expect(states(shown)).toEqual(['1:shown', '2:shown', '3:shown']);
     const renamed = { ...pin(2), name: 'Other' };
-    const frozen = layPinChips(shown, [renamed, pin(3), pin(4)], true, true);
+    const frozen = layPinChips(shown, [renamed, pin(3), pin(4)], 'strip', true);
     expect(states(frozen.shown)).toEqual(['1:tombstone', '2:shown', '3:shown']);
     expect(frozen.shown[1]?.pin.name).toBe('Fan 2');
     expect(frozen.closing).toEqual([]);
-    const free = layPinChips(frozen.shown, [renamed, pin(3), pin(4)], false, true);
+    const free = layPinChips(frozen.shown, [renamed, pin(3), pin(4)], 'none', true);
     expect(states(free.shown)).toEqual(['1:closing', '2:shown', '3:shown', '4:in']);
     expect(free.closing).toEqual([pin(1).groupId]);
     expect(free.entering).toEqual([pin(4).groupId]);
@@ -131,12 +131,35 @@ describe('the strip’s chips', () => {
     expect(states(shown)).toEqual(['2:shown', '3:shown', '4:shown']);
   });
 
+  it('the pointer over the list: a new chip comes at once and last; one taken off keeps its place and takes it back when pinned again, for good', () => {
+    const start = layPinChips([], [pin(1), pin(2), pin(3)], 'none', false).shown;
+    // A fourth chat pinned by its row's button: its chip grows in at once, the others keep their names (their widths).
+    const renamed = { ...pin(2), name: 'Other' };
+    const added = layPinChips(start, [pin(1), renamed, pin(3), pin(4)], 'list', true);
+    expect(states(added.shown)).toEqual(['1:shown', '2:shown', '3:shown', '4:in']);
+    expect(added.entering).toEqual([pin(4).groupId]);
+    expect(added.shown[1]?.pin.name).toBe('Fan 2');
+    // The second taken off by its row's button: a placeholder. Pinned again there (now the newest pin): back in its place.
+    const off = layPinChips(pinChipEntered(added.shown, pin(4).groupId), [pin(1), pin(3), pin(4)], 'list', true);
+    expect(states(off.shown)).toEqual(['1:shown', '2:tombstone', '3:shown', '4:shown']);
+    expect(off.closing).toEqual([]);
+    const again = [pin(1), pin(3), pin(4), { ...pin(2), pinnedAt: T0 + 9, touchedAt: T0 + 9 }];
+    const back = layPinChips(off.shown, again, 'list', true);
+    expect(states(back.shown)).toEqual(['1:shown', '2:shown', '3:shown', '4:shown']);
+    expect(back.entering).toEqual([]);
+    // The pointer left the list: no chip changes its place.
+    expect(states(layPinChips(back.shown, again, 'none', true).shown)).toEqual(['1:shown', '2:shown', '3:shown', '4:shown']);
+    // The first pin from a row: the strip does not stand yet, its chip is simply there to come with it.
+    expect(layPinChips([], [pin(1)], 'list', false)).toEqual({ shown: [{ pin: pin(1), state: 'shown' }], closing: [], entering: [] });
+  });
+
   it('a chip pinned again while its place closes takes it back; a strip that does not stand gets no entering chips', () => {
-    const closing = layPinChips(layPinChips([], [pin(1), pin(2)], false, false).shown, [pin(2)], false, true);
+    const closing = layPinChips(layPinChips([], [pin(1), pin(2)], 'none', false).shown, [pin(2)], 'none', true);
     expect(states(closing.shown)).toEqual(['1:closing', '2:shown']);
-    const back = layPinChips(closing.shown, [pin(1), pin(2)], false, true);
+    // Pinned again, it is the newest pin: it still takes its own place back.
+    const back = layPinChips(closing.shown, [pin(2), { ...pin(1), pinnedAt: T0 + 9, touchedAt: T0 + 9 }], 'none', true);
     expect(states(back.shown)).toEqual(['1:shown', '2:shown']);
     expect(states(pinChipClosed(back.shown, pin(1).groupId))).toEqual(['1:shown', '2:shown']);
-    expect(layPinChips([], [pin(1)], false, false).entering).toEqual([]);
+    expect(layPinChips([], [pin(1)], 'none', false).entering).toEqual([]);
   });
 });

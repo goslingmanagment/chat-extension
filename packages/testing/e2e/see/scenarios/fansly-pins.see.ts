@@ -644,6 +644,55 @@ scenario(
     }
     save();
 
+    // ── A chip at once: the strip stands, a row's button puts the chip there while the pointer stays on the row (the
+    //    list does not move); taken off and pinned again from the same row, the chip is back in its own place ──
+    const pinsOnce = (await pinsReport())?.pins ?? [];
+    const rowOnce = (await renderedRows()).slice(0, 6).find((group) => !pinsOnce.includes(group));
+    if (rowOnce !== undefined && pinsOnce.length > 0) {
+      const stateOf = async (): Promise<string | null> => (await pinsReport())?.chips.find((item) => item.groupId === rowOnce)?.state ?? null;
+      const others = pinsOnce.slice(0, 2);
+      const button = await hoverRow(rowOnce);
+      const beforeOnce = await geometry();
+      await clickAt(button.x, button.y);
+      await waitPins((report) => report.pins.includes(rowOnce), `${rowOnce} was not pinned`);
+      await browser.pause(450);
+      const pinnedIn = await pinsReport();
+      const chipPinned = await stateOf();
+      const boxPinned = chipPinned === null ? null : await chipBox(rowOnce);
+      const afterOnce = await geometry();
+      await shootList(s, 'row-pinned-chip-at-once', 300);
+      // Off and on again from the row: no other chip moves at any frame (a fourth chip coming had made them give way).
+      await startChipFrames(others, 1_800);
+      await clickAt(button.x, button.y);
+      await waitPins((report) => !report.pins.includes(rowOnce), `${rowOnce} was not taken off`);
+      await browser.pause(450);
+      const chipOff = await stateOf();
+      await clickAt(button.x, button.y);
+      await waitPins((report) => report.pins.includes(rowOnce), `${rowOnce} was not pinned again`);
+      await browser.pause(450);
+      const chipBack = await stateOf();
+      const boxBack = chipBack === null ? null : await chipBox(rowOnce);
+      const neighbours = new Set((await readChipFrames()).map((frame) => frame.join(',')));
+      await leaveList();
+      await browser.pause(900);
+      const boxLeft = await chipBox(rowOnce);
+      measures['chip-at-once'] = {
+        listInside: pinnedIn?.listInside ?? null,
+        chipWhilePointerOnRow: chipPinned,
+        takenOff: chipOff,
+        pinnedAgain: chipBack,
+        samePlace: boxPinned !== null && boxBack !== null && boxPinned.x === boxBack.x && boxBack.x === boxLeft.x,
+        neighboursUnmovedOffAndOn: neighbours.size === 1,
+        list: { before: beforeOnce.scTop, after: afterOnce.scTop, scrollTop: [beforeOnce.scrollTop, afterOnce.scrollTop], unmoved: beforeOnce.scTop === afterOnce.scTop && beforeOnce.scrollTop === afterOnce.scrollTop },
+      };
+      // Back to the pins of before: the new chip is the last one, nothing stands after it.
+      const x = await overChip(rowOnce, ' .cg-pin__x');
+      await clickAt(x.x, x.y);
+      await leaveList();
+      await waitPins((report) => report.chips.length === pinsOnce.length && report.chips.every((item) => item.state === 'shown'), 'the pins of before did not come back');
+    }
+    save();
+
     // ── A4: 15 s idle with three pins: no mutation of ours ──
     await startMutations();
     await browser.pause(15_000);

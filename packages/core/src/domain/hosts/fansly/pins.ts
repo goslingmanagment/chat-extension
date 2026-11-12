@@ -178,36 +178,51 @@ export interface ShownPin {
 }
 
 /**
- * The strip's chips after the pins changed.
- * - `frozen` (the pointer over the list's column or in the strip, or the focus in it): nothing moves — a chip taken off
- *   is an inert placeholder of its own width (`tombstone`), a new one waits, every chip keeps its name.
- * - Otherwise the real set: a chip taken off (or a placeholder) closes its place, one pinned again while closing takes
- *   it back, a new one comes last — growing in (`in`) only into a strip that already stands (`standing`), else simply
- *   there — and the chips stand in the pins' order, the places still closing where they were.
- * `closing` and `entering` name the chips that began to close or to enter now: their timers are the caller's.
+ * Who holds the strip still: the pointer or the focus in the strip itself (`strip`), the pointer over the list's column
+ * but not in the strip (`list`), or nobody (`none`).
  */
-export function layPinChips(shown: readonly ShownPin[], real: readonly FanslyPin[], frozen: boolean, standing: boolean): { readonly shown: readonly ShownPin[]; readonly closing: readonly string[]; readonly entering: readonly string[] } {
+export type PinStripHold = 'strip' | 'list' | 'none';
+
+/**
+ * The strip's chips after the pins changed. A chip never leaves its place for another one: a chat pinned again takes
+ * its own place back, a new one comes last.
+ * - `strip`: nothing moves — a chip taken off is an inert placeholder of its own width (`tombstone`), a new one waits,
+ *   every chip keeps its name.
+ * - `list` (the person is on Fansly's rows, where a row's button pins): a chip taken off is a placeholder too, its
+ *   place closes later (its neighbours would slide while the pointer may be on its way to them), and the chips that
+ *   stand keep their names. But what moves no chip is done at once: a chat pinned again gets its chip back in its
+ *   place, a new one comes last.
+ * - `none`: the real set — a chip taken off (or a placeholder) closes its place, one pinned again while closing takes
+ *   it back, a new one comes last, every chip takes its pin's name.
+ * A chip that comes grows in (`in`) only into a strip that already stands (`standing`); else it is simply there, to
+ * come with the strip. `closing` and `entering` name the chips that began to close or to enter now: their timers are
+ * the caller's.
+ */
+export function layPinChips(shown: readonly ShownPin[], real: readonly FanslyPin[], hold: PinStripHold, standing: boolean): { readonly shown: readonly ShownPin[]; readonly closing: readonly string[]; readonly entering: readonly string[] } {
   const byId = new Map(real.map((pin) => [pin.groupId, pin]));
-  if (frozen) {
-    return { shown: shown.map((entry) => (byId.has(entry.pin.groupId) || entry.state === 'closing' || entry.state === 'tombstone' ? entry : { pin: entry.pin, state: 'tombstone' })), closing: [], entering: [] };
+  const gone = (entry: ShownPin): boolean => entry.state === 'closing' || entry.state === 'tombstone';
+  const placeholder = (entry: ShownPin): ShownPin => (gone(entry) ? entry : { pin: entry.pin, state: 'tombstone' });
+  if (hold === 'strip') {
+    return { shown: shown.map((entry) => (byId.has(entry.pin.groupId) ? entry : placeholder(entry))), closing: [], entering: [] };
   }
   const closing: string[] = [];
   const entering: string[] = [];
   const next: ShownPin[] = shown.map((entry) => {
     const pin = byId.get(entry.pin.groupId);
-    if (pin !== undefined) return { pin, state: entry.state === 'in' ? 'in' : 'shown' };
-    if (entry.state !== 'closing') closing.push(entry.pin.groupId);
-    return { pin: entry.pin, state: 'closing' };
+    if (pin === undefined) {
+      if (hold === 'list') return placeholder(entry);
+      if (entry.state !== 'closing') closing.push(entry.pin.groupId);
+      return { pin: entry.pin, state: 'closing' };
+    }
+    if (hold === 'list') return gone(entry) ? { pin, state: 'shown' } : entry;
+    return { pin, state: entry.state === 'in' ? 'in' : 'shown' };
   });
   for (const pin of real) {
     if (next.some((entry) => entry.pin.groupId === pin.groupId)) continue;
     next.push({ pin, state: standing ? 'in' : 'shown' });
     if (standing) entering.push(pin.groupId);
   }
-  const rank = new Map(real.map((pin, i) => [pin.groupId, i]));
-  const live = next.filter((entry) => entry.state !== 'closing').sort((a, b) => (rank.get(a.pin.groupId) ?? 0) - (rank.get(b.pin.groupId) ?? 0));
-  let at = 0;
-  return { shown: next.map((entry) => (entry.state === 'closing' ? entry : (live[at++] as ShownPin))), closing, entering };
+  return { shown: next, closing, entering };
 }
 
 /** A closing chip's place has closed: it is gone (a chip pinned again meanwhile is not closing any more and stays). */
