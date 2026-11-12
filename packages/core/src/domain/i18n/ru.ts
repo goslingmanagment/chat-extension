@@ -1396,6 +1396,7 @@ export const RU: I18nCatalog<'ru'> = {
   'fanPanel.memory.custom.delivered': 'отдали {date}',
   'fanPanel.memory.custom.cancelled': 'отменён',
   'fanPanel.memory.custom.unknown': 'состояние неизвестно',
+  'fanPanel.memory.custom.step': '{step} {age}',
   'fanPanel.memory.custom.by': 'записал {name}',
   'fanPanel.memory.custom.isPayment': 'Это оплата?',
   'fanPanel.memory.custom.isDelivery': 'Отдали: это он?',

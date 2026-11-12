@@ -1689,8 +1689,9 @@ export class DataModel {
     const payment = request.paymentRef === undefined ? null : (payments.find((item) => item.paymentRef === request.paymentRef) ?? null);
     if (request.paymentRef !== undefined && payment === null) return no('conflict', 'not_suggested');
     const customs = card.customs ?? [];
+    const id = Math.max(0, ...customs.map((item) => item.id)) + 1;
     const custom: FanCardCustom = {
-      id: Math.max(0, ...customs.map((item) => item.id)) + 1,
+      id,
       pageLabel: page.pageLabel,
       granted: true,
       description: request.description.trim(),
@@ -1703,6 +1704,10 @@ export class DataModel {
       createdBy: by,
       createdAt: iso(now),
       deliveryCandidates: [],
+      // The order's real step, as the hub's board words it.
+      code: `K-${String(id)}`,
+      stepLabel: payment === null ? 'Записан' : 'Оплачен',
+      stepAt: iso(now),
     };
     const next = { ...card, customs: [custom, ...customs], customPayments: payments.filter((item) => item !== payment) };
     this.setFanCard(page.pageLabel, request.fanRef, next);
@@ -1718,18 +1723,21 @@ export class DataModel {
     if (!custom.granted) return no('client_feature_disabled', 'not_granted');
     if (custom.state === 'delivered' || custom.state === 'cancelled') return ok({ changed: false, card });
     const payments = card.customPayments ?? [];
+    // A custom the scenario gave a step moves on it as the hub's order does; one without (an older hub) stays without.
+    const step = (label: string) => (custom.stepLabel === undefined ? {} : { stepLabel: label, stepAt: iso(now) });
     let changed: FanCardCustom;
     let left = payments;
     if (request.action === 'paid') {
       const payment = payments.find((item) => item.paymentRef === request.paymentRef);
       if (payment === undefined) return no('conflict', 'not_suggested');
-      changed = { ...custom, state: 'paid', paymentMills: payment.amountMills, paidAt: payment.at };
+      // Only a recorded order becomes «Оплачен»; one further on keeps its step.
+      changed = { ...custom, state: 'paid', paymentMills: payment.amountMills, paidAt: payment.at, ...(custom.stepLabel === 'Записан' ? step('Оплачен') : {}) };
       left = payments.filter((item) => item !== payment);
     } else if (request.action === 'delivered') {
       const candidate = custom.deliveryCandidates.find((item) => item.messageRef === request.messageRef);
       if (candidate === undefined) return no('conflict', 'not_suggested');
-      changed = { ...custom, state: 'delivered', deliveredMessageRef: candidate.messageRef, deliveredAt: candidate.at, deliveryCandidates: [] };
-    } else if (request.action === 'cancel') changed = { ...custom, state: 'cancelled', deliveryCandidates: [] };
+      changed = { ...custom, state: 'delivered', deliveredMessageRef: candidate.messageRef, deliveredAt: candidate.at, deliveryCandidates: [], ...step('Отдан фану') };
+    } else if (request.action === 'cancel') changed = { ...custom, state: 'cancelled', deliveryCandidates: [], ...step('Отменён') };
     else changed = { ...custom, description: request.description.trim(), priceMills: request.priceMills };
     const next = { ...card, customs: customs.map((item) => (item === custom ? changed : item)), customPayments: left };
     this.setFanCard(page.pageLabel, request.fanRef, next);

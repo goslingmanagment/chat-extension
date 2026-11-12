@@ -161,13 +161,13 @@ export declare const chatterStatsSchema: z.ZodObject<{
         }, z.core.$strip>>;
         biggestSale: z.ZodNullable<z.ZodObject<{
             at: z.ZodString;
-            pageLabel: z.ZodString;
             kind: z.ZodEnum<{
                 subscription: "subscription";
                 tip: "tip";
                 post: "post";
                 ppv: "ppv";
             }>;
+            pageLabel: z.ZodString;
             netMills: z.ZodNumber;
             fanName: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
@@ -175,6 +175,19 @@ export declare const chatterStatsSchema: z.ZodObject<{
         longestStreakDays: z.ZodNumber;
     }, z.core.$strip>;
     ruleFrom: z.ZodOptional<z.ZodString>;
+    withoutShift: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        at: z.ZodString;
+        kind: z.ZodEnum<{
+            subscription: "subscription";
+            tip: "tip";
+            post: "post";
+            ppv: "ppv";
+        }>;
+        pageLabel: z.ZodString;
+        netMills: z.ZodNumber;
+        fanName: z.ZodNullable<z.ZodString>;
+        date: z.ZodString;
+    }, z.core.$strip>>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export declare const teamChatterStatsResponseSchema: z.ZodObject<{
@@ -327,13 +340,13 @@ export declare const teamChatterStatsResponseSchema: z.ZodObject<{
             }, z.core.$strip>>;
             biggestSale: z.ZodNullable<z.ZodObject<{
                 at: z.ZodString;
-                pageLabel: z.ZodString;
                 kind: z.ZodEnum<{
                     subscription: "subscription";
                     tip: "tip";
                     post: "post";
                     ppv: "ppv";
                 }>;
+                pageLabel: z.ZodString;
                 netMills: z.ZodNumber;
                 fanName: z.ZodNullable<z.ZodString>;
             }, z.core.$strip>>;
@@ -341,6 +354,19 @@ export declare const teamChatterStatsResponseSchema: z.ZodObject<{
             longestStreakDays: z.ZodNumber;
         }, z.core.$strip>;
         ruleFrom: z.ZodOptional<z.ZodString>;
+        withoutShift: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            at: z.ZodString;
+            kind: z.ZodEnum<{
+                subscription: "subscription";
+                tip: "tip";
+                post: "post";
+                ppv: "ppv";
+            }>;
+            pageLabel: z.ZodString;
+            netMills: z.ZodNumber;
+            fanName: z.ZodNullable<z.ZodString>;
+            date: z.ZodString;
+        }, z.core.$strip>>>;
         serverNow: z.ZodString;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
@@ -354,8 +380,11 @@ export declare const teamShiftSalesQuerySchema: z.ZodObject<{
     until: z.ZodOptional<z.ZodString>;
     pageLabel: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
-/** Where «вне смен» shows a sale: a look-in's, the page's pot, a PPV waiting for its sender, the owner's decision, nobody's. */
-export declare const OUTSIDE_SALE_HOMES: readonly ["visit", "pot", "waiting", "decide", "nobody"];
+/**
+ * Where «вне смен» shows a sale: a look-in's, a person's with no work of theirs to hold it (the owner gave it to someone
+ * who had no shift then), the page's pot, a PPV waiting for its sender, the owner's decision, nobody's.
+ */
+export declare const OUTSIDE_SALE_HOMES: readonly ["visit", "person", "pot", "waiting", "decide", "nobody"];
 export declare const teamShiftSalesResponseSchema: z.ZodObject<{
     from: z.ZodString;
     to: z.ZodString;
@@ -429,6 +458,7 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     outside: z.ZodObject<{
         daily: z.ZodArray<z.ZodObject<{
+            personNetMills: z.ZodOptional<z.ZodNumber>;
             potNetMills: z.ZodOptional<z.ZodNumber>;
             waitingNetMills: z.ZodOptional<z.ZodNumber>;
             decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -437,6 +467,7 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
             nobodyNetMills: z.ZodNumber;
         }, z.core.$strip>>;
         pages: z.ZodArray<z.ZodObject<{
+            personNetMills: z.ZodOptional<z.ZodNumber>;
             potNetMills: z.ZodOptional<z.ZodNumber>;
             waitingNetMills: z.ZodOptional<z.ZodNumber>;
             decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -457,6 +488,7 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
             netMills: z.ZodNumber;
             visitBy: z.ZodNullable<z.ZodString>;
             home: z.ZodOptional<z.ZodEnum<{
+                person: "person";
                 waiting: "waiting";
                 visit: "visit";
                 pot: "pot";
@@ -464,6 +496,7 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
                 nobody: "nobody";
             }>>;
         }, z.core.$strip>>;
+        personNetMills: z.ZodOptional<z.ZodNumber>;
         potNetMills: z.ZodOptional<z.ZodNumber>;
         waitingNetMills: z.ZodOptional<z.ZodNumber>;
         decideNetMills: z.ZodOptional<z.ZodNumber>;

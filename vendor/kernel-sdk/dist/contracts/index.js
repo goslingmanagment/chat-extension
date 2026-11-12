@@ -21,6 +21,7 @@ export * from "./routes-fan-queues";
 // Дела: what waits for a person, by reason key (package D), spread by routes.ts.
 export * from "./matters";
 export * from "./matter-checks";
+export * from "./waiting-groups";
 export * from "./routes-matters";
 // Agent reports: named markdown pages an agent key publishes (package O), spread by routes.ts.
 export * from "./agent-reports";
@@ -96,6 +97,18 @@ export * from "./routes-people";
 export * from "./system-state";
 export * from "./routes-system-state";
 export * from "./routes-shift-handins";
+// Система → «Сообщения людям»: the server's sender of messages to people, off twice (package S), spread by routes.ts.
+export * from "./people-messages";
+export * from "./people-message-kinds";
+export * from "./routes-people-messages";
+export * from "./sale-claims";
+export * from "./routes-sale-claims";
+// Цепочка продажи (package T): from one sale, whose it is down to its payout.
+export * from "./routes-sale-chain";
+// Стирание фана: the ledger's feed of the erasures Hub completed.
+export * from "./routes-erasures";
+// «Чья продажа» «со слов» through Hub (review R2b-3).
+export * from "./routes-sale-decisions";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-model-applications";
 export * from "./routes-ofapi-read-collections";

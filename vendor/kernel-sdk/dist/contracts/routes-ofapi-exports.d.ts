@@ -31,8 +31,8 @@ export declare const ofapiTypedExportArtifactSchema: z.ZodObject<{
 export declare const ofapiProfileVisitorDaySchema: z.ZodObject<{
     date: z.ZodString;
     source: z.ZodEnum<{
-        export: "export";
         rest: "rest";
+        export: "export";
         missing: "missing";
     }>;
     totalVisitors: z.ZodNullable<z.ZodNumber>;
@@ -739,8 +739,8 @@ export declare const ofapiExportRouteSchemas: {
             from: z.ZodISODate;
             to: z.ZodISODate;
             source: z.ZodDefault<z.ZodEnum<{
-                export: "export";
                 rest: "rest";
+                export: "export";
             }>>;
             visitorType: z.ZodDefault<z.ZodEnum<{
                 users: "users";
@@ -796,8 +796,8 @@ export declare const ofapiExportRouteSchemas: {
                 days: z.ZodArray<z.ZodObject<{
                     date: z.ZodString;
                     source: z.ZodEnum<{
-                        export: "export";
                         rest: "rest";
+                        export: "export";
                         missing: "missing";
                     }>;
                     totalVisitors: z.ZodNullable<z.ZodNumber>;

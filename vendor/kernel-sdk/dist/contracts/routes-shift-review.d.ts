@@ -518,6 +518,57 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             text: z.ZodString;
         }, z.core.$strip>>;
     }, z.core.$strip>>;
+    withoutShiftSales: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        saleRef: z.ZodString;
+        at: z.ZodString;
+        pageLabel: z.ZodString;
+        fanRef: z.ZodNullable<z.ZodString>;
+        fanName: z.ZodNullable<z.ZodString>;
+        chatKey: z.ZodNullable<z.ZodString>;
+        kind: z.ZodEnum<{
+            subscription: "subscription";
+            tip: "tip";
+            post: "post";
+            ppv: "ppv";
+        }>;
+        netMills: z.ZodNumber;
+        verdict: z.ZodEnum<{
+            none: "none";
+            mine: "mine";
+            both: "both";
+            theirs: "theirs";
+        }>;
+        holderName: z.ZodNullable<z.ZodString>;
+        ppvSender: z.ZodNullable<z.ZodString>;
+        ppvSentAt: z.ZodNullable<z.ZodString>;
+        lastWriter: z.ZodNullable<z.ZodString>;
+        writers: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            messages: z.ZodNumber;
+        }, z.core.$strip>>;
+        origin: z.ZodEnum<{
+            own: "own";
+            colleague_ppv: "colleague_ppv";
+            no_author_ppv: "no_author_ppv";
+            other_wrote: "other_wrote";
+            nobody_wrote_48h: "nobody_wrote_48h";
+            post_tip: "post_tip";
+            campaign: "campaign";
+        }>;
+        home: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<{
+                unknown: "unknown";
+                shift: "shift";
+                waiting: "waiting";
+                visit: "visit";
+                pot: "pot";
+                decide: "decide";
+                nobody: "nobody";
+                before_rule: "before_rule";
+            }>;
+            text: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>>;
     waits: z.ZodArray<z.ZodObject<{
         chat: z.ZodString;
         since: z.ZodString;
@@ -835,6 +886,57 @@ export declare const shiftReviewRouteSchemas: {
                         text: z.ZodString;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
+                withoutShiftSales: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                        campaign: "campaign";
+                    }>;
+                    home: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            unknown: "unknown";
+                            shift: "shift";
+                            waiting: "waiting";
+                            visit: "visit";
+                            pot: "pot";
+                            decide: "decide";
+                            nobody: "nobody";
+                            before_rule: "before_rule";
+                        }>;
+                        text: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>>;
                 waits: z.ZodArray<z.ZodObject<{
                     chat: z.ZodString;
                     since: z.ZodString;

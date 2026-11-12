@@ -78,6 +78,14 @@ export const teamLedgerPayoutsResponseSchema = z.object({
     factsFrom: businessDate.nullable(),
     /** From this day on the days are accrued from the posted shift reports; null — not switched (or a ledger that does not say). */
     reportsFrom: businessDate.nullable(),
+    /**
+     * From this day on a day's accrual takes the person's pay terms from Hub's people registry (the ledger's
+     * `payroll_terms_hub_from`); null — not switched (or a ledger that does not say): the payout sheets' headers price
+     * the days, and the terms on «Люди → График и условия» price nobody's day yet.
+     */
+    termsHubFrom: businessDate.nullable(),
+    /** From this day on a reports day accrues from the report handed in in Hub (`payroll_basis_hub_from`); null — from the posts. */
+    basisHubFrom: businessDate.nullable(),
     /** When the ledger answered. */
     generatedAt: isoTimestamp,
     people: z.array(teamLedgerPayoutPersonSchema),
@@ -219,6 +227,12 @@ export const teamLedgerReportPageSchema = z.object({
     /** posted_equal · posted_changed · post_only · draft_only; another value as the ledger wrote it. */
     state: z.string(),
     postedAt: isoTimestamp.nullable(),
+    /** The page in the report handed in in Hub for the person and day (their shifts added); null — none. */
+    hubMills: mills.nullable().default(null),
+    /** How the post compares with it: hub_equal · hub_changed · hub_only · hub_missing; null — no report in Hub. */
+    hubState: z.string().nullable().default(null),
+    /** What the day accrues from: hub · post; null — the ledger did not say. */
+    basis: z.string().nullable().default(null),
 });
 /** A post in «Отчётность» the ledger could not use in full (a flag on it). */
 export const teamLedgerReportPostSchema = z.object({
@@ -255,6 +269,8 @@ export const teamLedgerReportDaySchema = z.object({
     postedMills: mills.nullable(),
     /** The pages' drafted amounts added up; null — no draft. */
     draftMills: mills.nullable(),
+    /** The pages of the report handed in in Hub added up; null — none handed in in Hub. */
+    hubMills: mills.nullable().default(null),
     /** The latest post that touched a page of the day; null — none. */
     postedAt: isoTimestamp.nullable(),
     /** The agent's current draft, as the chatter sees it in «Мои смены»; null — written without the agent. */
@@ -314,7 +330,76 @@ export const teamLedgerQuestionsResponseSchema = z.object({
     questionsRead: z.boolean(),
     serverNow: isoTimestamp,
 });
+// ── The month card (Деньги → Месяц) ─────────────────────────────────────────
+/** A calendar month, «2026-11»: Moscow days. */
+export const ledgerMonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+export const teamLedgerMonthQuerySchema = z.object({ month: ledgerMonthSchema });
+/** One model's line of the month card. Money in mills of the ledger's whole cents. */
+export const teamLedgerMonthModelSchema = z.object({
+    /** The model by the name of Hub's model record (as Главная names it); the ledger's own word when Hub has no such model. */
+    model: z.string(),
+    pagesNetMills: mills,
+    offPlatformMills: mills,
+    earnedMills: mills,
+    arrivedMills: mills,
+    ridingMills: mills,
+});
+/**
+ * The ledger's month card as its hub read serves it (GET /v1/payouts/month/{month}, ledger#85): no expenses, no
+ * decision figure, no owner's draws. `pagesNetMills` is the card's «Оборот» less what came past the platforms, the
+ * «не согласовано» pages included: the pages' income after the platforms' commission as the ledger read it from Hub;
+ * the screen sets it beside Hub's own income of the same Moscow month. The totals are the ledger's own (its lines
+ * are rounded one by one, so the models may sum a cent apart). Nothing here is counted by Hub.
+ */
+export const teamLedgerMonthCardSchema = z.object({
+    /**
+     * `unknown`: the month was never computed (every money field null) or a check of the card failed (the figures stay,
+     * `reason` says what): never hide them.
+     */
+    status: z.enum(["proven", "unknown"]),
+    reason: z.string().nullable(),
+    /** The ledger's cut the card is of. */
+    asOf: isoTimestamp.nullable(),
+    computedAt: isoTimestamp.nullable(),
+    pagesNetMills: mills.nullable(),
+    offPlatformMills: mills.nullable(),
+    turnoverMills: mills.nullable(),
+    earnedMills: mills.nullable(),
+    arrivedMills: mills.nullable(),
+    ridingMills: mills.nullable(),
+    holdMills: mills.nullable(),
+    stuckMills: mills.nullable(),
+    onPageMills: mills.nullable(),
+    models: z.array(teamLedgerMonthModelSchema),
+    notes: z.array(z.string()),
+});
+export const teamLedgerMonthResponseSchema = z.object({
+    month: ledgerMonthSchema,
+    /** The month's Moscow days, both included. */
+    from: businessDate,
+    to: businessDate,
+    /** false: the ledger does not serve the month card to Hub's key yet (an older ledger): `card` is null for that. */
+    served: z.boolean(),
+    card: teamLedgerMonthCardSchema.nullable(),
+    serverNow: isoTimestamp,
+});
 export const teamLedgerRouteSchemas = {
+    teamLedgerMonth: {
+        auth: { kind: "owner-session" },
+        tags: ["admin"],
+        summary: "The agency's month card from the ledger: the pages' income, past the platforms, turnover, earned and where it is",
+        description: "Read from the ledger's GET /v1/payouts/month/{month} with Hub's payouts key; the money is the ledger's to "
+            + "the cent. `served: false` — the ledger does not serve the month yet (it answered 403 or 404); 503 — the ledger is "
+            + "not connected or did not answer.",
+        querystring: teamLedgerMonthQuerySchema,
+        response: {
+            200: teamLedgerMonthResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            503: errorResponseSchema,
+        },
+    },
     teamLedgerPayouts: {
         auth: { kind: "owner-session" },
         tags: ["admin"],

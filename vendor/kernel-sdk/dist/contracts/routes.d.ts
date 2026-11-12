@@ -6,8 +6,13 @@ import { accountPayRouteSchemas } from "./routes-account-pay";
 import { customOrderRouteSchemas } from "./routes-custom-orders";
 import { peopleRouteSchemas } from "./routes-people";
 import { shiftHandinRouteSchemas } from "./routes-shift-handins";
+import { saleClaimRouteSchemas } from "./routes-sale-claims";
+import { saleChainRouteSchemas } from "./routes-sale-chain";
+import { erasureRouteSchemas } from "./routes-erasures";
+import { saleDecisionRouteSchemas } from "./routes-sale-decisions";
 import { signinRouteSchemas } from "./routes-signin";
 import { systemStateRouteSchemas } from "./routes-system-state";
+import { peopleMessageRouteSchemas } from "./routes-people-messages";
 import { z } from "zod";
 import { agentRouteSchemas } from "./routes-agent";
 import { agentKeyAdminRouteSchemas, agentKeyIntrospectRouteSchemas } from "./routes-agent-keys";
@@ -10474,8 +10479,8 @@ export declare const ofapiWebhookRegisterResponseSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const ofapiCreditLedgerSourceEnum: z.ZodEnum<{
     adjustment: "adjustment";
-    external: "external";
     rest: "rest";
+    external: "external";
     webhook_accrual: "webhook_accrual";
     refill: "refill";
 }>;
@@ -10604,8 +10609,8 @@ export declare const adminOfapiCreditsLedgerQuerySchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     source: z.ZodOptional<z.ZodEnum<{
         adjustment: "adjustment";
-        external: "external";
         rest: "rest";
+        external: "external";
         webhook_accrual: "webhook_accrual";
         refill: "refill";
     }>>;
@@ -10617,8 +10622,8 @@ export declare const adminOfapiCreditsLedgerQuerySchema: z.ZodObject<{
 export declare const adminOfapiCreditsLedgerCsvQuerySchema: z.ZodObject<{
     source: z.ZodOptional<z.ZodEnum<{
         adjustment: "adjustment";
-        external: "external";
         rest: "rest";
+        external: "external";
         webhook_accrual: "webhook_accrual";
         refill: "refill";
     }>>;
@@ -10638,8 +10643,8 @@ export declare const ofapiCreditsLedgerResponseSchema: z.ZodObject<{
         occurredAt: z.ZodString;
         source: z.ZodEnum<{
             adjustment: "adjustment";
-            external: "external";
             rest: "rest";
+            external: "external";
             webhook_accrual: "webhook_accrual";
             refill: "refill";
         }>;
@@ -17979,6 +17984,81 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly teamLedgerMonth: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The agency's month card from the ledger: the pages' income, past the platforms, turnover, earned and where it is";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            month: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                month: z.ZodString;
+                from: z.ZodString;
+                to: z.ZodString;
+                served: z.ZodBoolean;
+                card: z.ZodNullable<z.ZodObject<{
+                    status: z.ZodEnum<{
+                        unknown: "unknown";
+                        proven: "proven";
+                    }>;
+                    reason: z.ZodNullable<z.ZodString>;
+                    asOf: z.ZodNullable<z.ZodString>;
+                    computedAt: z.ZodNullable<z.ZodString>;
+                    pagesNetMills: z.ZodNullable<z.ZodNumber>;
+                    offPlatformMills: z.ZodNullable<z.ZodNumber>;
+                    turnoverMills: z.ZodNullable<z.ZodNumber>;
+                    earnedMills: z.ZodNullable<z.ZodNumber>;
+                    arrivedMills: z.ZodNullable<z.ZodNumber>;
+                    ridingMills: z.ZodNullable<z.ZodNumber>;
+                    holdMills: z.ZodNullable<z.ZodNumber>;
+                    stuckMills: z.ZodNullable<z.ZodNumber>;
+                    onPageMills: z.ZodNullable<z.ZodNumber>;
+                    models: z.ZodArray<z.ZodObject<{
+                        model: z.ZodString;
+                        pagesNetMills: z.ZodNumber;
+                        offPlatformMills: z.ZodNumber;
+                        earnedMills: z.ZodNumber;
+                        arrivedMills: z.ZodNumber;
+                        ridingMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    notes: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly teamLedgerPayouts: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -17997,6 +18077,8 @@ declare const baseRouteSchemas: {
                 accrualFrom: z.ZodString;
                 factsFrom: z.ZodNullable<z.ZodString>;
                 reportsFrom: z.ZodNullable<z.ZodString>;
+                termsHubFrom: z.ZodNullable<z.ZodString>;
+                basisHubFrom: z.ZodNullable<z.ZodString>;
                 generatedAt: z.ZodString;
                 people: z.ZodArray<z.ZodObject<{
                     slug: z.ZodString;
@@ -18293,9 +18375,13 @@ declare const baseRouteSchemas: {
                         diffMills: z.ZodNullable<z.ZodNumber>;
                         state: z.ZodString;
                         postedAt: z.ZodNullable<z.ZodString>;
+                        hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                        hubState: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        basis: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     postedMills: z.ZodNullable<z.ZodNumber>;
                     draftMills: z.ZodNullable<z.ZodNumber>;
+                    hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                     postedAt: z.ZodNullable<z.ZodString>;
                     draft: z.ZodNullable<z.ZodObject<{
                         id: z.ZodNumber;
@@ -18729,6 +18815,57 @@ declare const baseRouteSchemas: {
                         text: z.ZodString;
                     }, z.core.$strip>>;
                 }, z.core.$strip>>;
+                withoutShiftSales: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                        campaign: "campaign";
+                    }>;
+                    home: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            unknown: "unknown";
+                            shift: "shift";
+                            waiting: "waiting";
+                            visit: "visit";
+                            pot: "pot";
+                            decide: "decide";
+                            nobody: "nobody";
+                            before_rule: "before_rule";
+                        }>;
+                        text: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>>;
                 waits: z.ZodArray<z.ZodObject<{
                     chat: z.ZodString;
                     since: z.ZodString;
@@ -22931,8 +23068,8 @@ declare const baseRouteSchemas: {
             limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
             source: z.ZodOptional<z.ZodEnum<{
                 adjustment: "adjustment";
-                external: "external";
                 rest: "rest";
+                external: "external";
                 webhook_accrual: "webhook_accrual";
                 refill: "refill";
             }>>;
@@ -22953,8 +23090,8 @@ declare const baseRouteSchemas: {
                     occurredAt: z.ZodString;
                     source: z.ZodEnum<{
                         adjustment: "adjustment";
-                        external: "external";
                         rest: "rest";
+                        external: "external";
                         webhook_accrual: "webhook_accrual";
                         refill: "refill";
                     }>;
@@ -23001,8 +23138,8 @@ declare const baseRouteSchemas: {
         readonly querystring: z.ZodObject<{
             source: z.ZodOptional<z.ZodEnum<{
                 adjustment: "adjustment";
-                external: "external";
                 rest: "rest";
+                external: "external";
                 webhook_accrual: "webhook_accrual";
                 refill: "refill";
             }>>;
@@ -24929,6 +25066,9 @@ declare const baseRouteSchemas: {
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 customs: z.ZodArray<z.ZodObject<{
+                    code: z.ZodOptional<z.ZodString>;
+                    stepLabel: z.ZodOptional<z.ZodString>;
+                    stepAt: z.ZodOptional<z.ZodString>;
                     id: z.ZodNumber;
                     pageLabel: z.ZodString;
                     granted: z.ZodBoolean;
@@ -30999,13 +31139,13 @@ declare const baseRouteSchemas: {
                     }, z.core.$strip>>;
                     biggestSale: z.ZodNullable<z.ZodObject<{
                         at: z.ZodString;
-                        pageLabel: z.ZodString;
                         kind: z.ZodEnum<{
                             subscription: "subscription";
                             tip: "tip";
                             post: "post";
                             ppv: "ppv";
                         }>;
+                        pageLabel: z.ZodString;
                         netMills: z.ZodNumber;
                         fanName: z.ZodNullable<z.ZodString>;
                     }, z.core.$strip>>;
@@ -31013,6 +31153,19 @@ declare const baseRouteSchemas: {
                     longestStreakDays: z.ZodNumber;
                 }, z.core.$strip>;
                 ruleFrom: z.ZodOptional<z.ZodString>;
+                withoutShift: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    at: z.ZodString;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    pageLabel: z.ZodString;
+                    netMills: z.ZodNumber;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    date: z.ZodString;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -31201,13 +31354,13 @@ declare const baseRouteSchemas: {
                         }, z.core.$strip>>;
                         biggestSale: z.ZodNullable<z.ZodObject<{
                             at: z.ZodString;
-                            pageLabel: z.ZodString;
                             kind: z.ZodEnum<{
                                 subscription: "subscription";
                                 tip: "tip";
                                 post: "post";
                                 ppv: "ppv";
                             }>;
+                            pageLabel: z.ZodString;
                             netMills: z.ZodNumber;
                             fanName: z.ZodNullable<z.ZodString>;
                         }, z.core.$strip>>;
@@ -31215,6 +31368,19 @@ declare const baseRouteSchemas: {
                         longestStreakDays: z.ZodNumber;
                     }, z.core.$strip>;
                     ruleFrom: z.ZodOptional<z.ZodString>;
+                    withoutShift: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                        at: z.ZodString;
+                        kind: z.ZodEnum<{
+                            subscription: "subscription";
+                            tip: "tip";
+                            post: "post";
+                            ppv: "ppv";
+                        }>;
+                        pageLabel: z.ZodString;
+                        netMills: z.ZodNumber;
+                        fanName: z.ZodNullable<z.ZodString>;
+                        date: z.ZodString;
+                    }, z.core.$strip>>>;
                     serverNow: z.ZodString;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
@@ -31335,6 +31501,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>>;
                 outside: z.ZodObject<{
                     daily: z.ZodArray<z.ZodObject<{
+                        personNetMills: z.ZodOptional<z.ZodNumber>;
                         potNetMills: z.ZodOptional<z.ZodNumber>;
                         waitingNetMills: z.ZodOptional<z.ZodNumber>;
                         decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -31343,6 +31510,7 @@ declare const baseRouteSchemas: {
                         nobodyNetMills: z.ZodNumber;
                     }, z.core.$strip>>;
                     pages: z.ZodArray<z.ZodObject<{
+                        personNetMills: z.ZodOptional<z.ZodNumber>;
                         potNetMills: z.ZodOptional<z.ZodNumber>;
                         waitingNetMills: z.ZodOptional<z.ZodNumber>;
                         decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -31363,6 +31531,7 @@ declare const baseRouteSchemas: {
                         netMills: z.ZodNumber;
                         visitBy: z.ZodNullable<z.ZodString>;
                         home: z.ZodOptional<z.ZodEnum<{
+                            person: "person";
                             waiting: "waiting";
                             visit: "visit";
                             pot: "pot";
@@ -31370,6 +31539,7 @@ declare const baseRouteSchemas: {
                             nobody: "nobody";
                         }>>;
                     }, z.core.$strip>>;
+                    personNetMills: z.ZodOptional<z.ZodNumber>;
                     potNetMills: z.ZodOptional<z.ZodNumber>;
                     waitingNetMills: z.ZodOptional<z.ZodNumber>;
                     decideNetMills: z.ZodOptional<z.ZodNumber>;
@@ -31997,6 +32167,14 @@ declare const baseRouteSchemas: {
                     resolution: z.ZodNullable<z.ZodArray<z.ZodObject<{
                         userId: z.ZodNumber;
                         percent: z.ZodNumber;
+                    }, z.core.$strip>>>;
+                    decision: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            split: "split";
+                            pot: "pot";
+                            nobody: "nobody";
+                        }>;
+                        pot: z.ZodNullable<z.ZodString>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
@@ -43902,8 +44080,8 @@ declare const baseRouteSchemas: {
             from: z.ZodISODate;
             to: z.ZodISODate;
             source: z.ZodDefault<z.ZodEnum<{
-                export: "export";
                 rest: "rest";
+                export: "export";
             }>>;
             visitorType: z.ZodDefault<z.ZodEnum<{
                 users: "users";
@@ -43959,8 +44137,8 @@ declare const baseRouteSchemas: {
                 days: z.ZodArray<z.ZodObject<{
                     date: z.ZodString;
                     source: z.ZodEnum<{
-                        export: "export";
                         rest: "rest";
+                        export: "export";
                         missing: "missing";
                     }>;
                     totalVisitors: z.ZodNullable<z.ZodNumber>;
@@ -45537,7 +45715,7 @@ declare const baseRouteSchemas: {
         };
     };
 };
-export type RouteSchemas = typeof baseRouteSchemas & typeof ofapiActionRouteSchemas & typeof agentRouteSchemas & typeof agentKeyAdminRouteSchemas & typeof syncRouteSchemas & typeof clientRouteSchemas & typeof agentDoorRouteSchemas & typeof agentKeyIntrospectRouteSchemas & typeof matterRouteSchemas & typeof agentReportRouteSchemas & typeof accountPayRouteSchemas & typeof peopleRouteSchemas & typeof signinRouteSchemas & typeof systemStateRouteSchemas & typeof customOrderRouteSchemas & typeof shiftHandinRouteSchemas;
+export type RouteSchemas = typeof baseRouteSchemas & typeof ofapiActionRouteSchemas & typeof agentRouteSchemas & typeof agentKeyAdminRouteSchemas & typeof syncRouteSchemas & typeof clientRouteSchemas & typeof agentDoorRouteSchemas & typeof agentKeyIntrospectRouteSchemas & typeof matterRouteSchemas & typeof agentReportRouteSchemas & typeof accountPayRouteSchemas & typeof peopleRouteSchemas & typeof signinRouteSchemas & typeof systemStateRouteSchemas & typeof customOrderRouteSchemas & typeof shiftHandinRouteSchemas & typeof peopleMessageRouteSchemas & typeof saleClaimRouteSchemas & typeof saleChainRouteSchemas & typeof erasureRouteSchemas & typeof saleDecisionRouteSchemas;
 export declare const routeSchemas: RouteSchemas;
 export type AuthState = z.infer<typeof authStateSchema>;
 export type AuthUser = z.infer<typeof authUserSchema>;

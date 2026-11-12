@@ -30,11 +30,15 @@ export const STEP_FROM = {
     given: ["recorded", "paid", "at_model", "partly", "shot", "revision"],
     close: ["given"],
     cancel: OPEN,
-    // A delivery proves the card reached the model, whatever the board said.
-    delivery: ["recorded", "paid", "at_model", "partly", "revision"],
+    // A delivery is kept in every state (its sender must know it is in the hub); it moves the order only from the
+    // states before «снят» and from a revision (DELIVERY_MOVES_FROM): it proves the card reached the model.
+    delivery: ALL,
     revision_done: NOT_ENDED,
     message: ALL,
+    retract: ALL,
 };
+/** The states a delivery moves the order from (to «сдан частично», «снят» or back to «правка»). */
+export const DELIVERY_MOVES_FROM = ["recorded", "paid", "at_model", "partly", "revision"];
 export const STEP_TO = {
     at_model: "at_model",
     partly: "partly",
@@ -44,6 +48,22 @@ export const STEP_TO = {
     given: "given",
     close: "closed",
     cancel: "cancelled",
+};
+/**
+ * Each state in people's words: the one table for every door that names an order's step — the board «Кастомы»
+ * in Workboard and the extension's fan panel (the wire's `stepLabel`, shown as it is).
+ */
+export const CUSTOM_STATE_WORDS = {
+    recorded: "Записан",
+    paid: "Оплачен",
+    at_model: "У модели",
+    partly: "Сдан частично",
+    shot: "Снят",
+    revision: "Правка",
+    refused: "Отказ модели",
+    given: "Отдан фану",
+    closed: "Закрыт",
+    cancelled: "Отменён",
 };
 /** The lead's steps belong to the lead, the owner and a team lead. */
 export function leadsSteps(viewer) {

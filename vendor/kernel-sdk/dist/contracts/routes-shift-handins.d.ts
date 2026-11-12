@@ -124,6 +124,7 @@ export declare const shiftReportLineSchema: z.ZodObject<{
     shareWithName: z.ZodNullable<z.ZodString>;
     note: z.ZodNullable<z.ZodString>;
     amountMills: z.ZodNumber;
+    claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     added: z.ZodBoolean;
     disputed: z.ZodBoolean;
     alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -174,6 +175,7 @@ export declare const shiftReportOffPlatformSchema: z.ZodObject<{
         rejected: "rejected";
         confirmed: "confirmed";
     }>;
+    pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
 }, z.core.$strip>;
 /** A report as one reads it: the person's draft, or a submitted version. */
 export declare const shiftReportBodySchema: z.ZodObject<{
@@ -221,6 +223,7 @@ export declare const shiftReportBodySchema: z.ZodObject<{
         shareWithName: z.ZodNullable<z.ZodString>;
         note: z.ZodNullable<z.ZodString>;
         amountMills: z.ZodNumber;
+        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         added: z.ZodBoolean;
         disputed: z.ZodBoolean;
         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -271,6 +274,7 @@ export declare const shiftReportBodySchema: z.ZodObject<{
             rejected: "rejected";
             confirmed: "confirmed";
         }>;
+        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>;
     comment: z.ZodString;
     pages: z.ZodArray<z.ZodObject<{
@@ -292,6 +296,7 @@ export declare const shiftReportVersionSummarySchema: z.ZodObject<{
     }>;
     by: z.ZodString;
     totalMills: z.ZodNumber;
+    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
 }, z.core.$strip>;
 export declare const shiftReportResponseSchema: z.ZodObject<{
     shift: z.ZodObject<{
@@ -325,6 +330,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
         }>;
         by: z.ZodString;
         totalMills: z.ZodNumber;
+        madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>;
     versions: z.ZodArray<z.ZodObject<{
         version: z.ZodNumber;
@@ -336,6 +342,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
         }>;
         by: z.ZodString;
         totalMills: z.ZodNumber;
+        madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>;
     view: z.ZodNullable<z.ZodObject<{
         source: z.ZodEnum<{
@@ -382,6 +389,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
             shareWithName: z.ZodNullable<z.ZodString>;
             note: z.ZodNullable<z.ZodString>;
             amountMills: z.ZodNumber;
+            claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             added: z.ZodBoolean;
             disputed: z.ZodBoolean;
             alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -432,6 +440,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
                 rejected: "rejected";
                 confirmed: "confirmed";
             }>;
+            pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         comment: z.ZodString;
         pages: z.ZodArray<z.ZodObject<{
@@ -455,6 +464,83 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
         userId: z.ZodNumber;
         name: z.ZodString;
     }, z.core.$strip>>;
+    claims: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        kind: z.ZodEnum<{
+            imported: "imported";
+            claim: "claim";
+            question: "question";
+            double: "double";
+        }>;
+        transactionId: z.ZodNullable<z.ZodNumber>;
+        pageLabel: z.ZodNullable<z.ZodString>;
+        claimant: z.ZodNullable<z.ZodObject<{
+            userId: z.ZodNumber;
+            name: z.ZodString;
+        }, z.core.$strip>>;
+        statement: z.ZodNullable<z.ZodEnum<{
+            mine: "mine";
+            share: "share";
+        }>>;
+        note: z.ZodNullable<z.ZodString>;
+        claimedAt: z.ZodString;
+        side: z.ZodNullable<z.ZodObject<{
+            userId: z.ZodNumber;
+            name: z.ZodString;
+        }, z.core.$strip>>;
+        sideShiftId: z.ZodNullable<z.ZodNumber>;
+        state: z.ZodEnum<{
+            owner: "owner";
+            withdrawn: "withdrawn";
+            decided: "decided";
+            asked: "asked";
+            agreed: "agreed";
+        }>;
+        answer: z.ZodNullable<z.ZodEnum<{
+            agree: "agree";
+            disagree: "disagree";
+        }>>;
+        answerNote: z.ZodNullable<z.ZodString>;
+        answeredAt: z.ZodNullable<z.ZodString>;
+        escalatedWhy: z.ZodNullable<z.ZodEnum<{
+            imported: "imported";
+            silence: "silence";
+            question: "question";
+            disagree: "disagree";
+            double: "double";
+            no_side: "no_side";
+        }>>;
+        decision: z.ZodNullable<z.ZodObject<{
+            outcome: z.ZodEnum<{
+                second: "second";
+                imported: "imported";
+                nobody: "nobody";
+                first: "first";
+                half: "half";
+                said: "said";
+            }>;
+            note: z.ZodNullable<z.ZodString>;
+            decidedAt: z.ZodString;
+        }, z.core.$strip>>;
+        answerBy: z.ZodNullable<z.ZodString>;
+        question: z.ZodNullable<z.ZodString>;
+        direction: z.ZodEnum<{
+            other: "other";
+            incoming: "incoming";
+            outgoing: "outgoing";
+        }>;
+        canAnswer: z.ZodBoolean;
+        sale: z.ZodNullable<z.ZodObject<{
+            kind: z.ZodString;
+            occurredAt: z.ZodString;
+            netMills: z.ZodNumber;
+            fan: z.ZodObject<{
+                fanRef: z.ZodNullable<z.ZodString>;
+                name: z.ZodNullable<z.ZodString>;
+                username: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export declare const shiftReportLineBodySchema: z.ZodObject<{
@@ -488,6 +574,7 @@ export declare const shiftReportOffPlatformResponseSchema: z.ZodObject<{
             rejected: "rejected";
             confirmed: "confirmed";
         }>;
+        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>;
     savedAt: z.ZodString;
 }, z.core.$strip>;
@@ -614,6 +701,7 @@ export declare const agentShiftReportsFeedQuerySchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const agentShiftReportsFeedItemSchema: z.ZodObject<{
     id: z.ZodNumber;
+    seq: z.ZodNumber;
     person: z.ZodNullable<z.ZodString>;
     hubUserId: z.ZodNumber;
     shiftId: z.ZodNumber;
@@ -650,8 +738,13 @@ export declare const agentShiftReportsFeedItemSchema: z.ZodObject<{
         shareWithUserId: z.ZodNullable<z.ZodNumber>;
         note: z.ZodNullable<z.ZodString>;
         amountMills: z.ZodNumber;
+        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         added: z.ZodBoolean;
         disputed: z.ZodBoolean;
+        settled: z.ZodDefault<z.ZodNullable<z.ZodEnum<{
+            owner: "owner";
+            agreed: "agreed";
+        }>>>;
     }, z.core.$strip>>;
     offPlatform: z.ZodArray<z.ZodObject<{
         id: z.ZodNumber;
@@ -663,14 +756,29 @@ export declare const agentShiftReportsFeedItemSchema: z.ZodObject<{
             rejected: "rejected";
             confirmed: "confirmed";
         }>;
+        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>;
     comment: z.ZodString;
     dayPaid: z.ZodNullable<z.ZodBoolean>;
     ruleVersion: z.ZodString;
+    madeFor: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+        kind: z.ZodEnum<{
+            claim: "claim";
+            decision: "decision";
+            off_platform: "off_platform";
+        }>;
+        claimId: z.ZodNullable<z.ZodNumber>;
+        decisionId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        offPlatformId: z.ZodNullable<z.ZodNumber>;
+        transactionId: z.ZodNullable<z.ZodNumber>;
+        outcome: z.ZodString;
+        byUserId: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>>;
 }, z.core.$strip>;
 export declare const agentShiftReportsFeedResponseSchema: z.ZodObject<{
     reports: z.ZodArray<z.ZodObject<{
         id: z.ZodNumber;
+        seq: z.ZodNumber;
         person: z.ZodNullable<z.ZodString>;
         hubUserId: z.ZodNumber;
         shiftId: z.ZodNumber;
@@ -707,8 +815,13 @@ export declare const agentShiftReportsFeedResponseSchema: z.ZodObject<{
             shareWithUserId: z.ZodNullable<z.ZodNumber>;
             note: z.ZodNullable<z.ZodString>;
             amountMills: z.ZodNumber;
+            claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             added: z.ZodBoolean;
             disputed: z.ZodBoolean;
+            settled: z.ZodDefault<z.ZodNullable<z.ZodEnum<{
+                owner: "owner";
+                agreed: "agreed";
+            }>>>;
         }, z.core.$strip>>;
         offPlatform: z.ZodArray<z.ZodObject<{
             id: z.ZodNumber;
@@ -720,11 +833,36 @@ export declare const agentShiftReportsFeedResponseSchema: z.ZodObject<{
                 rejected: "rejected";
                 confirmed: "confirmed";
             }>;
+            pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         comment: z.ZodString;
         dayPaid: z.ZodNullable<z.ZodBoolean>;
         ruleVersion: z.ZodString;
+        madeFor: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+            kind: z.ZodEnum<{
+                claim: "claim";
+                decision: "decision";
+                off_platform: "off_platform";
+            }>;
+            claimId: z.ZodNullable<z.ZodNumber>;
+            decisionId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+            offPlatformId: z.ZodNullable<z.ZodNumber>;
+            transactionId: z.ZodNullable<z.ZodNumber>;
+            outcome: z.ZodString;
+            byUserId: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>>>;
     }, z.core.$strip>>;
+    held: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        seq: z.ZodNumber;
+        shiftId: z.ZodNumber;
+        person: z.ZodNullable<z.ZodString>;
+        reportDate: z.ZodString;
+        reason: z.ZodEnum<{
+            page_outside_key: "page_outside_key";
+        }>;
+        pageLabels: z.ZodArray<z.ZodString>;
+    }, z.core.$strip>>>;
     next: z.ZodString;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -820,6 +958,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 versions: z.ZodArray<z.ZodObject<{
                     version: z.ZodNumber;
@@ -831,6 +970,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 view: z.ZodNullable<z.ZodObject<{
                     source: z.ZodEnum<{
@@ -877,6 +1017,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -927,6 +1068,7 @@ export declare const shiftHandinRouteSchemas: {
                             rejected: "rejected";
                             confirmed: "confirmed";
                         }>;
+                        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     comment: z.ZodString;
                     pages: z.ZodArray<z.ZodObject<{
@@ -950,6 +1092,83 @@ export declare const shiftHandinRouteSchemas: {
                     userId: z.ZodNumber;
                     name: z.ZodString;
                 }, z.core.$strip>>;
+                claims: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    kind: z.ZodEnum<{
+                        imported: "imported";
+                        claim: "claim";
+                        question: "question";
+                        double: "double";
+                    }>;
+                    transactionId: z.ZodNullable<z.ZodNumber>;
+                    pageLabel: z.ZodNullable<z.ZodString>;
+                    claimant: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    statement: z.ZodNullable<z.ZodEnum<{
+                        mine: "mine";
+                        share: "share";
+                    }>>;
+                    note: z.ZodNullable<z.ZodString>;
+                    claimedAt: z.ZodString;
+                    side: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    sideShiftId: z.ZodNullable<z.ZodNumber>;
+                    state: z.ZodEnum<{
+                        owner: "owner";
+                        withdrawn: "withdrawn";
+                        decided: "decided";
+                        asked: "asked";
+                        agreed: "agreed";
+                    }>;
+                    answer: z.ZodNullable<z.ZodEnum<{
+                        agree: "agree";
+                        disagree: "disagree";
+                    }>>;
+                    answerNote: z.ZodNullable<z.ZodString>;
+                    answeredAt: z.ZodNullable<z.ZodString>;
+                    escalatedWhy: z.ZodNullable<z.ZodEnum<{
+                        imported: "imported";
+                        silence: "silence";
+                        question: "question";
+                        disagree: "disagree";
+                        double: "double";
+                        no_side: "no_side";
+                    }>>;
+                    decision: z.ZodNullable<z.ZodObject<{
+                        outcome: z.ZodEnum<{
+                            second: "second";
+                            imported: "imported";
+                            nobody: "nobody";
+                            first: "first";
+                            half: "half";
+                            said: "said";
+                        }>;
+                        note: z.ZodNullable<z.ZodString>;
+                        decidedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                    answerBy: z.ZodNullable<z.ZodString>;
+                    question: z.ZodNullable<z.ZodString>;
+                    direction: z.ZodEnum<{
+                        other: "other";
+                        incoming: "incoming";
+                        outgoing: "outgoing";
+                    }>;
+                    canAnswer: z.ZodBoolean;
+                    sale: z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodString;
+                        occurredAt: z.ZodString;
+                        netMills: z.ZodNumber;
+                        fan: z.ZodObject<{
+                            fanRef: z.ZodNullable<z.ZodString>;
+                            name: z.ZodNullable<z.ZodString>;
+                            username: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -1268,6 +1487,7 @@ export declare const shiftHandinRouteSchemas: {
                         rejected: "rejected";
                         confirmed: "confirmed";
                     }>;
+                    pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>;
                 savedAt: z.ZodString;
             }, z.core.$strip>;
@@ -1403,6 +1623,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 versions: z.ZodArray<z.ZodObject<{
                     version: z.ZodNumber;
@@ -1414,6 +1635,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 view: z.ZodNullable<z.ZodObject<{
                     source: z.ZodEnum<{
@@ -1460,6 +1682,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -1510,6 +1733,7 @@ export declare const shiftHandinRouteSchemas: {
                             rejected: "rejected";
                             confirmed: "confirmed";
                         }>;
+                        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     comment: z.ZodString;
                     pages: z.ZodArray<z.ZodObject<{
@@ -1533,6 +1757,83 @@ export declare const shiftHandinRouteSchemas: {
                     userId: z.ZodNumber;
                     name: z.ZodString;
                 }, z.core.$strip>>;
+                claims: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    kind: z.ZodEnum<{
+                        imported: "imported";
+                        claim: "claim";
+                        question: "question";
+                        double: "double";
+                    }>;
+                    transactionId: z.ZodNullable<z.ZodNumber>;
+                    pageLabel: z.ZodNullable<z.ZodString>;
+                    claimant: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    statement: z.ZodNullable<z.ZodEnum<{
+                        mine: "mine";
+                        share: "share";
+                    }>>;
+                    note: z.ZodNullable<z.ZodString>;
+                    claimedAt: z.ZodString;
+                    side: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    sideShiftId: z.ZodNullable<z.ZodNumber>;
+                    state: z.ZodEnum<{
+                        owner: "owner";
+                        withdrawn: "withdrawn";
+                        decided: "decided";
+                        asked: "asked";
+                        agreed: "agreed";
+                    }>;
+                    answer: z.ZodNullable<z.ZodEnum<{
+                        agree: "agree";
+                        disagree: "disagree";
+                    }>>;
+                    answerNote: z.ZodNullable<z.ZodString>;
+                    answeredAt: z.ZodNullable<z.ZodString>;
+                    escalatedWhy: z.ZodNullable<z.ZodEnum<{
+                        imported: "imported";
+                        silence: "silence";
+                        question: "question";
+                        disagree: "disagree";
+                        double: "double";
+                        no_side: "no_side";
+                    }>>;
+                    decision: z.ZodNullable<z.ZodObject<{
+                        outcome: z.ZodEnum<{
+                            second: "second";
+                            imported: "imported";
+                            nobody: "nobody";
+                            first: "first";
+                            half: "half";
+                            said: "said";
+                        }>;
+                        note: z.ZodNullable<z.ZodString>;
+                        decidedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                    answerBy: z.ZodNullable<z.ZodString>;
+                    question: z.ZodNullable<z.ZodString>;
+                    direction: z.ZodEnum<{
+                        other: "other";
+                        incoming: "incoming";
+                        outgoing: "outgoing";
+                    }>;
+                    canAnswer: z.ZodBoolean;
+                    sale: z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodString;
+                        occurredAt: z.ZodString;
+                        netMills: z.ZodNumber;
+                        fan: z.ZodObject<{
+                            fanRef: z.ZodNullable<z.ZodString>;
+                            name: z.ZodNullable<z.ZodString>;
+                            username: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -1624,6 +1925,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 versions: z.ZodArray<z.ZodObject<{
                     version: z.ZodNumber;
@@ -1635,6 +1937,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 view: z.ZodNullable<z.ZodObject<{
                     source: z.ZodEnum<{
@@ -1681,6 +1984,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -1731,6 +2035,7 @@ export declare const shiftHandinRouteSchemas: {
                             rejected: "rejected";
                             confirmed: "confirmed";
                         }>;
+                        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     comment: z.ZodString;
                     pages: z.ZodArray<z.ZodObject<{
@@ -1754,6 +2059,83 @@ export declare const shiftHandinRouteSchemas: {
                     userId: z.ZodNumber;
                     name: z.ZodString;
                 }, z.core.$strip>>;
+                claims: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    kind: z.ZodEnum<{
+                        imported: "imported";
+                        claim: "claim";
+                        question: "question";
+                        double: "double";
+                    }>;
+                    transactionId: z.ZodNullable<z.ZodNumber>;
+                    pageLabel: z.ZodNullable<z.ZodString>;
+                    claimant: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    statement: z.ZodNullable<z.ZodEnum<{
+                        mine: "mine";
+                        share: "share";
+                    }>>;
+                    note: z.ZodNullable<z.ZodString>;
+                    claimedAt: z.ZodString;
+                    side: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    sideShiftId: z.ZodNullable<z.ZodNumber>;
+                    state: z.ZodEnum<{
+                        owner: "owner";
+                        withdrawn: "withdrawn";
+                        decided: "decided";
+                        asked: "asked";
+                        agreed: "agreed";
+                    }>;
+                    answer: z.ZodNullable<z.ZodEnum<{
+                        agree: "agree";
+                        disagree: "disagree";
+                    }>>;
+                    answerNote: z.ZodNullable<z.ZodString>;
+                    answeredAt: z.ZodNullable<z.ZodString>;
+                    escalatedWhy: z.ZodNullable<z.ZodEnum<{
+                        imported: "imported";
+                        silence: "silence";
+                        question: "question";
+                        disagree: "disagree";
+                        double: "double";
+                        no_side: "no_side";
+                    }>>;
+                    decision: z.ZodNullable<z.ZodObject<{
+                        outcome: z.ZodEnum<{
+                            second: "second";
+                            imported: "imported";
+                            nobody: "nobody";
+                            first: "first";
+                            half: "half";
+                            said: "said";
+                        }>;
+                        note: z.ZodNullable<z.ZodString>;
+                        decidedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                    answerBy: z.ZodNullable<z.ZodString>;
+                    question: z.ZodNullable<z.ZodString>;
+                    direction: z.ZodEnum<{
+                        other: "other";
+                        incoming: "incoming";
+                        outgoing: "outgoing";
+                    }>;
+                    canAnswer: z.ZodBoolean;
+                    sale: z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodString;
+                        occurredAt: z.ZodString;
+                        netMills: z.ZodNumber;
+                        fan: z.ZodObject<{
+                            fanRef: z.ZodNullable<z.ZodString>;
+                            name: z.ZodNullable<z.ZodString>;
+                            username: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -2028,6 +2410,7 @@ export declare const shiftHandinRouteSchemas: {
                         rejected: "rejected";
                         confirmed: "confirmed";
                     }>;
+                    pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>;
                 savedAt: z.ZodString;
             }, z.core.$strip>;
@@ -2120,6 +2503,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 versions: z.ZodArray<z.ZodObject<{
                     version: z.ZodNumber;
@@ -2131,6 +2515,7 @@ export declare const shiftHandinRouteSchemas: {
                     }>;
                     by: z.ZodString;
                     totalMills: z.ZodNumber;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 view: z.ZodNullable<z.ZodObject<{
                     source: z.ZodEnum<{
@@ -2177,6 +2562,7 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithName: z.ZodNullable<z.ZodString>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
                         alreadyIn: z.ZodNullable<z.ZodObject<{
@@ -2227,6 +2613,7 @@ export declare const shiftHandinRouteSchemas: {
                             rejected: "rejected";
                             confirmed: "confirmed";
                         }>;
+                        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     comment: z.ZodString;
                     pages: z.ZodArray<z.ZodObject<{
@@ -2250,6 +2637,83 @@ export declare const shiftHandinRouteSchemas: {
                     userId: z.ZodNumber;
                     name: z.ZodString;
                 }, z.core.$strip>>;
+                claims: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    kind: z.ZodEnum<{
+                        imported: "imported";
+                        claim: "claim";
+                        question: "question";
+                        double: "double";
+                    }>;
+                    transactionId: z.ZodNullable<z.ZodNumber>;
+                    pageLabel: z.ZodNullable<z.ZodString>;
+                    claimant: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    statement: z.ZodNullable<z.ZodEnum<{
+                        mine: "mine";
+                        share: "share";
+                    }>>;
+                    note: z.ZodNullable<z.ZodString>;
+                    claimedAt: z.ZodString;
+                    side: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                    }, z.core.$strip>>;
+                    sideShiftId: z.ZodNullable<z.ZodNumber>;
+                    state: z.ZodEnum<{
+                        owner: "owner";
+                        withdrawn: "withdrawn";
+                        decided: "decided";
+                        asked: "asked";
+                        agreed: "agreed";
+                    }>;
+                    answer: z.ZodNullable<z.ZodEnum<{
+                        agree: "agree";
+                        disagree: "disagree";
+                    }>>;
+                    answerNote: z.ZodNullable<z.ZodString>;
+                    answeredAt: z.ZodNullable<z.ZodString>;
+                    escalatedWhy: z.ZodNullable<z.ZodEnum<{
+                        imported: "imported";
+                        silence: "silence";
+                        question: "question";
+                        disagree: "disagree";
+                        double: "double";
+                        no_side: "no_side";
+                    }>>;
+                    decision: z.ZodNullable<z.ZodObject<{
+                        outcome: z.ZodEnum<{
+                            second: "second";
+                            imported: "imported";
+                            nobody: "nobody";
+                            first: "first";
+                            half: "half";
+                            said: "said";
+                        }>;
+                        note: z.ZodNullable<z.ZodString>;
+                        decidedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                    answerBy: z.ZodNullable<z.ZodString>;
+                    question: z.ZodNullable<z.ZodString>;
+                    direction: z.ZodEnum<{
+                        other: "other";
+                        incoming: "incoming";
+                        outgoing: "outgoing";
+                    }>;
+                    canAnswer: z.ZodBoolean;
+                    sale: z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodString;
+                        occurredAt: z.ZodString;
+                        netMills: z.ZodNumber;
+                        fan: z.ZodObject<{
+                            fanRef: z.ZodNullable<z.ZodString>;
+                            name: z.ZodNullable<z.ZodString>;
+                            username: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -2311,6 +2775,7 @@ export declare const shiftHandinRouteSchemas: {
             readonly 200: z.ZodObject<{
                 reports: z.ZodArray<z.ZodObject<{
                     id: z.ZodNumber;
+                    seq: z.ZodNumber;
                     person: z.ZodNullable<z.ZodString>;
                     hubUserId: z.ZodNumber;
                     shiftId: z.ZodNumber;
@@ -2347,8 +2812,13 @@ export declare const shiftHandinRouteSchemas: {
                         shareWithUserId: z.ZodNullable<z.ZodNumber>;
                         note: z.ZodNullable<z.ZodString>;
                         amountMills: z.ZodNumber;
+                        claimedMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                         added: z.ZodBoolean;
                         disputed: z.ZodBoolean;
+                        settled: z.ZodDefault<z.ZodNullable<z.ZodEnum<{
+                            owner: "owner";
+                            agreed: "agreed";
+                        }>>>;
                     }, z.core.$strip>>;
                     offPlatform: z.ZodArray<z.ZodObject<{
                         id: z.ZodNumber;
@@ -2360,11 +2830,36 @@ export declare const shiftHandinRouteSchemas: {
                             rejected: "rejected";
                             confirmed: "confirmed";
                         }>;
+                        pageLabel: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     comment: z.ZodString;
                     dayPaid: z.ZodNullable<z.ZodBoolean>;
                     ruleVersion: z.ZodString;
+                    madeFor: z.ZodDefault<z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            claim: "claim";
+                            decision: "decision";
+                            off_platform: "off_platform";
+                        }>;
+                        claimId: z.ZodNullable<z.ZodNumber>;
+                        decisionId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                        offPlatformId: z.ZodNullable<z.ZodNumber>;
+                        transactionId: z.ZodNullable<z.ZodNumber>;
+                        outcome: z.ZodString;
+                        byUserId: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>>>;
                 }, z.core.$strip>>;
+                held: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    seq: z.ZodNumber;
+                    shiftId: z.ZodNumber;
+                    person: z.ZodNullable<z.ZodString>;
+                    reportDate: z.ZodString;
+                    reason: z.ZodEnum<{
+                        page_outside_key: "page_outside_key";
+                    }>;
+                    pageLabels: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>>>;
                 next: z.ZodString;
                 serverNow: z.ZodString;
             }, z.core.$strip>;

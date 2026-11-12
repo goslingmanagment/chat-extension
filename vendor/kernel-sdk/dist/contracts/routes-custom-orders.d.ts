@@ -276,7 +276,8 @@ export declare const customOrderRouteSchemas: {
                 cardText: import("zod").ZodString;
                 sourceText: import("zod").ZodNullable<import("zod").ZodString>;
                 messages: import("zod").ZodArray<import("zod").ZodObject<{
-                    telegramRef: import("zod").ZodString;
+                    telegramRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    eventRef: import("zod").ZodNullable<import("zod").ZodString>;
                     ordinal: import("zod").ZodNumber;
                     kind: import("zod").ZodEnum<{
                         note: "note";
@@ -289,10 +290,12 @@ export declare const customOrderRouteSchemas: {
                         video: "video";
                         photos: "photos";
                     }>>;
+                    complete: import("zod").ZodNullable<import("zod").ZodBoolean>;
                     at: import("zod").ZodNullable<import("zod").ZodString>;
                     author: import("zod").ZodNullable<import("zod").ZodString>;
                     excerpt: import("zod").ZodNullable<import("zod").ZodString>;
                     doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    retractedAt: import("zod").ZodNullable<import("zod").ZodString>;
                 }, import("zod/v4/core").$strip>>;
                 payments: import("zod").ZodArray<import("zod").ZodObject<{
                     transactionRef: import("zod").ZodString;
@@ -533,7 +536,8 @@ export declare const customOrderRouteSchemas: {
                 cardText: import("zod").ZodString;
                 sourceText: import("zod").ZodNullable<import("zod").ZodString>;
                 messages: import("zod").ZodArray<import("zod").ZodObject<{
-                    telegramRef: import("zod").ZodString;
+                    telegramRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    eventRef: import("zod").ZodNullable<import("zod").ZodString>;
                     ordinal: import("zod").ZodNumber;
                     kind: import("zod").ZodEnum<{
                         note: "note";
@@ -546,10 +550,12 @@ export declare const customOrderRouteSchemas: {
                         video: "video";
                         photos: "photos";
                     }>>;
+                    complete: import("zod").ZodNullable<import("zod").ZodBoolean>;
                     at: import("zod").ZodNullable<import("zod").ZodString>;
                     author: import("zod").ZodNullable<import("zod").ZodString>;
                     excerpt: import("zod").ZodNullable<import("zod").ZodString>;
                     doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    retractedAt: import("zod").ZodNullable<import("zod").ZodString>;
                 }, import("zod/v4/core").$strip>>;
                 payments: import("zod").ZodArray<import("zod").ZodObject<{
                     transactionRef: import("zod").ZodString;
@@ -751,7 +757,8 @@ export declare const customOrderRouteSchemas: {
                 cardText: import("zod").ZodString;
                 sourceText: import("zod").ZodNullable<import("zod").ZodString>;
                 messages: import("zod").ZodArray<import("zod").ZodObject<{
-                    telegramRef: import("zod").ZodString;
+                    telegramRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    eventRef: import("zod").ZodNullable<import("zod").ZodString>;
                     ordinal: import("zod").ZodNumber;
                     kind: import("zod").ZodEnum<{
                         note: "note";
@@ -764,10 +771,12 @@ export declare const customOrderRouteSchemas: {
                         video: "video";
                         photos: "photos";
                     }>>;
+                    complete: import("zod").ZodNullable<import("zod").ZodBoolean>;
                     at: import("zod").ZodNullable<import("zod").ZodString>;
                     author: import("zod").ZodNullable<import("zod").ZodString>;
                     excerpt: import("zod").ZodNullable<import("zod").ZodString>;
                     doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                    retractedAt: import("zod").ZodNullable<import("zod").ZodString>;
                 }, import("zod/v4/core").$strip>>;
                 payments: import("zod").ZodArray<import("zod").ZodObject<{
                     transactionRef: import("zod").ZodString;
@@ -1012,7 +1021,8 @@ export declare const customOrderRouteSchemas: {
                     cardText: import("zod").ZodString;
                     sourceText: import("zod").ZodNullable<import("zod").ZodString>;
                     messages: import("zod").ZodArray<import("zod").ZodObject<{
-                        telegramRef: import("zod").ZodString;
+                        telegramRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        eventRef: import("zod").ZodNullable<import("zod").ZodString>;
                         ordinal: import("zod").ZodNumber;
                         kind: import("zod").ZodEnum<{
                             note: "note";
@@ -1025,10 +1035,12 @@ export declare const customOrderRouteSchemas: {
                             video: "video";
                             photos: "photos";
                         }>>;
+                        complete: import("zod").ZodNullable<import("zod").ZodBoolean>;
                         at: import("zod").ZodNullable<import("zod").ZodString>;
                         author: import("zod").ZodNullable<import("zod").ZodString>;
                         excerpt: import("zod").ZodNullable<import("zod").ZodString>;
                         doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                        retractedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                 }, import("zod/v4/core").$strip>>;
                 serverNow: import("zod").ZodString;
@@ -1072,6 +1084,7 @@ export declare const customOrderRouteSchemas: {
             postedAt: import("zod").ZodOptional<import("zod").ZodISODateTime>;
             author: import("zod").ZodOptional<import("zod").ZodString>;
             sourceText: import("zod").ZodOptional<import("zod").ZodString>;
+            another: import("zod").ZodOptional<import("zod").ZodBoolean>;
             onBehalfOf: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -1202,7 +1215,8 @@ export declare const customOrderRouteSchemas: {
                     cardText: import("zod").ZodString;
                     sourceText: import("zod").ZodNullable<import("zod").ZodString>;
                     messages: import("zod").ZodArray<import("zod").ZodObject<{
-                        telegramRef: import("zod").ZodString;
+                        telegramRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        eventRef: import("zod").ZodNullable<import("zod").ZodString>;
                         ordinal: import("zod").ZodNumber;
                         kind: import("zod").ZodEnum<{
                             note: "note";
@@ -1215,10 +1229,12 @@ export declare const customOrderRouteSchemas: {
                             video: "video";
                             photos: "photos";
                         }>>;
+                        complete: import("zod").ZodNullable<import("zod").ZodBoolean>;
                         at: import("zod").ZodNullable<import("zod").ZodString>;
                         author: import("zod").ZodNullable<import("zod").ZodString>;
                         excerpt: import("zod").ZodNullable<import("zod").ZodString>;
                         doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                        retractedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                 }, import("zod/v4/core").$strip>;
                 outcome: import("zod").ZodEnum<{
@@ -1226,6 +1242,13 @@ export declare const customOrderRouteSchemas: {
                     created: "created";
                     unchanged: "unchanged";
                 }>;
+                event: import("zod").ZodNullable<import("zod").ZodObject<{
+                    ref: import("zod").ZodString;
+                    result: import("zod").ZodEnum<{
+                        stored: "stored";
+                        already: "already";
+                    }>;
+                }, import("zod/v4/core").$strip>>;
             }, import("zod/v4/core").$strip>;
         };
     };
@@ -1251,8 +1274,9 @@ export declare const customOrderRouteSchemas: {
             onBehalfOf: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"delivery">;
+            eventRef: import("zod").ZodOptional<import("zod").ZodString>;
             message: import("zod").ZodObject<{
-                telegramRef: import("zod").ZodString;
+                telegramRef: import("zod").ZodOptional<import("zod").ZodString>;
                 at: import("zod").ZodOptional<import("zod").ZodISODateTime>;
                 author: import("zod").ZodOptional<import("zod").ZodString>;
                 excerpt: import("zod").ZodOptional<import("zod").ZodString>;
@@ -1274,8 +1298,9 @@ export declare const customOrderRouteSchemas: {
             onBehalfOf: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"revision">;
+            eventRef: import("zod").ZodOptional<import("zod").ZodString>;
             message: import("zod").ZodObject<{
-                telegramRef: import("zod").ZodString;
+                telegramRef: import("zod").ZodOptional<import("zod").ZodString>;
                 at: import("zod").ZodOptional<import("zod").ZodISODateTime>;
                 author: import("zod").ZodOptional<import("zod").ZodString>;
                 excerpt: import("zod").ZodOptional<import("zod").ZodString>;
@@ -1285,8 +1310,21 @@ export declare const customOrderRouteSchemas: {
             onBehalfOf: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"revision_done">;
-            telegramRef: import("zod").ZodString;
+            telegramRef: import("zod").ZodOptional<import("zod").ZodString>;
+            eventRef: import("zod").ZodOptional<import("zod").ZodString>;
             ordinal: import("zod").ZodDefault<import("zod").ZodNumber>;
+            onBehalfOf: import("zod").ZodOptional<import("zod").ZodString>;
+        }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+            action: import("zod").ZodLiteral<"retract">;
+            eventRef: import("zod").ZodString;
+            retracts: import("zod").ZodString;
+            reason: import("zod").ZodString;
+            message: import("zod").ZodOptional<import("zod").ZodObject<{
+                telegramRef: import("zod").ZodOptional<import("zod").ZodString>;
+                at: import("zod").ZodOptional<import("zod").ZodISODateTime>;
+                author: import("zod").ZodOptional<import("zod").ZodString>;
+                excerpt: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strict>>;
             onBehalfOf: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"refused">;
@@ -1304,8 +1342,9 @@ export declare const customOrderRouteSchemas: {
                 repost: "repost";
                 confirmation: "confirmation";
             }>;
+            eventRef: import("zod").ZodOptional<import("zod").ZodString>;
             message: import("zod").ZodObject<{
-                telegramRef: import("zod").ZodString;
+                telegramRef: import("zod").ZodOptional<import("zod").ZodString>;
                 at: import("zod").ZodOptional<import("zod").ZodISODateTime>;
                 author: import("zod").ZodOptional<import("zod").ZodString>;
                 excerpt: import("zod").ZodOptional<import("zod").ZodString>;
@@ -1444,7 +1483,8 @@ export declare const customOrderRouteSchemas: {
                     cardText: import("zod").ZodString;
                     sourceText: import("zod").ZodNullable<import("zod").ZodString>;
                     messages: import("zod").ZodArray<import("zod").ZodObject<{
-                        telegramRef: import("zod").ZodString;
+                        telegramRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        eventRef: import("zod").ZodNullable<import("zod").ZodString>;
                         ordinal: import("zod").ZodNumber;
                         kind: import("zod").ZodEnum<{
                             note: "note";
@@ -1457,10 +1497,12 @@ export declare const customOrderRouteSchemas: {
                             video: "video";
                             photos: "photos";
                         }>>;
+                        complete: import("zod").ZodNullable<import("zod").ZodBoolean>;
                         at: import("zod").ZodNullable<import("zod").ZodString>;
                         author: import("zod").ZodNullable<import("zod").ZodString>;
                         excerpt: import("zod").ZodNullable<import("zod").ZodString>;
                         doneAt: import("zod").ZodNullable<import("zod").ZodString>;
+                        retractedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                 }, import("zod/v4/core").$strip>;
                 outcome: import("zod").ZodEnum<{
@@ -1468,6 +1510,13 @@ export declare const customOrderRouteSchemas: {
                     created: "created";
                     unchanged: "unchanged";
                 }>;
+                event: import("zod").ZodNullable<import("zod").ZodObject<{
+                    ref: import("zod").ZodString;
+                    result: import("zod").ZodEnum<{
+                        stored: "stored";
+                        already: "already";
+                    }>;
+                }, import("zod/v4/core").$strip>>;
             }, import("zod/v4/core").$strip>;
         };
     };

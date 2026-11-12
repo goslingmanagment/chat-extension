@@ -7,7 +7,7 @@
 
 import { PLATFORM_TITLES } from '@cg/contracts/hosts';
 import { FAN_CUSTOM_STATES, FAN_FACT_KINDS, type FanCard, type FanCardCustom, type FanCardPage } from '@cg/contracts/hub';
-import { type FanCustomPaymentVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemorySuggestionVM, type FanMemoryVM, type Msg, type UiAction } from '@cg/contracts/vm';
+import { type FanCustomPaymentVM, type FanCustomStepVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemorySuggestionVM, type FanMemoryVM, type Msg, type UiAction } from '@cg/contracts/vm';
 
 /** Every page of the person as the panel shows it. */
 export function memoryPage(page: FanCardPage): FanMemoryPageVM {
@@ -49,6 +49,12 @@ export interface MemoryInput {
 
 const OPEN_CUSTOM: readonly string[] = ['ordered', 'paid'];
 
+/** The order's real step as the hub names it («У модели», «Снят»), since when; null from a hub before it. */
+export function customStep(custom: { readonly stepLabel?: string | undefined; readonly stepAt?: string | undefined }): FanCustomStepVM | null {
+  if (custom.stepLabel === undefined || custom.stepLabel.trim() === '') return null;
+  return { label: custom.stepLabel, at: custom.stepAt ?? null };
+}
+
 /** «Кастомы» of the card: `busy` keys are `custom:<id>` and `custom:new` (a record on its way). */
 export function customsModel(card: FanCard, busy: ReadonlySet<string>): FanMemoryCustomsVM {
   const payments: FanCustomPaymentVM[] = (card.customPayments ?? []).map((payment) => ({ ref: payment.paymentRef, amount: payment.amountMills, at: payment.at, note: payment.note }));
@@ -66,6 +72,8 @@ export function customsModel(card: FanCard, busy: ReadonlySet<string>): FanMemor
       deliveredAt: item.deliveredAt,
       createdBy: item.createdBy,
       createdAt: item.createdAt,
+      code: item.code ?? null,
+      step: customStep(item),
       payWith: open && item.state === 'ordered' && item.pageLabel === card.pageLabel ? payments.map((payment) => ({ ...payment, action: { type: 'ChangeFanCustom', customId: item.id, action: 'paid', ref: payment.ref } })) : [],
       deliveredBy: open ? item.deliveryCandidates.map((candidate) => ({ ref: candidate.messageRef, at: candidate.at, mediaCount: candidate.mediaCount, price: candidate.priceMills, action: { type: 'ChangeFanCustom', customId: item.id, action: 'delivered', ref: candidate.messageRef } })) : [],
       cancel: open ? { type: 'ChangeFanCustom', customId: item.id, action: 'cancel' } : null,

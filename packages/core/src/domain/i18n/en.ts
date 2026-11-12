@@ -1358,6 +1358,7 @@ export const EN: I18nCatalog<'en'> = {
   'fanPanel.memory.custom.delivered': 'delivered {date}',
   'fanPanel.memory.custom.cancelled': 'cancelled',
   'fanPanel.memory.custom.unknown': 'state unknown',
+  'fanPanel.memory.custom.step': '{step} {age}',
   'fanPanel.memory.custom.by': 'by {name}',
   'fanPanel.memory.custom.isPayment': 'Is this the payment?',
   'fanPanel.memory.custom.isDelivery': 'Delivered: is this it?',

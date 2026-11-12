@@ -594,6 +594,11 @@ export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodO
             handle: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             reportTag: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
+        kind: z.ZodOptional<z.ZodEnum<{
+            human: "human";
+            agent: "agent";
+            service: "service";
+        }>>;
         displayName: z.ZodString;
         state: z.ZodOptional<z.ZodEnum<{
             left: "left";
@@ -602,11 +607,6 @@ export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodO
             working: "working";
         }>>;
         note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        kind: z.ZodOptional<z.ZodEnum<{
-            human: "human";
-            agent: "agent";
-            service: "service";
-        }>>;
         code: z.ZodString;
         onboarding: z.ZodOptional<z.ZodArray<z.ZodObject<{
             step: z.ZodString;
@@ -733,6 +733,11 @@ export declare const agentPersonProposalBodySchema: z.ZodDiscriminatedUnion<[z.Z
             handle: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             reportTag: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
+        kind: z.ZodOptional<z.ZodEnum<{
+            human: "human";
+            agent: "agent";
+            service: "service";
+        }>>;
         displayName: z.ZodString;
         state: z.ZodOptional<z.ZodEnum<{
             left: "left";
@@ -741,11 +746,6 @@ export declare const agentPersonProposalBodySchema: z.ZodDiscriminatedUnion<[z.Z
             working: "working";
         }>>;
         note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        kind: z.ZodOptional<z.ZodEnum<{
-            human: "human";
-            agent: "agent";
-            service: "service";
-        }>>;
         code: z.ZodString;
         onboarding: z.ZodOptional<z.ZodArray<z.ZodObject<{
             step: z.ZodString;
@@ -1888,6 +1888,10 @@ export declare const agentPeopleResponseSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const agentPersonProposalSchema: z.ZodObject<{
     id: z.ZodNumber;
+    kind: z.ZodEnum<{
+        update: "update";
+        create: "create";
+    }>;
     reason: z.ZodString;
     state: z.ZodEnum<{
         rejected: "rejected";
@@ -1896,10 +1900,6 @@ export declare const agentPersonProposalSchema: z.ZodObject<{
         accepted: "accepted";
     }>;
     createdAt: z.ZodString;
-    kind: z.ZodEnum<{
-        update: "update";
-        create: "create";
-    }>;
     requestedBy: z.ZodNullable<z.ZodString>;
     decidedAt: z.ZodNullable<z.ZodString>;
     personCode: z.ZodString;
@@ -1910,6 +1910,10 @@ export declare const agentPersonProposalSchema: z.ZodObject<{
 export declare const agentPersonProposalResponseSchema: z.ZodObject<{
     proposal: z.ZodObject<{
         id: z.ZodNumber;
+        kind: z.ZodEnum<{
+            update: "update";
+            create: "create";
+        }>;
         reason: z.ZodString;
         state: z.ZodEnum<{
             rejected: "rejected";
@@ -1918,10 +1922,6 @@ export declare const agentPersonProposalResponseSchema: z.ZodObject<{
             accepted: "accepted";
         }>;
         createdAt: z.ZodString;
-        kind: z.ZodEnum<{
-            update: "update";
-            create: "create";
-        }>;
         requestedBy: z.ZodNullable<z.ZodString>;
         decidedAt: z.ZodNullable<z.ZodString>;
         personCode: z.ZodString;
@@ -1936,6 +1936,10 @@ export declare const agentPersonProposalsQuerySchema: z.ZodObject<{
 export declare const agentPersonProposalsResponseSchema: z.ZodObject<{
     proposals: z.ZodArray<z.ZodObject<{
         id: z.ZodNumber;
+        kind: z.ZodEnum<{
+            update: "update";
+            create: "create";
+        }>;
         reason: z.ZodString;
         state: z.ZodEnum<{
             rejected: "rejected";
@@ -1944,10 +1948,6 @@ export declare const agentPersonProposalsResponseSchema: z.ZodObject<{
             accepted: "accepted";
         }>;
         createdAt: z.ZodString;
-        kind: z.ZodEnum<{
-            update: "update";
-            create: "create";
-        }>;
         requestedBy: z.ZodNullable<z.ZodString>;
         decidedAt: z.ZodNullable<z.ZodString>;
         personCode: z.ZodString;

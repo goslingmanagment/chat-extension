@@ -6,6 +6,7 @@
 
 import * as z from 'zod/mini';
 
+import { FanCustomStepFields } from './fan-card';
 import { PageLabelSchema } from './wire';
 
 const Time = z.string();
@@ -42,7 +43,7 @@ export const HandoffSchema = z.object({
   }),
   promises: z.array(z.object({ fanRef: z.string(), conversationRef: z.string(), text: z.string(), messageRef: z.string(), messageAt: z.nullable(Time) })),
   /** Chat Memory week 4: the page's open customs (ordered or paid), the oldest payment first. Absent from an older hub. */
-  customs: z.optional(z.array(z.object({ fanRef: z.string(), conversationRef: z.nullable(z.string()), description: z.string(), state: z.string(), paidAt: z.nullable(Time), createdAt: Time }))),
+  customs: z.optional(z.array(z.object({ fanRef: z.string(), conversationRef: z.nullable(z.string()), description: z.string(), state: z.string(), paidAt: z.nullable(Time), createdAt: Time, ...FanCustomStepFields }))),
   serverNow: Time,
 });
 export type Handoff = z.infer<typeof HandoffSchema>;
