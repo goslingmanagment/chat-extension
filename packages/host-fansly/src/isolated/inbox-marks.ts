@@ -29,7 +29,7 @@
 
 import type { FanslyLastWord } from '@cg/contracts/bridge-messages-fansly';
 import type { FanslyChatMeta, FanslyRowPinsState } from '@cg/contracts/fansly';
-import { FANSLY_PIN_GLYPH } from '@cg/contracts/fansly-pins';
+import { FANSLY_PIN_GLYPH } from '@cg/contracts/fansly-pin-glyph';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 
 import { INBOX_SLOT_HOST } from './inbox-slot';

@@ -202,6 +202,11 @@ export interface SiteAppEnv<P extends HostPort = HostPort> {
   /** Test builds only: what the e2e reads of the tab. */
   readonly probe: TabProbe | null;
   /**
+   * 2026-11-12: the tab's client whose `token.issue` goes through the tab's gate — a token only for a person's click or
+   * key through a surface of ours, the one the port's write or navigation then spends (Fansly's pins open a chat by it).
+   */
+  readonly gated?: Pick<TabRpcClient, 'request'>;
+  /**
    * R20 P11b: a command of the early dispatcher the site runs itself (Fansly's ⌘⇧K, «Заметки»): while a handler is
    * registered, the key runs it instead of the shared runner. The answer unregisters it.
    */

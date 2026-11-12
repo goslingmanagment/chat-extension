@@ -75,6 +75,8 @@ export interface FanslyPagesControl {
   setTone(which: FanslyToneKey, tone: ToneId): Promise<boolean>;
   /** «Кто ждёт ответа» (2026-10-29): the mark of a chat waiting for a reply in Fansly's own list of chats. */
   setInboxMark(mark: FanslyInboxMark): Promise<boolean>;
+  /** «Закрепы чатов» (2026-11-12): the strip of temporary chat pins over Fansly's list, with the rows' and the header's buttons. */
+  setPins(on: boolean): Promise<boolean>;
   /** The Recap depth on Fansly above v1's 3000; null — none (v1's depth holds). */
   setDeep(deep: number | null): Promise<boolean>;
   /** «Повторить» the write that failed; false — nothing to repeat, or it failed again. */
@@ -145,5 +147,8 @@ export const FANSLY_PAGE_TEXT_KEYS = [
   'fansly.pages.inboxMarkDot',
   'fansly.pages.inboxMarkWe',
   'fansly.pages.inboxMarkOff',
+  // 2026-11-12: «Закрепы чатов» — the strip of temporary chat pins over Fansly's list of chats.
+  'fansly.pages.pins',
+  'fansly.pages.pinsHint',
 ] as const;
 export type FanslyPageTextKey = (typeof FANSLY_PAGE_TEXT_KEYS)[number];
