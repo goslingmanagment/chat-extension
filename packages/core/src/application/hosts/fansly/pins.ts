@@ -12,10 +12,12 @@
 //   opening the chat — tells the background at most once in 30 s per chat, leading and trailing, each with its own time.
 //   Activity seen before the first answer is kept and told once after it.
 // - Nothing moves under the pointer (a neighbour sliding under it is a click into the wrong chat, and opening a chat
-//   marks it read): the strip's height and its chips change only while the pointer is not over the list's column, and
-//   the chips also stand while the focus is in the strip — a chip taken off stays as an inert, invisible placeholder, a
-//   new one waits — and the real set comes when they leave (the rules: domain/hosts/fansly/pins.ts `layPinChips`). Both
-//   are decided here, not in the component.
+//   marks it read). The strip's height changes only while the pointer is not over the list's column (the rows would
+//   move under it). No chip leaves its place while the pointer is there or the pointer or the focus is in the strip: a
+//   chip taken off stays as an inert, invisible placeholder until they left. A chip that comes moves no other one, so
+//   it waits only for the strip itself: with the pointer on the rows (a row's button pinned it) it stands at once, last,
+//   and a chat pinned again takes its own place back (the rules: domain/hosts/fansly/pins.ts `layPinChips`). All of it
+//   is decided here, not in the component.
 // - A chip opens its chat through the page's own router by the person's click (a navigation token of the `pins`
 //   surface); the open chat's own chip does nothing; a failed navigation leaves the chip. The header's button pins the
 //   open chat once MAIN names it (asked again a few times); a newer pin or unpin of that chat, the switch off, another
@@ -178,10 +180,13 @@ export function createFanslyPins(deps: FanslyPinsDeps): FanslyPinsController {
   };
 
   // ── what the page and the strip show ──
-  /** The chips as the rules allow them now (domain `layPinChips`): frozen while the pointer is over the list or in the strip. */
+  /**
+   * The chips as the rules allow them now (domain `layPinChips`): nothing changes while the pointer or the focus is in
+   * the strip; while the pointer is over the list, a chip comes (or comes back to its place) at once and none goes.
+   */
   const lay = (): void => {
-    const frozen = held || page.inboxPointer.inside();
-    const laid = layPinChips(shown, real(), frozen, shown.length > 0 && height === STRIP);
+    const hold = held ? 'strip' : page.inboxPointer.inside() ? 'list' : 'none';
+    const laid = layPinChips(shown, real(), hold, shown.length > 0 && height === STRIP);
     shown = laid.shown;
     for (const groupId of laid.closing) {
       later(`close:${groupId}`, CLOSE_MS, () => {
