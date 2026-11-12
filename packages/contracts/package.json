@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./registration-fansly": "./src/registration-fansly.ts",
+    "./fansly-pins": "./src/fansly-pins.ts",
     "./fan-marks-fansly": "./src/fan-marks-fansly.ts",
     "./deleted-fansly": "./src/deleted-fansly.ts",
     "./chat-length": "./src/chat-length.ts",

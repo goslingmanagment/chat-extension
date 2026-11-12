@@ -31,8 +31,12 @@ export type SiteOpId = 'voice-script' | 'notes-fill';
 /** What the scheduler runs: a shared AI feature or an operation of a site's slice. */
 export type OpFeature = FeatureId | SiteOpId;
 
-/** Where an operation was started and where its result is shown. */
-export const SURFACES = ['dock', 'preview', 'newcomers', 'coach', 'overlay'] as const;
+/**
+ * Where an operation was started and where its result is shown. `pins` (2026-11-12): a chip of the strip of pinned
+ * chats on Fansly — it starts no operation, it only opens a chat (a navigation token of its own: the feature is the
+ * person's, local, with no hub switch).
+ */
+export const SURFACES = ['dock', 'preview', 'newcomers', 'coach', 'overlay', 'pins'] as const;
 export const SurfaceSchema = z.enum(SURFACES);
 export type Surface = z.infer<typeof SurfaceSchema>;
 

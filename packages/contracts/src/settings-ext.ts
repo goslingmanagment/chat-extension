@@ -69,6 +69,8 @@ export const FanslySettingsSchema = z.strictObject({
   notesView: z.enum(FANSLY_NOTES_VIEWS),
   /** The mark of a chat waiting for a reply in Fansly's list of chats (2026-10-29). */
   inboxMark: z.enum(FANSLY_INBOX_MARKS),
+  /** «Закрепы чатов» (2026-11-12): the strip of pinned chats over Fansly's list, the rows' pin buttons and the header's. */
+  pins: z.boolean(),
   /** The tones on Fansly (FS-SND-2, X26); whether a sound plays at all, the volume and the muted accounts are v1's, shared. */
   sound: z.strictObject({ messagesTone: ToneIdSchema, subscribersTone: ToneIdSchema }),
 });
@@ -80,6 +82,7 @@ export const DEFAULT_FANSLY_SETTINGS: FanslySettings = {
   viaTab: false,
   notesView: 'drawer',
   inboxMark: 'dot',
+  pins: true,
   sound: { messagesTone: 'chime', subscribersTone: 'double' },
 };
 
@@ -113,6 +116,7 @@ export const SettingsExtPatchSchema = z.strictObject({
           viaTab: z.optional(z.boolean()),
           notesView: z.optional(z.enum(FANSLY_NOTES_VIEWS)),
           inboxMark: z.optional(z.enum(FANSLY_INBOX_MARKS)),
+          pins: z.optional(z.boolean()),
           sound: z.optional(z.partial(FanslySettingsSchema.shape.sound)),
         }),
       ),

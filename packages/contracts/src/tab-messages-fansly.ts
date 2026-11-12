@@ -24,6 +24,7 @@
 // `fansly.followers.*` — «Новые» by the background's pass (Б17,
 // FS-NEW-*) and its greeting send (`fansly.followers.send`, send-fansly.ts);
 // `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
+// `fansly.pins.*` — the person's temporary chat pins in this browser (2026-11-12, fansly-pins.ts);
 // (voice notes are on both sites since 1.47.0: the shared `voice.*` of
 // tab-messages.ts);
 // `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
@@ -41,6 +42,7 @@ import { CgAnyErrorWireSchema } from './errors-fansly';
 import { FanGoneSchema } from './fan-account';
 import { FanBadgesSchema, FbuddyStateSchema } from './fan-badges';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
+import { FanslyPinListSchema, FanslyPinTargetSchema } from './fansly-pins';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { SEND_ATTRIBUTION_COMPOSED_WITH } from './hub/attribution';
@@ -902,6 +904,28 @@ export const FANSLY_TAB_REQUESTS = {
   /** 2026-10-29: the mark of a chat waiting for a reply in Fansly's list of chats, as `settings.ext` holds it (chosen on the settings page). */
   'fansly.inbox.mark': { req: Empty, res: z.strictObject({ mark: z.enum(FANSLY_INBOX_MARKS) }), from: TAB, hosts: FANSLY },
 
+  // ── temporary chat pins (2026-11-12, contracts fansly-pins.ts) ──
+  /**
+   * The creator's pins as this browser keeps them, the expired ones gone, and whether the person's switch «Закрепы
+   * чатов» is on. Nobody signed in: none, nothing written.
+   */
+  'fansly.pins.read': { req: z.strictObject({ hostAccountId: NativeIdSchema }), res: z.strictObject({ on: z.boolean(), pins: FanslyPinListSchema }), from: TAB, hosts: FANSLY },
+  /**
+   * One change of the creator's pins, idempotent: a chat pinned (a seventh takes off the quietest), unpinned, or its
+   * activity seen at `at` (never revives a pin taken off). The answer is the pins after it; a pin or an unpin is told to
+   * every Fansly tab (`fansly.pins.changed`), a touch is not.
+   */
+  'fansly.pins.change': {
+    req: z.discriminatedUnion('op', [
+      z.strictObject({ hostAccountId: NativeIdSchema, op: z.literal('pin'), pin: FanslyPinTargetSchema }),
+      z.strictObject({ hostAccountId: NativeIdSchema, op: z.literal('unpin'), groupId: NativeIdSchema }),
+      z.strictObject({ hostAccountId: NativeIdSchema, op: z.literal('touch'), groupId: NativeIdSchema, at: EpochMsSchema }),
+    ]),
+    res: z.strictObject({ pins: FanslyPinListSchema }),
+    from: TAB,
+    hosts: FANSLY,
+  },
+
   // ── vault ──
   /**
    * Written before each file is handed to Fansly's form; `recorded: false` — not kept: the file is not handed over. One
@@ -1021,6 +1045,10 @@ export const FANSLY_TAB_EVENTS = {
   'fansly.notes.viewChanged': { payload: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), to: TAB },
   /** 2026-10-29: the person chose another mark for the list of chats on the settings page: every Fansly tab follows it. */
   'fansly.inbox.markChanged': { payload: z.strictObject({ mark: z.enum(FANSLY_INBOX_MARKS) }), to: TAB },
+  /** 2026-11-12: a creator's pins changed (a pin, an unpin, an expiry), in any tab: every Fansly tab of that creator follows. */
+  'fansly.pins.changed': { payload: z.strictObject({ hostAccountId: NativeIdSchema, pins: FanslyPinListSchema }), to: TAB },
+  /** 2026-11-12: «Закрепы чатов» switched on the settings page: every Fansly tab follows it. */
+  'fansly.pins.switched': { payload: z.strictObject({ on: z.boolean() }), to: TAB },
   /** Rows of an open pass changed (the window is told, it does not poll); `seq` grows per pass. */
   'fansly.followers.changed': {
     payload: z.strictObject({
