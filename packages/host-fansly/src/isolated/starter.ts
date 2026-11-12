@@ -12,7 +12,8 @@
 // P7c) — which places the dock by Fansly's composer (R20 P7d) and reads the
 // page's theme. Until the dock has a place, nothing of the application
 // starts on a Fansly page — but on `/creator/vault`, where the vault's entry
-// has its place (P13b); the palette of the page's variables is P8d's.
+// has its place (P13b), and on the list of chats (2026-11-12: the strip of
+// pinned chats); the palette of the page's variables is P8d's.
 // P7g waits for coexistence admission before the shared tab registers or
 // starts background work. A retired copy stays off until reload.
 

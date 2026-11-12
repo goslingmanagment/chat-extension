@@ -85,6 +85,33 @@ function Chip({ chip, client, copy }: { readonly chip: FanslyPinChip; readonly c
   );
 }
 
+/** Below this a chip would show two or three letters of a name: the strip shows the circles alone (the name in the title). */
+const NAME_MIN_CHIP_PX = 84;
+/** The strip's own glyph and its margin, and the gap between two chips. */
+const GLYPH_PX = 26;
+const GAP_PX = 6;
+
+/**
+ * Whether the chips stand as circles alone: the row's width (its own size, watched, never read while anything moves)
+ * shared by the chips leaves a chip too narrow for a name. Changes only with the chips' count or the column's width.
+ */
+function useCompact(count: number): { readonly ref: { current: HTMLDivElement | null }; readonly on: boolean } {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const node = ref.current;
+    const View = node?.ownerDocument.defaultView;
+    if (node === null || View === null || View === undefined || typeof View.ResizeObserver !== 'function') return undefined;
+    const observer = new View.ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      if (entry !== undefined) setWidth(Math.round(entry.contentRect.width));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return { ref, on: width > 0 && count > 0 && (width - GLYPH_PX - (count - 1) * GAP_PX) / count < NAME_MIN_CHIP_PX };
+}
+
 /** Two frames: the strip's first height is painted before it moves (a strip placed before Fansly's rows needs no motion). */
 function useArrived(instant: boolean): boolean {
   const [arrived, setArrived] = useState(instant);
@@ -110,6 +137,7 @@ export function pinStripSurface(client: FanslyPinsClient, texts: Readonly<Record
     const arrived = useArrived(instant());
     const height = arrived ? view.height : 0;
     const box = useRef<HTMLDivElement>(null);
+    const compact = useCompact(view.chips.filter((chip) => chip.state !== 'closing').length);
     // The pointer or the focus inside: the controller holds the strip's layout until both left.
     const pointer = useRef(false);
     const focus = useRef(false);
@@ -140,7 +168,7 @@ export function pinStripSurface(client: FanslyPinsClient, texts: Readonly<Record
           say();
         }}
       >
-        <div class="cg-pins__row">
+        <div class="cg-pins__row" ref={compact.ref} data-compact={compact.on ? 'true' : undefined}>
           <span class="cg-pins__glyph" aria-hidden="true">
             <PinGlyph size={14} filled={false} />
           </span>
@@ -194,6 +222,8 @@ export const PIN_STRIP_CSS = `
 }
 .cg-pin__dot[data-on='true'] { opacity: 1; }
 .cg-pin__name { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 16px; font-weight: 500; }
+.cg-pins__row[data-compact] .cg-pin__name { display: none; }
+.cg-pins__row[data-compact] .cg-pin__open { flex: 0 0 34px; justify-content: center; padding: 0; }
 .cg-pin__x {
   flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 30px; padding: 0 4px 0 0; border-radius: 0 15px 15px 0;
   color: var(--font-tint-3, #9da2ad); opacity: 0; transition: opacity 100ms ease, color 100ms ease;

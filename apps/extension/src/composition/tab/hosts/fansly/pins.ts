@@ -118,6 +118,8 @@ export function startFanslyPins(env: SiteAppEnv<FanslyPort>): () => void {
     env.deps.i18n.subscribe(() => pins.sync()),
     fanslyEvent(rpc, 'fansly.pins.changed', (payload) => pins.changed(payload.hostAccountId, payload.pins)),
     fanslyEvent(rpc, 'fansly.pins.switched', (payload) => pins.switched(payload.on)),
+    // Another sign-in (or none): the background answers for whoever is signed in now.
+    rpc.onEvent('session.changed', () => pins.refresh()),
     () => win.document.removeEventListener('visibilitychange', onVisible),
   ];
   sync();

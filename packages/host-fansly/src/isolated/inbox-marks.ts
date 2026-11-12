@@ -62,6 +62,9 @@ const ROW_BUTTON_STYLE =
 const BUTTON_REST = { color: 'var(--font-tint-3,#9da2ad)', background: 'var(--dark-1,#111215)' } as const;
 const BUTTON_HOVER = { color: 'var(--font-1,#d6dce8)', background: 'color-mix(in srgb,var(--font-1,#d6dce8) 14%,var(--dark-1,#111215))' } as const;
 const BUTTON_PINNED = 'var(--blue-1,#2699f7)';
+/** A row's chat not known to MAIN yet (an empty answer) is asked again this often, this many times, while hovered. */
+const META_RETRY_MS = 300;
+const META_RETRIES = 4;
 
 export interface InboxMarks {
   /** The person's choice. */
@@ -237,15 +240,24 @@ export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS):
       show(box, true);
       return;
     }
-    void deps.meta(groupId).then((meta) => {
-      // Still the row the pointer is on, the pins still on, the row's chat still this one.
-      if (disposed || hovered !== row || !pinsHere(watching) || groupOf(row) !== groupId || !row.isConnected) return;
-      if (meta === null || meta.kind !== 'direct' || meta.fanId === null || meta.groupId !== groupId) return;
-      if (group.querySelector(`:scope > [${INBOX_MARK_ATTRIBUTE}="row"]`) !== null) return;
-      const made = button(group, { ...meta, fanId: meta.fanId });
-      observer.takeRecords();
-      show(made, true);
-    }, () => undefined);
+    // MAIN's answer can come back empty while its state is being said again (a new page, a new generation): asked
+    // again a few times while the pointer stays on the row.
+    const ask = (left: number): void => {
+      void deps.meta(groupId).then((meta) => {
+        // Still the row the pointer is on, the pins still on, the row's chat still this one.
+        if (disposed || hovered !== row || !pinsHere(watching) || groupOf(row) !== groupId || !row.isConnected) return;
+        if (meta === null) {
+          if (left > 0) doc.defaultView?.setTimeout(() => ask(left - 1), META_RETRY_MS);
+          return;
+        }
+        if (meta.kind !== 'direct' || meta.fanId === null || meta.groupId !== groupId) return;
+        if (group.querySelector(`:scope > [${INBOX_MARK_ATTRIBUTE}="row"]`) !== null) return;
+        const made = button(group, { ...meta, fanId: meta.fanId });
+        observer.takeRecords();
+        show(made, true);
+      }, () => undefined);
+    };
+    ask(META_RETRIES);
   };
 
   const rowOf = (target: EventTarget | null): Element | null => {
