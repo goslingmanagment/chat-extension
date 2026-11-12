@@ -727,6 +727,9 @@ scenario(
       await browser.switchToWindow(firstTab);
       const tomb = await waitPins((report) => !report.pins.includes(c1), 'the first tab did not hear the unpin', 5_000);
       const after7 = await geometry();
+      // A fresh lookup of the list's hosts after the window switch: without it WebDriver kept resolving the pins' host
+      // as in the closed window, and the chips stayed out of its reach (since two hosts stand there, 2026-11-13).
+      await $$('[data-host="inbox-slot"]').getElements();
       const xs7after = [(await chipBox(c2)).x, (await chipBox(c3)).x];
       await shootStrip(s, 'strip-placeholder-held', 60);
       await leaveList();
