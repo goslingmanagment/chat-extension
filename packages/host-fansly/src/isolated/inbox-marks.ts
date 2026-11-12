@@ -9,14 +9,12 @@
 // - `off`: nothing. Until the application says the choice, nothing either.
 //
 // Temporary chat pins (2026-11-12, `setPins`): only in the route's own list (`app-messages-route`), never the mini chat's
-// - `pin`: a pinned chat's small badge with the pin glyph on the bottom left of the avatar, there from the row's first
-//   frame, never taking the pointer;
-// - `row`: the pin button, made for a row the first time the pointer comes over it, once MAIN says the chat is a direct
-//   one with a known fan (`meta`). A child of the row's `app-messaging-group`, at a fixed place (right 10 px, top 22 px:
-//   FBuddy makes rows taller) over a short fade of the row's hover colour; only the 28 px button takes the pointer, and
-//   only while it is shown, so a click on the row's time or badge still opens the chat. Shown and hidden by one pair of
-//   delegated listeners on the list (an inline opacity, 100 ms). Its click pins or unpins without opening the chat: the
-//   press keeps the focus where it was, the click goes no further than the button, and only a person's click counts.
+// - `pin`: a pinned chat's mark on the bottom left of the avatar — a dark disc with the pin in the «pinned» blue, there
+//   from the row's first frame, never taking the pointer;
+// - `row`: the pin button (inbox-pin-button.ts), made for a row the first time a person's pointer comes over it, once
+//   MAIN says the chat is a direct one with a known fan (`meta`, asked again a few times while the pointer stays).
+//   Shown and hidden by one set of delegated listeners on the list, and only on a real movement of the pointer: the
+//   list scrolling under a resting pointer hides the button of the row it left and shows none, and reads no geometry.
 //
 // The rows are Fansly's virtual list, `a[href="/messages/<groupId>"]` in `div.messages-list-wrapper`: they come and go
 // as the person scrolls, and a row's parts are made anew when its chat changes. While any kind is wanted one observer,
@@ -29,9 +27,10 @@
 
 import type { FanslyLastWord } from '@cg/contracts/bridge-messages-fansly';
 import type { FanslyChatMeta, FanslyRowPinsState } from '@cg/contracts/fansly';
-import { FANSLY_PIN_GLYPH } from '@cg/contracts/fansly-pin-glyph';
+import { FANSLY_WAITING_DOT_COLOR } from '@cg/contracts/fansly-pin-glyph';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 
+import { dressRowButton, makeRowButton, pinGlyph, placeRowButton, ROW_BUTTON_KIND, showRowButton } from './inbox-pin-button';
 import { INBOX_SLOT_HOST } from './inbox-slot';
 
 export const INBOX_MARK_ATTRIBUTE = 'data-cg-inbox';
@@ -45,23 +44,14 @@ const GROUP_PATH = /^\/messages\/(\d+)$/;
 const ROUTE = 'app-messages-route';
 
 /** «оранж, но не яркий» (the owner, 2026-10-29): the family's terracotta, dimmed for Fansly's list. */
-export const INBOX_DOT_COLOR = '#b9765d';
+export const INBOX_DOT_COLOR = FANSLY_WAITING_DOT_COLOR;
 /** 8 px in a ring of the page's background: as large as Fansly's own online dot with its border (the owner: «чуть меньше»). */
 const DOT_STYLE = `position:absolute;top:0;right:0;width:8px;height:8px;box-sizing:border-box;border-radius:50%;background:${INBOX_DOT_COLOR};box-shadow:0 0 0 2px var(--dark-1,#111215);pointer-events:none;z-index:2`;
 const WE_STYLE = 'color:var(--font-tint-3,#9da2ad)';
 export const INBOX_WE_TEXT = 'Мы:';
-/** A pinned row's badge: 14 px on the bottom left of the avatar, in a ring of the page's background, never taking the pointer. */
+/** A pinned row's mark: a 16 px disc of the page's background in a ring of it, the pin filled in the «pinned» blue. */
 const PIN_MARK_STYLE =
-  'position:absolute;left:-2px;bottom:-2px;width:14px;height:14px;box-sizing:border-box;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--dark-3,#1a1e26);color:var(--font-1,#d6dce8);box-shadow:0 0 0 2px var(--dark-1,#111215);pointer-events:none;z-index:2';
-/** The button's box: the row's right end, its whole height, faded into the row's hover colour; it never takes the pointer itself. */
-const ROW_BOX_STYLE =
-  'position:absolute;top:0;right:0;bottom:0;width:76px;box-sizing:border-box;border-radius:0 var(--border-radius-2,8px) var(--border-radius-2,8px) 0;background:linear-gradient(to right,transparent,var(--dark-3,#1a1e26) 30px);opacity:0;transition:opacity 100ms ease;pointer-events:none;z-index:3';
-const ROW_BUTTON_STYLE =
-  'position:absolute;right:10px;top:22px;width:28px;height:28px;box-sizing:border-box;margin:0;padding:0;border:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--dark-1,#111215);color:var(--font-tint-3,#9da2ad);cursor:pointer;outline:none;pointer-events:none;transition:color 100ms ease,background-color 100ms ease;-webkit-user-drag:none;user-select:none';
-/** The button's ink and fill at rest, under the pointer, and of a pinned chat (set whole: an emptied longhand would be the browser's own button). */
-const BUTTON_REST = { color: 'var(--font-tint-3,#9da2ad)', background: 'var(--dark-1,#111215)' } as const;
-const BUTTON_HOVER = { color: 'var(--font-1,#d6dce8)', background: 'color-mix(in srgb,var(--font-1,#d6dce8) 14%,var(--dark-1,#111215))' } as const;
-const BUTTON_PINNED = 'var(--blue-1,#2699f7)';
+  'position:absolute;left:-3px;bottom:-3px;width:16px;height:16px;box-sizing:border-box;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--dark-1,#111215);color:var(--blue-1,#2699f7);box-shadow:0 0 0 2px var(--dark-1,#111215);pointer-events:none;z-index:2';
 /** A row's chat not known to MAIN yet (an empty answer) is asked again this often, this many times, while hovered. */
 const META_RETRY_MS = 300;
 const META_RETRIES = 4;
@@ -96,29 +86,6 @@ const ours = (node: Node): boolean => {
 };
 const onlyOurs = (records: readonly MutationRecord[]): boolean => records.every((r) => [...r.addedNodes, ...r.removedNodes].every(ours));
 
-const SVG = 'http://www.w3.org/2000/svg';
-
-/** The pin glyph as plain nodes (no markup parsed): `filled` — a pinned chat's. */
-export function pinGlyph(doc: Document, size: number, filled: boolean, stroke = 2): SVGSVGElement {
-  const svg = doc.createElementNS(SVG, 'svg');
-  svg.setAttribute('viewBox', FANSLY_PIN_GLYPH.viewBox);
-  svg.setAttribute('width', String(size));
-  svg.setAttribute('height', String(size));
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('style', 'display:block;pointer-events:none;flex:none');
-  for (const d of [FANSLY_PIN_GLYPH.needle, FANSLY_PIN_GLYPH.head]) {
-    const path = doc.createElementNS(SVG, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', filled && d === FANSLY_PIN_GLYPH.head ? 'currentColor' : 'none');
-    path.setAttribute('stroke', 'currentColor');
-    path.setAttribute('stroke-width', String(stroke));
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    svg.append(path);
-  }
-  return svg;
-}
-
 const NO_DEPS: InboxMarksDeps = { meta: () => Promise.resolve(null), toggle: () => undefined };
 
 export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS): InboxMarks {
@@ -129,8 +96,13 @@ export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS):
   let watching: Element | null = null;
   /** The list the hover listeners are on (the route's own, while the pins are on). */
   let hovering: Element | null = null;
-  /** The row the pointer is over now. */
+  /** The row whose button is shown (the pointer came onto it by a real movement). */
   let hovered: Element | null = null;
+  /** The pointer's last place: an event at the same place is the list moving under it, not the person. */
+  let lastX = Number.NaN;
+  let lastY = Number.NaN;
+  /** The pending ask of MAIN for the row the pointer is on, asked again a little later. */
+  let retry: number | null = null;
   /** Lists looked at once: a leftover of a previous copy of ours goes at the first look. */
   const seen = new WeakSet<Element>();
   /** Each row button's chat, as MAIN said it when the button was made. */
@@ -152,92 +124,56 @@ export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS):
     node.setAttribute('style', kind === 'dot' ? DOT_STYLE : kind === 'pin' ? PIN_MARK_STYLE : WE_STYLE);
     if (kind === 'we') node.textContent = `${INBOX_WE_TEXT} `;
     else node.setAttribute('aria-hidden', 'true');
-    if (kind === 'pin') node.append(pinGlyph(doc, 9, true, 2.6));
+    if (kind === 'pin') node.append(pinGlyph(doc, 10, true, 2.4));
     return node;
   };
 
-  /** A row button's look: pinned or not, its words, and whether the pointer is on the button itself. */
-  const dress = (box: Element, groupId: string): void => {
-    const button = box.firstElementChild as HTMLButtonElement | null;
-    if (button === null || pins === null) return;
+  const dress = (button: HTMLButtonElement, groupId: string): void => {
+    if (pins === null) return;
     const pinned = pins.pinned.has(groupId);
-    const label = pinned ? pins.words.unpin : pins.words.pin;
-    if (button.getAttribute('aria-pressed') !== String(pinned)) {
-      button.setAttribute('aria-pressed', String(pinned));
-      button.replaceChildren(pinGlyph(doc, 16, pinned, 1.7));
-    }
-    if (button.getAttribute('aria-label') !== label) {
-      button.setAttribute('aria-label', label);
-      button.title = label;
-    }
-    const over = button.matches(':hover');
-    button.style.color = pinned ? BUTTON_PINNED : over ? BUTTON_HOVER.color : BUTTON_REST.color;
-    button.style.backgroundColor = over ? BUTTON_HOVER.background : BUTTON_REST.background;
+    dressRowButton(doc, button, { pinned, label: pinned ? pins.words.unpin : pins.words.pin });
   };
 
-  const show = (box: Element, on: boolean): void => {
-    const button = box.firstElementChild as HTMLElement | null;
-    (box as HTMLElement).style.opacity = on ? '1' : '0';
-    if (button !== null) button.style.pointerEvents = on ? 'auto' : 'none';
-  };
+  const buttonOf = (group: Element): HTMLButtonElement | null => group.querySelector<HTMLButtonElement>(`:scope > [${INBOX_MARK_ATTRIBUTE}="${ROW_BUTTON_KIND}"]`);
 
   /** The pin button of a row: made once its chat is known as a direct one with a fan. */
-  const button = (group: Element, meta: FanslyChatMeta & { readonly fanId: string }): Element => {
-    const box = doc.createElement('span');
-    box.setAttribute(INBOX_MARK_ATTRIBUTE, 'row');
-    box.setAttribute('style', ROW_BOX_STYLE);
-    const press = doc.createElement('button');
-    press.type = 'button';
-    press.tabIndex = -1;
-    press.draggable = false;
-    press.setAttribute('style', ROW_BUTTON_STYLE);
-    // The focus stays where it was (the composer): no press of ours moves it, and no drag of the row starts here.
-    const keep = (event: Event): void => {
-      event.preventDefault();
-    };
-    press.addEventListener('pointerdown', keep);
-    press.addEventListener('mousedown', keep);
-    press.addEventListener('dragstart', keep);
-    // The row's link never hears this click: no chat opens, nothing is marked read.
-    press.addEventListener('auxclick', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    press.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!event.isTrusted || event.button !== 0 || disposed || pins === null) return;
-      const chat = buttons.get(box);
+  const button = (group: Element, meta: FanslyChatMeta & { readonly fanId: string }): HTMLButtonElement => {
+    const made = makeRowButton(doc, INBOX_MARK_ATTRIBUTE, (pressed) => {
+      if (disposed || pins === null) return;
+      const chat = buttons.get(pressed);
       if (chat !== undefined) deps.toggle(chat);
     });
-    const hover = (): void => {
-      const groupId = groupOf(box.closest(ROW_LINK) ?? box);
-      if (groupId !== undefined) dress(box, groupId);
-    };
-    press.addEventListener('pointerenter', hover);
-    press.addEventListener('pointerleave', () => queueMicrotask(hover));
-    box.append(press);
-    buttons.set(box, meta);
-    group.append(box);
-    dress(box, meta.groupId);
-    return box;
+    buttons.set(made, meta);
+    group.append(made);
+    dress(made, meta.groupId);
+    return made;
   };
 
-  /** The pointer came over a row: its button, once known; the row it left hides its own. */
+  /** Shown on a person's hover: dressed, placed by one read of its row (the observer skips our own nodes by itself). */
+  const show = (group: Element, made: HTMLButtonElement, groupId: string): void => {
+    dress(made, groupId);
+    placeRowButton(made, group);
+    showRowButton(made, true);
+  };
+
+  /** A person's pointer came onto a row (null — off the rows): its button, once known; the row it left hides its own. */
   const enter = (row: Element | null): void => {
     if (row === hovered) return;
     const left = hovered;
     hovered = row;
-    const old = left?.querySelector(`[${INBOX_MARK_ATTRIBUTE}="row"]`) ?? null;
-    if (old !== null) show(old, false);
+    if (retry !== null) {
+      doc.defaultView?.clearTimeout(retry);
+      retry = null;
+    }
+    const old = left === null ? null : left.querySelector<HTMLButtonElement>(`[${INBOX_MARK_ATTRIBUTE}="${ROW_BUTTON_KIND}"]`);
+    if (old !== null) showRowButton(old, false);
     if (row === null || !pinsHere(watching)) return;
     const group = row.querySelector(GROUP);
     const groupId = groupOf(row);
     if (group === null || groupId === undefined) return;
-    const box = group.querySelector(`:scope > [${INBOX_MARK_ATTRIBUTE}="row"]`);
-    if (box !== null) {
-      dress(box, groupId);
-      show(box, true);
+    const existing = buttonOf(group);
+    if (existing !== null) {
+      show(group, existing, groupId);
       return;
     }
     // MAIN's answer can come back empty while its state is being said again (a new page, a new generation): asked
@@ -247,14 +183,11 @@ export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS):
         // Still the row the pointer is on, the pins still on, the row's chat still this one.
         if (disposed || hovered !== row || !pinsHere(watching) || groupOf(row) !== groupId || !row.isConnected) return;
         if (meta === null) {
-          if (left > 0) doc.defaultView?.setTimeout(() => ask(left - 1), META_RETRY_MS);
+          if (left > 0) retry = doc.defaultView?.setTimeout(() => ask(left - 1), META_RETRY_MS) ?? null;
           return;
         }
-        if (meta.kind !== 'direct' || meta.fanId === null || meta.groupId !== groupId) return;
-        if (group.querySelector(`:scope > [${INBOX_MARK_ATTRIBUTE}="row"]`) !== null) return;
-        const made = button(group, { ...meta, fanId: meta.fanId });
-        observer.takeRecords();
-        show(made, true);
+        if (meta.kind !== 'direct' || meta.fanId === null || meta.groupId !== groupId || buttonOf(group) !== null) return;
+        show(group, button(group, { ...meta, fanId: meta.fanId }), groupId);
       }, () => undefined);
     };
     ask(META_RETRIES);
@@ -265,17 +198,37 @@ export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS):
     const row = target.closest(ROW_LINK);
     return row !== null && hovering.contains(row) && row.querySelector(GROUP) !== null ? row : null;
   };
-  const onOver = (event: Event): void => enter(rowOf(event.target));
+  /** Whether the pointer moved since the last event we saw: one at the same place is the list moving under it. */
+  const moved = (event: Event): boolean => {
+    const { clientX, clientY } = event as PointerEvent;
+    const real = clientX !== lastX || clientY !== lastY;
+    lastX = clientX;
+    lastY = clientY;
+    return real;
+  };
+  const onMove = (event: Event): void => {
+    if (!moved(event)) return;
+    const row = rowOf(event.target);
+    if (row !== hovered) enter(row);
+  };
+  const onOver = (event: Event): void => {
+    const row = rowOf(event.target);
+    if (moved(event)) enter(row);
+    // The list scrolled under a resting pointer: the row it left hides its button, the new one shows none.
+    else if (row !== hovered) enter(null);
+  };
   const onOut = (event: Event): void => {
-    const next = rowOf((event as PointerEvent).relatedTarget);
-    if (next !== hovered) enter(next);
+    const next = (event as PointerEvent).relatedTarget;
+    if (hovering !== null && (!(next instanceof Node) || !hovering.contains(next))) enter(null);
   };
   const hover = (target: Element | null): void => {
     if (target === hovering) return;
+    hovering?.removeEventListener('pointermove', onMove);
     hovering?.removeEventListener('pointerover', onOver);
     hovering?.removeEventListener('pointerout', onOut);
+    enter(null);
     hovering = target;
-    hovered = null;
+    target?.addEventListener('pointermove', onMove, { passive: true });
     target?.addEventListener('pointerover', onOver, { passive: true });
     target?.addEventListener('pointerout', onOut, { passive: true });
   };
@@ -300,9 +253,9 @@ export function createInboxMarks(doc: Document, deps: InboxMarksDeps = NO_DEPS):
       if (kind === 'dot' && !dotKept && dot !== null && node.parentElement === dot) dotKept = true;
       else if (kind === 'we' && !weKept && we !== null && we.firstChild === node) weKept = true;
       else if (kind === 'pin' && !pinKept && pin !== null && node.parentElement === pin) pinKept = true;
-      else if (kind === 'row' && !rowKept && row !== null && node.parentElement === row && buttons.get(node)?.groupId === groupId) {
+      else if (kind === ROW_BUTTON_KIND && !rowKept && row !== null && node.parentElement === row && buttons.get(node)?.groupId === groupId) {
         rowKept = true;
-        if (groupId !== undefined) dress(node, groupId);
+        if (groupId !== undefined) dress(node as HTMLButtonElement, groupId);
       } else node.remove();
     }
     if (dot !== null && !dotKept) dot.append(made('dot'));

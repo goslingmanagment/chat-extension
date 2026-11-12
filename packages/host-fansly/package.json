@@ -8,6 +8,7 @@
     "./main": "./src/main/index.ts",
     "./isolated/notice": "./src/isolated/notice.ts",
     "./isolated/proxy-notice": "./src/isolated/proxy-notice.ts",
+    "./isolated/route": "./src/isolated/route.ts",
     "./isolated/vault": "./src/isolated/vault/index.ts",
     "./isolated/notes-place": "./src/isolated/notes-place.ts",
     "./isolated/copied-media": "./src/isolated/copied-media.ts",

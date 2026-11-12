@@ -218,6 +218,9 @@ const DRAFT_MAX = 20_000;
 /** Shown: not under `display: none`, `visibility: hidden` or a zero opacity. */
 const shown = (element: Element): boolean => typeof element.checkVisibility !== 'function' || element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
 
+/** A leave of the list's column that no enter undoes within this long is the pointer gone from it. */
+const POINTER_LEAVE_MS = 60;
+
 /** A Fansly username as its header prints it after «@». */
 const FAN_HANDLE = /^[A-Za-z0-9_.-]{1,64}$/;
 
@@ -382,22 +385,41 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const sayActivity = (groupId: string, at: number): void => {
     for (const listener of [...activityListeners]) listener({ groupId, at });
   };
-  /** The pointer over the route's list column: its own enter and leave, read at once when the column comes. */
+  /**
+   * The pointer over the route's list column: its own enter and leave, read at once when the column comes. Firefox says
+   * a leave and an enter again when the pointer goes onto a closed root inside the column (our strip): a leave counts
+   * only when no enter follows within a moment.
+   */
   let pointerList: Element | null = null;
   let pointerInside = false;
+  let leaving: number | null = null;
   const pointerListeners = new Set<() => void>();
   const setPointer = (inside: boolean): void => {
     if (inside === pointerInside) return;
     pointerInside = inside;
     for (const listener of [...pointerListeners]) listener();
   };
-  const onPointerEnter = (): void => setPointer(true);
-  const onPointerLeave = (): void => setPointer(false);
+  const stopLeaving = (): void => {
+    if (leaving !== null) win.clearTimeout(leaving);
+    leaving = null;
+  };
+  const onPointerEnter = (): void => {
+    stopLeaving();
+    setPointer(true);
+  };
+  const onPointerLeave = (): void => {
+    stopLeaving();
+    leaving = win.setTimeout(() => {
+      leaving = null;
+      setPointer(false);
+    }, POINTER_LEAVE_MS);
+  };
   const followPointer = (list: Element | null): void => {
     if (list === pointerList) return;
     pointerList?.removeEventListener('pointerenter', onPointerEnter);
     pointerList?.removeEventListener('pointerleave', onPointerLeave);
     pointerList = list;
+    stopLeaving();
     list?.addEventListener('pointerenter', onPointerEnter, { passive: true });
     list?.addEventListener('pointerleave', onPointerLeave, { passive: true });
     setPointer(list !== null && list.matches(':hover'));

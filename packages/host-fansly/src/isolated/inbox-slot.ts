@@ -34,8 +34,10 @@ export interface InboxSlotStats {
 
 export function createInboxSlots(doc: Document, registry: ShadowRootRegistry) {
   let wrapper: Element | null = null;
-  /** The wrapper that threw our host out twice: nothing of ours goes into it again. */
-  let refused: Element | null = null;
+  /** Wrappers that threw our host out twice: nothing of ours goes into them again. */
+  const refused = new WeakSet<Element>();
+  /** The wrapper came in the sync being said now: a surface mounted in it is there before the page paints it. */
+  let fresh = false;
   let thrown = 0;
   let replaced = 0;
   let refusals = 0;
@@ -48,7 +50,7 @@ export function createInboxSlots(doc: Document, registry: ShadowRootRegistry) {
 
   const ordered = (): HTMLElement[] => [...slots.entries()].sort(([a], [b]) => a - b).map(([, slot]) => slot.host);
   const anchor = (): Element | null => {
-    if (wrapper === null || !wrapper.isConnected || wrapper === refused) return null;
+    if (wrapper === null || !wrapper.isConnected || refused.has(wrapper)) return null;
     let search: Element | null = null;
     for (const child of wrapper.children) {
       if (child.classList.contains(NAV)) return child;
@@ -72,8 +74,6 @@ export function createInboxSlots(doc: Document, registry: ShadowRootRegistry) {
           if (placedOnce.has(host)) replaced += 1;
           placedOnce.add(host);
           before.after(host);
-          // The gap the page leaves under its chips (Fansly's 1em; none with FBuddy): the strip sits its chips by it.
-          if (before === at) host.style.setProperty('--cg-nav-gap', at.ownerDocument.defaultView?.getComputedStyle(at).marginBottom || '0px');
         }
         before = host;
       }
@@ -85,8 +85,9 @@ export function createInboxSlots(doc: Document, registry: ShadowRootRegistry) {
   };
 
   const ours = (node: Node): boolean => node.nodeType === 1 && (node as Element).getAttribute('data-host') === INBOX_SLOT_HOST;
-  const observer = new MutationObserver((records) => {
-    if (placing || wrapper === null) return;
+  /** The page's changes of the wrapper: our host thrown out is counted; true — something of the page's moved. */
+  const consider = (records: readonly MutationRecord[]): boolean => {
+    if (wrapper === null || records.length === 0) return false;
     let out = false;
     let page = false;
     for (const record of records) {
@@ -97,37 +98,60 @@ export function createInboxSlots(doc: Document, registry: ShadowRootRegistry) {
       thrown += 1;
       if (thrown >= 2) {
         // The page will not have us here: no fight. The strip comes back with the next instance of the list.
-        refused = wrapper;
+        refused.add(wrapper);
         refusals += 1;
         observer.disconnect();
         for (const host of ordered()) host.remove();
-        say();
-        return;
+        return true;
       }
     }
-    if (out || page) place();
+    return out || page;
+  };
+  const observer = new MutationObserver((records) => {
+    if (placing || wrapper === null) return;
+    if (!consider(records)) return;
+    place();
+    say();
   });
 
   const available = (): boolean => anchor() !== null;
+  /** Says a change of the place to every listener; none of them may break the port's sync that called this. */
   const say = (): void => {
     const now = available();
     if (now === was) return;
     was = now;
-    for (const listener of [...listeners]) listener();
+    for (const listener of [...listeners]) {
+      try {
+        listener();
+      } catch {
+        // A surface's failure is its own (it reports it); the page's sync goes on.
+      }
+    }
   };
 
   return {
     /** The route's list of chats now on the page; null — none (the port's sync says it). */
     sync(target: Element | null): void {
-      if (target !== wrapper) {
+      const changed = target !== wrapper;
+      if (changed) {
         observer.disconnect();
         wrapper = target;
         thrown = 0;
-        if (wrapper !== null && wrapper !== refused) observer.observe(wrapper, { childList: true });
+        if (wrapper !== null && !refused.has(wrapper)) observer.observe(wrapper, { childList: true });
+      } else {
+        // Records not delivered yet (our host thrown out) are counted before our own moves below are discarded.
+        consider(observer.takeRecords());
       }
       place();
-      say();
+      fresh = changed && wrapper !== null;
+      try {
+        say();
+      } finally {
+        fresh = false;
+      }
     },
+    /** The route's list came in this very sync: a strip placed now is there before its first paint, at full height. */
+    fresh: (): boolean => fresh,
     available,
     onChange(listener: () => void): () => void {
       listeners.add(listener);
