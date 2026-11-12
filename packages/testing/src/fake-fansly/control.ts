@@ -210,6 +210,8 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       }
       return { ok: true, ...(command.issue !== undefined ? { token: state.issue(command.issue) } : {}) };
     }
+    case 'filters':
+      return { ok: true, ...world.setFilters(command) };
     default:
       throw new FakeFanslyCommandError(`no such command: ${JSON.stringify(command)}`);
   }

@@ -7,6 +7,7 @@
 
 import type { MessageContainer } from './container';
 import { ConversationRoute } from './conversation';
+import type { StandFiltersSource } from './filters';
 import { Inbox } from './inbox';
 import type { ModalService } from './modal';
 import { el, host, scope, setClass, type Scope } from './ng';
@@ -27,10 +28,11 @@ export class MessagesRoute {
     private readonly modals: ModalService,
     router: Router,
     private readonly onContainer: (container: MessageContainer | null) => void,
+    filters: StandFiltersSource | null = null,
   ) {
     const s = this.s;
     this.host = host(s, 'app-messages-route');
-    this.inbox = new Inbox(store, router);
+    this.inbox = new Inbox(store, router, filters);
     this.outlet = el(s, 'router-outlet');
     this.page = el(s, 'div', { class: 'page-content' }, [el(s, 'div', { class: 'messages-wrapper' }, [this.inbox.root, el(s, 'div', { class: 'messages-content-wrapper' }, [this.outlet])])]);
     this.host.append(this.page);

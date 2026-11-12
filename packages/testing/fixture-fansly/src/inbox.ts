@@ -5,13 +5,15 @@
 // heights of the list around the view are in the DOM, 73 px each, between two
 // spacers; the set is recomputed when the list moved more than its own
 // height. A row is `<a href="/messages/<groupId>" routerLinkActive="selected">`.
-// Over the list (live 2026-11-12, main:74215-74308): the search row, the filter chips in
-// `.messages-nav-wrapper` (rows of pills, `margin-bottom: 1em`), three of Angular's anchors and the scroller, two
+// Over the list (live 2026-11-12, main:74215-74308): the search row with Fansly's sort control, the filter chips in
+// `.messages-nav-wrapper` as Fansly prints them (filters.ts, 2026-11-13: All, Subscribers, the tiers, VIPs, Followers,
+// the pinned lists, the pencil, the refresh; `margin-bottom: 1em`), three of Angular's anchors and the scroller, two
 // anchors after it. A search or a switch of filter shows Fansly's 32 px spinner for ~240 ms, inserted before the third
-// anchor (under anything placed right after the chips), then the same list again; the stand's filters keep every chat,
-// its search keeps the chats whose name or handle has the words. The list is laid out again on every change of its
-// groups, as Fansly's is.
+// anchor (under anything placed right after the chips), then the list again; a filter keeps the chats of its fans, the
+// search the chats whose name or handle has the words. The list is laid out again on every change of its groups, as
+// Fansly's is.
 
+import { FilterBlock, type StandFiltersSource } from './filters';
 import { record } from './journal';
 import { NgFor, el, scope, setClass, setStyle, setText, type Scope, type View } from './ng';
 import type { InboxView } from './protocol';
@@ -25,18 +27,6 @@ export const INBOX_PAGE = 20;
 const REFETCH_GUARD_MS = 10_000;
 /** How long Fansly's spinner stands on a search or a switch of filter (live: 240–330 ms). */
 export const INBOX_SPINNER_MS = 240;
-/** The filter chips of a creator's list as Fansly draws them (her tiers and lists): names and counts of the stand's own. */
-const FILTERS: ReadonlyArray<readonly [string, number | null]> = [
-  ['All', 12],
-  ['Fans', null],
-  ['Bronze', null],
-  ['Silver', null],
-  ['Gold', 3],
-  ['Diamond', null],
-  ['Close friends', 2],
-  ['New', 7],
-];
-
 interface RowView extends View {
   readonly link: HTMLAnchorElement;
   refresh(): void;
@@ -59,10 +49,13 @@ export class Inbox {
   private spinner: HTMLElement | null = null;
   private spinnerTimer: ReturnType<typeof setTimeout> | null = null;
   private search = '';
+  /** Fansly's filter chips (filters.ts). */
+  readonly filters: FilterBlock;
 
   constructor(
     private readonly store: GroupService,
     private readonly router: Router,
+    filters: StandFiltersSource | null = null,
   ) {
     const s = this.s;
     this.rows = new NgFor(
@@ -73,19 +66,14 @@ export class Inbox {
     this.bottomSpacer = el(s, 'div', { class: 'spacer' });
     this.list = el(s, 'div', { class: 'message-list noselect', attrs: { xdscrollwatcher: '' } }, [this.topSpacer, this.rows.anchor, this.bottomSpacer]);
     const input = el(s, 'input', { class: 'search-input', attrs: { type: 'text', placeholder: 'Search conversations' } });
-    const chips = FILTERS.map(([name, count], index) => {
-      const chip = el(s, 'div', { class: index === 0 ? 'messages-nav-chip selected' : 'messages-nav-chip' }, [name, count === null ? null : el(s, 'span', { class: 'messages-nav-count' }, [String(count)])]);
-      chip.addEventListener('click', () => {
-        for (const other of chips) setClass(other, 'selected', other === chip);
-        this.reload();
-      });
-      return chip;
-    });
+    this.filters = new FilterBlock(filters, { groups: () => store.loadedGroups() }, () => this.reload());
+    // Fansly's sort control: a dropdown after the search field (main:74215, `appXdDropdown`).
+    const sort = el(s, 'div', { class: 'transparent-dropdown margin-left-1 margin-right-1 margin-top-3', attrs: { appxddropdown: '' } }, [el(s, 'div', { class: 'dropdown-title' }, [el(s, 'div', { class: 'icon-stack' }, [el(s, 'i', { class: 'fa-fw fas fa-arrow-down-wide-short hover-effect' })])])]);
     this.spinnerAnchor = document.createComment('');
     this.root = el(s, 'div', { class: 'messages-list-wrapper border-color' }, [
       el(s, 'div', { class: 'messages-top-header border-color sm-mobile-hidden' }, [el(s, 'span', { class: 'flex-1' }, [el(s, 'xd-localization-string', {}, ['Messages'])])]),
-      el(s, 'div', { class: 'message-search' }, [input]),
-      el(s, 'div', { class: 'messages-nav-wrapper' }, chips),
+      el(s, 'div', { class: 'message-search' }, [input, sort]),
+      this.filters.root,
       document.createComment(''),
       document.createComment(''),
       this.spinnerAnchor,
@@ -99,7 +87,10 @@ export class Inbox {
     });
     this.unsubscribe.push(
       watchScroll(this.list, { scroll: (top) => this.onScroll(top), bottom: () => this.loadMore() }),
-      store.onGroupsChange(() => this.calculate(this.list.scrollTop)),
+      store.onGroupsChange(() => {
+        this.filters.render();
+        this.calculate(this.list.scrollTop);
+      }),
       router.onNavigation(() => this.refresh()),
     );
   }
@@ -107,6 +98,7 @@ export class Inbox {
   /** The first page; the route component asks for it when it is created. */
   start(): void {
     this.loadMore();
+    this.filters.start();
   }
 
   private loadMore(): void {
@@ -139,12 +131,12 @@ export class Inbox {
     }, INBOX_SPINNER_MS);
   }
 
-  /** The chats the list shows: all of them, or those a search names. */
+  /** The chats the list shows: those of the filter that is on, and of them the ones a search names. */
   private shown(): readonly string[] {
-    if (this.search === '') return this.store.inbox;
     return this.store.inbox.filter((id) => {
       const partner = this.store.getGroup(id)?.partners[0];
-      return `${partner?.displayName ?? ''} ${partner?.username ?? ''}`.toLowerCase().includes(this.search);
+      if (!this.filters.shows(partner?.id ?? null)) return false;
+      return this.search === '' || `${partner?.displayName ?? ''} ${partner?.username ?? ''}`.toLowerCase().includes(this.search);
     });
   }
 
@@ -241,6 +233,7 @@ export class Inbox {
   }
 
   destroy(): void {
+    this.filters.destroy();
     if (this.spinnerTimer !== null) clearTimeout(this.spinnerTimer);
     for (const stop of this.unsubscribe) stop();
     this.rows.destroy();

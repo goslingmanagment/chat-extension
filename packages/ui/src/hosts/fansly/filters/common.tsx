@@ -101,7 +101,10 @@ export function useMeasure(): { readonly ref: { current: HTMLDivElement | null }
   return { ref, measure: measure.current };
 }
 
-/** A press outside our root, or Escape inside it: the open popover closes. */
+/**
+ * A press outside our strip: the open popover closes. The document's listener sees no node inside our closed root
+ * (the event's path stops at our host), so the host is what tells inside from outside.
+ */
 export function useOutside(open: boolean, root: { current: HTMLElement | null }, close: () => void): void {
   useEffect(() => {
     if (!open) return undefined;
@@ -109,7 +112,10 @@ export function useOutside(open: boolean, root: { current: HTMLElement | null },
     if (doc === undefined) return undefined;
     const onDown = (event: Event): void => {
       const node = root.current;
-      if (node !== null && !event.composedPath().includes(node)) close();
+      if (node === null) return;
+      // Duck-typed: a content script's `ShadowRoot` is not always the page's (Firefox's Xrays).
+      const host = (node.getRootNode() as { readonly host?: Element }).host ?? node;
+      if (!event.composedPath().includes(host)) close();
     };
     doc.addEventListener('pointerdown', onDown, true);
     return () => doc.removeEventListener('pointerdown', onDown, true);

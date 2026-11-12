@@ -6,11 +6,12 @@
 //
 // - The strip stands while the controller has a mode: it is drawn first, then Fansly's block is hidden, in one task; the
 //   other way round when it goes (never our strip beside Fansly's visible block, never neither).
-// - Its host is positioned above Fansly's scroller (`position: relative; z-index: 2`): the popovers paint over the list.
+// - Its host is positioned above Fansly's scroller (`position: relative; z-index: 10`): the popovers paint over the list
+//   and over the marks on its rows (z-index 2 there).
 // - The background's change of the strip is heard as an event; a tab back in view and another sign-in read again.
 // - Nothing of ours throws into the port's sync: a surface that fails is reported and the page's sync goes on.
 import type { MountSurfaceKind } from '@cg/contracts/vm';
-import { createFanslyFilters } from '@cg/core/application/hosts/fansly/filters';
+import { createFanslyFilters, type FanslyFiltersStats } from '@cg/core/application/hosts/fansly/filters';
 import { FILTERS_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { filtersRefreshSurface, filtersSurface } from '@cg/ui/hosts/fansly/filters';
@@ -30,6 +31,10 @@ export function startFanslyFilters(env: SiteAppEnv<FanslyPort>): () => void {
   const probe = env.probe;
   let strip: { readonly slot: ReturnType<FanslyPort['inbox']['mount']>; readonly mount: KitMount } | null = null;
   let refresh: { readonly slot: ReturnType<FanslyPort['search']['mount']>; readonly mount: KitMount } | null = null;
+  /** Test builds: the controller's state with what stands of ours, after every change of either. */
+  function report(stats: FanslyFiltersStats): void {
+    probe?.set('filters', { ...stats, slot: host.inbox.available(), mounted: strip !== null, refresh: refresh !== null });
+  }
 
   const filters = createFanslyFilters({
     page: page.filters,
@@ -43,7 +48,7 @@ export function startFanslyFilters(env: SiteAppEnv<FanslyPort>): () => void {
       return answer.ok ? answer.payload.memo : null;
     },
     copy: () => FILTERS_TEXTS[env.deps.i18n.language],
-    ...(probe === null ? {} : { observe: (stats) => probe.set('filters', { ...stats, slot: host.inbox.available(), mounted: strip !== null, refresh: refresh !== null }) }),
+    ...(probe === null ? {} : { observe: (stats: FanslyFiltersStats) => report(stats) }),
   });
 
   const unmountStrip = (): void => {
@@ -68,7 +73,8 @@ export function startFanslyFilters(env: SiteAppEnv<FanslyPort>): () => void {
     if (want && strip === null) {
       const slot = host.inbox.mount(STRIP_ORDER);
       slot.host.style.setProperty('position', 'relative');
-      slot.host.style.setProperty('z-index', '2');
+      // Above Fansly's scroller and its rows' marks (ours too: z-index 2 inside the rows).
+      slot.host.style.setProperty('z-index', '10');
       strip = { slot, mount: mountKitSurface('inbox-slot' as MountSurfaceKind, slot.root, env.deps, filtersSurface(filters, FILTERS_TEXTS), { report: env.report }) };
       // Ours is drawn: Fansly's block goes in the same task.
       page.filters.hide(true);
@@ -79,6 +85,7 @@ export function startFanslyFilters(env: SiteAppEnv<FanslyPort>): () => void {
       const slot = host.search.mount();
       refresh = { slot, mount: mountKitSurface('search-slot' as MountSurfaceKind, slot.root, env.deps, filtersRefreshSurface(filters, FILTERS_TEXTS), { report: env.report }) };
     } else if (!wantRefresh && refresh !== null) unmountRefresh();
+    report(filters.stats());
   };
   /** The port's listeners: whatever fails here is ours to report, never the port's sync to break. */
   const safely = (run: () => void) => (): void => {

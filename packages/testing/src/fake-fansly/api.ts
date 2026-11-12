@@ -332,6 +332,30 @@ const ROUTES: readonly Route[] = [
       return {};
     },
   },
+  // 2026-11-13, the filter chips over the list of chats: the pinned lists' setting (4000/100) and the account's lists.
+  { name: 'settings.read', method: 'GET', path: /^\/settings$/, run: ({ world, params }) => ({ response: world.wireSettings((params.get('categoryIds') ?? '').split(',')) }) },
+  {
+    name: 'settings.write',
+    method: 'POST',
+    path: /^\/settings$/,
+    run: ({ world, body }) => {
+      const entry = asRecord(body);
+      if (entry === null || String(entry['categoryId']) !== '4000' || String(entry['keyId']) !== '100' || typeof entry['metadata'] !== 'string') return { response: entry ?? {} };
+      let pinned: unknown = null;
+      try {
+        pinned = asRecord(JSON.parse(entry['metadata']))?.['pinnedLists'] ?? null;
+      } catch {
+        return bad('metadata');
+      }
+      if (!Array.isArray(pinned)) return bad('pinnedLists');
+      world.savePinned(pinned.flatMap((list: unknown) => {
+        const item = asRecord(list);
+        return typeof item?.['id'] === 'string' ? [{ id: item['id'], ...(typeof item['label'] === 'string' ? { label: item['label'] } : {}) }] : [];
+      }));
+      return { response: entry };
+    },
+  },
+  { name: 'lists.account', method: 'GET', path: /^\/lists\/account$/, run: ({ world }) => ({ response: world.wireLists() }) },
   { name: 'vault.albums', method: 'GET', path: /^\/vault\/albums(?:new)?$/, run: ({ world }) => ({ response: world.wireAlbums() }) },
   {
     name: 'vault.renameMedia',
