@@ -9,6 +9,7 @@
 // The window reads what the hub knows (the Spenders board: tiers, sums, who wrote last) and never a chat the person did
 // not open; the card is the fan's preview (`preview` from `outreach`).
 
+import { type FanGone } from '../fan-account';
 import { type FanBadges } from '../fan-badges';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchVM } from './batch';
@@ -168,8 +169,11 @@ export interface OutreachRowVM {
   readonly badges?: FanBadges;
   readonly name: string;
   readonly username: string | null;
-  /** 1.70.0: the site no longer finds the fan's account (deleted, or the page blocked): «удалён» in place of the @handle. */
-  readonly gone?: true;
+  /**
+   * 2026-11-12: the page does not see the fan (contracts fan-account.ts): «удалён», «заблокировал» (OnlyFans: «в блоке»),
+   * «не виден» in place of the @handle, as Spenders says it; absent — no mark.
+   */
+  readonly gone?: FanGone;
   /** The fan's tier by the board's bounds; null — none takes the fan. */
   readonly tier: OutreachTierVM['range'] | null;
   readonly lifetime: MoneyMills | null;

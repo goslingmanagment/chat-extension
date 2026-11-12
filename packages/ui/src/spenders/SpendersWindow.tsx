@@ -331,6 +331,8 @@ export function SpendersWindow(): JSX.Element {
                 {board.pageName === null ? null : <span class="cg-sp__page">{board.pageName}</span>}
                 {/* «1000 из 1240 фанов» when the hub has more than the list holds; else «1240 фанов». */}
                 {board.footer.loaded > 0 ? <span>{board.footer.total !== null && board.footer.total > board.footer.loaded ? i18n.plural('spenders.headOf', board.footer.total, { loaded: board.footer.loaded }) : i18n.plural('common.fans', board.footer.loaded)}</span> : null}
+                {/* 2026-11-12: «12 ушли» — of the loaded fans, the ones the page does not see (the count beside it says how many are loaded). */}
+                {board.gone === undefined || board.gone.count === 0 || board.footer.loaded === 0 ? null : <span data-cg-gone-count={String(board.gone.count)}>{i18n.plural('spenders.gone.count', board.gone.count)}</span>}
                 {board.footer.stamp.asOf === null ? null : <span>{i18n.t('common.dataAsOf', { time: { time: board.footer.stamp.asOf } })}</span>}
               </span>
               <span class="cg-sp__grow" />

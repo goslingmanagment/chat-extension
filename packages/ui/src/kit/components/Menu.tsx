@@ -7,7 +7,7 @@
 // A `check` menu is a list of ticks: `menuitemcheckbox`, a box before each item,
 // and it stays open as they are pressed, until Esc or a press away.
 
-import { type ComponentChildren, type JSX, type TargetedFocusEvent, type TargetedKeyboardEvent } from 'preact';
+import { Fragment, type ComponentChildren, type JSX, type TargetedFocusEvent, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useId, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { useKit, useOffClick } from '../context';
@@ -30,6 +30,11 @@ export interface MenuItem {
   readonly lead?: ComponentChildren;
   /** Unavailable items stay focusable and say why. */
   readonly reason?: string | null;
+  /**
+   * A group of its own: a quiet heading over the first item of a section that differs from the item before it (never an
+   * item: not focused or chosen). Absent — the menu's first group, with no heading.
+   */
+  readonly section?: string;
 }
 
 export interface MenuProps {
@@ -64,7 +69,8 @@ export function Menu(props: MenuProps): JSX.Element | null {
   useLayoutEffect(() => {
     if (!open || !autoFocus) return;
     const list = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-cg-menuitem]') ?? [])];
-    const checked = entries.findIndex((item) => item.checked === true);
+    // The checked item of the first group: a later section's default (a radio of its own) does not pull focus down to it.
+    const checked = entries.findIndex((item) => item.checked === true && item.section === undefined);
     const lead = checked >= 0 ? checked : entries.findIndex((item) => item.id === props.focusId);
     focusQuietly(list[lead >= 0 ? lead : 0]);
     // Only for the focus moment of opening; later changes of the items keep focus where it is.
@@ -150,8 +156,15 @@ export function Menu(props: MenuProps): JSX.Element | null {
       onKeyDown={onKeyDown}
       onFocusOut={onFocusOut}
     >
-      {props.items.map((item) => (
-        <MenuEntry key={item.id} item={item} kind={props.kind} onChoose={() => choose(item)} />
+      {props.items.map((item, at) => (
+        <Fragment key={item.id}>
+          {item.section !== undefined && item.section !== props.items[at - 1]?.section ? (
+            <div class="cg-menu__sec" role="presentation">
+              {item.section}
+            </div>
+          ) : null}
+          <MenuEntry item={item} kind={props.kind} onChoose={() => choose(item)} />
+        </Fragment>
       ))}
       {props.footer === undefined ? null : <div class="cg-menu__foot">{props.footer}</div>}
     </div>
@@ -231,6 +244,8 @@ export const MENU_CSS = `
 .cg-menu__item.is-on { background: var(--cg-clay-bg); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-menu__item.is-on::after { content: "✓"; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); }
 .cg-menu__item[aria-disabled="true"] { color: var(--cg-ink-faint); cursor: default; }
+.cg-menu__sec { margin: 4px 0 0; padding: 8px 8px 4px; border-top: 1px solid var(--cg-rule-2); color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 14px; font-weight: 500; }
+.cg-menu__sec:first-child { margin-top: 0; padding-top: 4px; border-top: 0; }
 .cg-menu__item.is-check { justify-content: flex-start; gap: 8px; }
 .cg-menu__item.is-check .cg-menu__t { flex: 1; }
 .cg-menu__item.is-check .cg-cb { flex: none; color: var(--cg-ink-muted); }

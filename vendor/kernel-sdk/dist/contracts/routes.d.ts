@@ -2067,6 +2067,16 @@ export declare const spenderListResponseSchema: z.ZodObject<{
             needs_reactivation: "needs_reactivation";
         }>;
         accountLookupMissAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        accountState: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            state: z.ZodEnum<{
+                blocked: "blocked";
+                deleted: "deleted";
+                unchecked: "unchecked";
+                seen: "seen";
+            }>;
+            since: z.ZodNullable<z.ZodString>;
+            checkedAt: z.ZodString;
+        }, z.core.$strip>>>;
     }, z.core.$strip>>;
     limit: z.ZodNumber;
     offset: z.ZodNumber;
@@ -2163,6 +2173,16 @@ export declare const pageSpenderAutoListDetailResponseSchema: z.ZodObject<{
         lifetimeCreatorNetAmountMills: z.ZodNumber;
         lastTransactionAt: z.ZodNullable<z.ZodString>;
         accountLookupMissAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        accountState: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            state: z.ZodEnum<{
+                blocked: "blocked";
+                deleted: "deleted";
+                unchecked: "unchecked";
+                seen: "seen";
+            }>;
+            since: z.ZodNullable<z.ZodString>;
+            checkedAt: z.ZodString;
+        }, z.core.$strip>>>;
     }, z.core.$strip>>;
     limit: z.ZodNumber;
     offset: z.ZodNumber;
@@ -24503,6 +24523,16 @@ declare const baseRouteSchemas: {
                     lifetimeCreatorNetAmountMills: z.ZodNumber;
                     lastTransactionAt: z.ZodNullable<z.ZodString>;
                     accountLookupMissAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                    accountState: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                        state: z.ZodEnum<{
+                            blocked: "blocked";
+                            deleted: "deleted";
+                            unchecked: "unchecked";
+                            seen: "seen";
+                        }>;
+                        since: z.ZodNullable<z.ZodString>;
+                        checkedAt: z.ZodString;
+                    }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 limit: z.ZodNumber;
                 offset: z.ZodNumber;
@@ -25242,6 +25272,16 @@ declare const baseRouteSchemas: {
                         needs_reactivation: "needs_reactivation";
                     }>;
                     accountLookupMissAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                    accountState: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                        state: z.ZodEnum<{
+                            blocked: "blocked";
+                            deleted: "deleted";
+                            unchecked: "unchecked";
+                            seen: "seen";
+                        }>;
+                        since: z.ZodNullable<z.ZodString>;
+                        checkedAt: z.ZodString;
+                    }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 limit: z.ZodNumber;
                 offset: z.ZodNumber;

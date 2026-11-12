@@ -7,6 +7,7 @@ import {
   type GreetingFilter,
   NEWCOMERS_WINDOW_HOURS,
   SPENDERS_FILTERS,
+  SPENDERS_GONE_FILTERS,
   type I18nKey,
   type SpendersFilter,
   TONES,
@@ -44,6 +45,9 @@ const SPENDERS_FILTER_KEYS: Record<SpendersFilter, I18nKey> = {
   'no-history': 'spenders.filter.noHistory',
   'silent-8-21': 'spenders.filter.silent8to21',
   'silent-over-21': 'spenders.filter.silentOver21',
+  'gone-show': 'spenders.gone.show',
+  'gone-hide': 'spenders.gone.hide',
+  'gone-only': 'spenders.gone.only',
 };
 
 export const stamp = (ctx: ScenarioCtx, coverage: DataStamp['coverage'] = 'complete', ageMs = 2 * MIN): DataStamp => ({ asOf: iso(ctx.now - ageMs), coverage });
@@ -57,7 +61,7 @@ export function spenderRow(ctx: ScenarioCtx, fan: FanFixture, lifetime: number |
     username: fan.username,
     lifetime,
     period,
-    deleted: false,
+    gone: null,
     weWroteAt: iso(ctx.now - 10 * HOUR),
     fanWroteAt: iso(ctx.now - 7 * MIN),
     waiting: false,
@@ -91,7 +95,7 @@ function shelves(ctx: ScenarioCtx, selected: FanFixture | null): ShelfVM[] {
       period: 0,
       rows: [
         spenderRow(ctx, FANS.jake, usd(540), 0, { weWroteAt: null }),
-        spenderRow(ctx, FANS.leo, usd(400), null, { deleted: true, fanWroteAt: null }),
+        spenderRow(ctx, FANS.leo, usd(400), null, { gone: { state: 'deleted', since: null, checkedAt: iso(ctx.now - 3 * HOUR), local: false }, fanWroteAt: null }),
       ],
       collapsed: { hidden: 4, reveal: button('spenders.shelfMore', { type: 'RevealShelf', shelfId: 'shelf-350' }) },
     },
@@ -106,7 +110,8 @@ export function board(ctx: ScenarioCtx, view: VmView, patch: Partial<SpendersBoa
     period: '30d',
     periods: ['lifetime', '30d', 'mtd', '7d', 'today'],
     query: '',
-    filters: SPENDERS_FILTERS.map((id) => ({ id, label: msg(SPENDERS_FILTER_KEYS[id]), count: id === 'all' ? 40 : id === 'waiting' ? 12 : 3, pressed: id === 'all' })),
+    // «Ушедшие» is a group of its own (`gone`), not a filter button.
+    filters: SPENDERS_FILTERS.filter((id) => !(SPENDERS_GONE_FILTERS as readonly string[]).includes(id)).map((id) => ({ id, label: msg(SPENDERS_FILTER_KEYS[id]), count: id === 'all' ? 40 : id === 'waiting' ? 12 : 3, pressed: id === 'all' })),
     sort: 'sum',
     shelves: rows,
     footer: { loaded: rows.length === 0 ? 0 : 40, total: rows.length === 0 ? null : 40, shown: null, stamp: stamp(ctx) },

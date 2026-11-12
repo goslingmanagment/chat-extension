@@ -1,7 +1,8 @@
 // The open fan's marks in Fansly's own chat header, after «Регистрация»: the agency's list the fan is in («💩 Бомж», the
 // list's own label), «⛔ Блоклист» when FANSLY BLOCKLIST has posts about the fan, and two overlapping circles when he is on
-// other pages (each page in its card). In that row's size: the warnings in the warm and the red ink; nothing at all when
-// no mark applies. They disable nothing.
+// other pages (each page in its card), and (2026-11-12) «Удалён», «Заблокировал» or «Не виден» when the page does not see
+// the fan, its card in Spenders' words. In that row's size: the warnings in the warm and the red ink, «Заблокировал» in
+// the warning ink, the other two quiet; nothing at all when no mark applies. They disable nothing.
 //
 // Each mark explains itself in a card under it: on hover (after a short pause, kept while the pointer is over the mark
 // or the card), on keyboard focus, and pinned by a click (a second click, Esc or a press elsewhere puts it away). The
@@ -12,9 +13,9 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hook
 
 import type { FanMarksClient, FanMarksCopy, FanMarksView } from '@cg/contracts/fan-marks-fansly';
 
-import { Icon, otherPagesLine, useI18n, useNowFn, type SurfaceDefinition } from '../../kit';
+import { fanGoneHint, Icon, otherPagesLine, useI18n, useNowFn, type SurfaceDefinition } from '../../kit';
 
-type Which = 'lists' | 'blocklist' | 'other';
+type Which = 'lists' | 'blocklist' | 'other' | 'gone';
 type PopoverElement = HTMLElement & { showPopover?: () => void; hidePopover?: () => void };
 
 /** The pause before a hover opens a card, and before leaving both the mark and its card puts it away. */
@@ -54,7 +55,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
         run();
       }, ms);
     };
-    const shown = { lists: view.lists !== null, blocklist: view.posts.length > 0, other: view.otherPages.length > 0 } as const;
+    const shown = { lists: view.lists !== null, blocklist: view.posts.length > 0, other: view.otherPages.length > 0, gone: view.gone !== null } as const;
     // A mark that went (another chat, a new answer) takes its card along.
     const which = open !== null && shown[open.which] ? open.which : null;
 
@@ -100,7 +101,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
       return () => doc.removeEventListener('pointerdown', onPress, { capture: true });
     }, [which]);
 
-    if (!shown.lists && !shown.blocklist && !shown.other) return null;
+    if (!shown.lists && !shown.blocklist && !shown.other && !shown.gone) return null;
 
     const enter = (mark: Which): void => {
       if (open?.which === mark) return clear();
@@ -138,7 +139,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
           ref={(node) => {
             marks.current[kind] = node;
           }}
-          class={`cg-fm__mark cg-fm__mark--${kind}`}
+          class={`cg-fm__mark cg-fm__mark--${kind}${kind === 'gone' && view.gone !== null ? ` is-${view.gone.state}` : ''}`}
           data-fan-mark={kind}
           aria-label={name}
           aria-expanded={which === kind ? 'true' : 'false'}
@@ -161,7 +162,8 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
     );
 
     return (
-      <span class="cg-fm" ref={root} data-fan-marks={[shown.lists ? 'lists' : '', shown.blocklist ? 'blocklist' : '', shown.other ? 'other' : ''].filter(Boolean).join(' ')}>
+      <span class="cg-fm" ref={root} data-fan-marks={[shown.gone ? 'gone' : '', shown.lists ? 'lists' : '', shown.blocklist ? 'blocklist' : '', shown.other ? 'other' : ''].filter(Boolean).join(' ')}>
+        {view.gone === null ? null : mark('gone', copy.gone[view.gone.state])}
         {view.lists === null ? null : mark('lists', view.lists.label)}
         {shown.blocklist ? mark('blocklist', copy.blocklist) : null}
         {shown.other ? mark('other', <Icon name="overlap" size={14} />, i18n.t('otherPages.title')) : null}
@@ -172,14 +174,16 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
             class={`cg-fm__card cg-fm__card--${which}`}
             data-fan-marks-card={which}
             role="dialog"
-            aria-label={which === 'lists' ? (view.lists?.label ?? '') : which === 'other' ? i18n.t('otherPages.title') : copy.postsTitle}
+            aria-label={which === 'lists' ? (view.lists?.label ?? '') : which === 'other' ? i18n.t('otherPages.title') : which === 'gone' ? (view.gone === null ? '' : copy.gone[view.gone.state]) : copy.postsTitle}
             popover="manual"
             style={{ visibility: 'hidden' }}
             onPointerEnter={clear}
             onPointerLeave={leave}
             onKeyDown={escape}
           >
-            {which === 'lists' ? (
+            {which === 'gone' ? (
+              view.gone === null ? null : <p class="cg-fm__where">{fanGoneHint(i18n, view.gone)}</p>
+            ) : which === 'lists' ? (
               (view.lists?.groups ?? []).map((group) => (
                 <p key={group.label} class="cg-fm__where">
                   {copy.listsWhere(group.label, group.here, group.names)}
@@ -233,6 +237,8 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
     .cg-fm__mark--lists { color: var(--cg-amber-ink); }
     .cg-fm__mark--blocklist { color: var(--cg-bad-ink); }
     .cg-fm__mark--other { color: var(--cg-other-ink); }
+    .cg-fm__mark--gone { color: var(--cg-ink-muted); }
+    .cg-fm__mark--gone.is-blocked { color: var(--cg-warn-ink); }
     .cg-fm__label { display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
     .cg-fm__mark:hover .cg-fm__label, .cg-fm__mark[aria-expanded='true'] .cg-fm__label { text-decoration: underline; text-underline-offset: 2px; }
     .cg-fm__mark--other .cg-fm__label { display: inline-flex; }

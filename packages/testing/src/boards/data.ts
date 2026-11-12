@@ -15,6 +15,7 @@ import {
   type SpendersSort,
   type SpendersStatsVM,
 } from '@cg/contracts';
+import { type FanGoneState } from '@cg/contracts/fan-account';
 
 import { DAY, HOUR, MIN, iso, usd, type ScenarioCtx } from '../scenarios/app-client';
 
@@ -37,7 +38,8 @@ export interface BoardFan {
   readonly fanAgo: number | null;
   readonly last: string;
   readonly isNew?: boolean;
-  readonly deleted?: boolean;
+  /** 2026-11-12: the page does not see the fan; absent — it does. */
+  readonly gone?: FanGoneState;
 }
 
 const fan = (n: number, name: string, username: string, lifetime: number, d30: number, purchases30: number, lastFrom: 'we' | 'fan', weAgo: number | null, fanAgo: number | null, last: string, extra: Partial<BoardFan> = {}): BoardFan => ({
@@ -67,13 +69,13 @@ export const BOARD_FANS: readonly BoardFan[] = [
   fan(9, 'Liam Carter', 'liamc', 585, 45, 1, 'fan', 2 * D, 3 * H, 'haha you are trouble'),
   fan(10, 'Mateusz Nowak', 'mateusz_n', 540, 0, 0, 'we', 11 * D, 24 * D, 'dzień dobry 🌸 miss you here'),
   fan(11, 'Ethan Brooks', 'ethanb', 495, 120, 2, 'we', 5 * H, 7 * H, 'thank you baby 🥰'),
-  fan(12, 'Kenji Watanabe', 'kenji_w', 430, 0, 0, 'we', 40 * D, 41 * D, 'arigato for the tip 🙏', { deleted: true }),
+  fan(12, 'Kenji Watanabe', 'kenji_w', 430, 0, 0, 'we', 40 * D, 41 * D, 'arigato for the tip 🙏', { gone: 'deleted' }),
   fan(13, 'Oliver Grant', 'olly_g', 395, 35, 1, 'we', 26 * H, 30 * H, 'sweet dreams 😴'),
   fan(14, 'Pierre Lambert', 'pierre.lmb', 362, 0, 0, 'fan', 9 * D, 9 * D, 'bonne nuit ❤️'),
   fan(15, 'Noah Fischer', 'noahf', 340, 80, 2, 'fan', 6 * H, 50, 'what are you wearing today?'),
   fan(16, 'Lucas Moreau', 'lucas_mrr', 310, 0, 0, 'we', 14 * D, 15 * D, 'coucou 😘'),
   fan(17, 'Aiden Clarke', 'aidenc', 275, 25, 1, 'we', 3 * H, 4 * H, 'you have good taste 😏'),
-  fan(18, 'Viktor Hale', 'vhale', 240, 0, 0, 'we', 30 * D, null, 'hey you 👋'),
+  fan(18, 'Viktor Hale', 'vhale', 240, 0, 0, 'we', 30 * D, null, 'hey you 👋', { gone: 'blocked' }),
   fan(19, 'Samuel Ortiz', 'sam_ortiz', 205, 50, 1, 'fan', 20 * H, 12 * H, 'send me the new set'),
   fan(20, 'Henrik Dahl', 'henrikd', 180, 0, 0, 'we', 8 * D, 12 * D, 'god morgen ☀️'),
   fan(21, 'Jake Morrison', 'jake.m.88', 155, 155, 3, 'we', 15, 40, 'welcome back, Jake 🥰', { isNew: true }),
@@ -121,7 +123,7 @@ export function boardRow(ctx: ScenarioCtx, source: BoardFan, selected: string | 
     username: source.username,
     lifetime: usd(source.lifetime),
     period: usd(source.d30),
-    deleted: source.deleted === true,
+    gone: source.gone === undefined ? null : { state: source.gone, since: source.gone === 'unchecked' ? null : iso(ctx.now - 9 * DAY), checkedAt: iso(ctx.now - 3 * HOUR), local: false },
     weWroteAt: ago(ctx, source.weAgo),
     fanWroteAt: ago(ctx, source.fanAgo),
     waiting: source.lastFrom === 'fan',
@@ -197,7 +199,7 @@ export function manyFans(count: number): BoardFan[] {
     out.push(
       fan(1000 + n, `${given} ${family}`, `${given}.${family}${n}`.toLowerCase(), lifetime, paid ? Math.max(5, Math.round(lifetime / 12)) : 0, paid ? 1 + (n % 4) : 0, n % 4 === 0 ? 'fan' : 'we', (n * 37) % (40 * D), n % 11 === 0 ? null : (n * 53) % (60 * D), `message ${n}`, {
         ...(n % 97 === 0 ? { isNew: true } : {}),
-        ...(n % 211 === 5 ? { deleted: true } : {}),
+        ...(n % 211 === 5 ? { gone: 'deleted' as const } : {}),
       }),
     );
   }
@@ -232,7 +234,7 @@ export function boardStats(ctx: ScenarioCtx, fans: readonly BoardFan[], coverage
   const prev7 = days.slice(16, 23).reduce((a, b) => a + b, 0);
   const shelves = boardShelves(ctx, fans, null);
   const silent = (from: number, to: number): number => fans.filter((item) => item.fanAgo !== null && item.fanAgo >= from && item.fanAgo <= to).length;
-  const deleted = fans.filter((item) => item.deleted === true);
+  const deleted = fans.filter((item) => item.gone !== undefined);
   return {
     windowDays: 30,
     timeZone: 'Europe/Moscow',

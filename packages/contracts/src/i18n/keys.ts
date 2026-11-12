@@ -124,6 +124,10 @@ export const UI_TEXT_KEYS = [
   'spenders.filter.noHistory', 'spenders.col.fan',
   'spenders.col.lastMessage', 'spenders.col.lifetime', 'spenders.col.lifetimeShort', 'spenders.col.weWrote',
   'spenders.tag.deleted',
+  // 2026-11-12: the fans the page does not see — the row's words in place of the @handle and their card (the shared
+  // catalog has OnlyFans' words, Fansly lays its own over them), «Ушедшие» of «Фильтр».
+  'spenders.tag.blocked', 'spenders.tag.unchecked', 'spenders.gone.deletedHint', 'spenders.gone.blockedHint', 'spenders.gone.uncheckedHint',
+  'spenders.gone.since', 'spenders.gone.filter', 'spenders.gone.show', 'spenders.gone.hide', 'spenders.gone.only', 'spenders.gone.hidden', 'spenders.gone.onlyOn',
   'spenders.ourPrefix', 'spenders.footerShown', 'spenders.shelfMore', 'spenders.empty', 'spenders.keys.row', 'spenders.resetFilters',
   'spenders.shelf.from', 'spenders.shelf.range', 'spenders.shelf.none', 'spenders.truncated', 'spenders.truncatedNoTotal', 'spenders.waitingLocal',
   'spenders.refresh', 'spenders.refreshTooltip',
@@ -502,6 +506,8 @@ export const UI_PLURAL_KEYS = [
   'spenders.footer', 'spenders.footerNoTotal',
   // 2026-10-22: the Spenders header's count of a list the hub has more fans for than it holds («1000 из 1240 фанов»).
   'spenders.headOf',
+  // 2026-11-12: «· N ушли» of the header.
+  'spenders.gone.count',
   'fanPanel.footer', 'fanPanel.footerCoverage',
   'coach.archiveLag', 'coach.recap.none',
   // 2026-10-26: what each Recap of Coach's menu reads, and the line while one is built.

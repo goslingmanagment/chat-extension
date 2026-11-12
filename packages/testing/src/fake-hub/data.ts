@@ -78,6 +78,7 @@ import {
   type SpenderBatchQuery,
   type SpenderDetail,
   type SpenderDetailQuery,
+  type FanAccountState,
   type SpenderListItem,
   type SpendersPage,
   type SpendersQuery,
@@ -494,8 +495,31 @@ export class DataModel {
         messageCoverageStatus: 'complete',
         messageBackfillComplete: true,
       },
-      ...(seed.lookupMissAgoSec === undefined ? {} : { accountLookupMissAt: iso(now - seed.lookupMissAgoSec * 1000) }),
+      ...this.accountFields(seed, now),
     };
+  }
+
+  /**
+   * The hub's rule (2026-11-12, `fan-account-state-v1`): the page's word on a fan's account, `accountState`, and for old
+   * clients `accountLookupMissAt` — the time of the answer that did not return him, null while he is seen.
+   */
+  private accountFields(seed: SpenderSeed, now: number): Pick<SpenderListItem, 'accountLookupMissAt' | 'accountState'> {
+    const state = this.accountOf(seed, now);
+    if (state === null) return seed.lookupMissAgoSec === undefined ? {} : { accountLookupMissAt: iso(now - seed.lookupMissAgoSec * 1000), accountState: null };
+    return { accountLookupMissAt: state.state === 'seen' ? null : state.checkedAt, accountState: state };
+  }
+
+  private accountOf(seed: SpenderSeed, now: number): FanAccountState | null {
+    const account = seed.account;
+    if (account === undefined) return seed.lookupMissAgoSec === undefined ? null : { state: 'deleted', since: null, checkedAt: iso(now - seed.lookupMissAgoSec * 1000) };
+    if (account === null) return null;
+    return { state: account.state, since: account.state === 'seen' || account.sinceAgoSec === null ? null : iso(now - account.sinceAgoSec * 1000), checkedAt: iso(now - account.checkedAgoSec * 1000) };
+  }
+
+  /** What the page knows of a fan's account (`clientFanMarks`): a seeded fan's word; anyone else, never answered. */
+  fanAccountState(fanRef: string, now: number): FanAccountState | null {
+    const seed = this.seedOf(fanRef);
+    return seed === null ? null : this.accountOf(seed, now);
   }
 
   private rows(page: FakePage, total: number, now: number): SpenderListItem[] {
@@ -505,7 +529,8 @@ export class DataModel {
     });
   }
 
-  spenders(page: FakePage, query: SpendersQuery, now: number, total: number): Read<SpendersPage> {
+  /** `accounts` — the hub serves `fan-account-state-v1`: without it no row carries `accountState`. */
+  spenders(page: FakePage, query: SpendersQuery, now: number, total: number, accounts = true): Read<SpendersPage> {
     const needle = query.query?.toLowerCase();
     let rows = this.rows(page, total, now).filter(
       (row) =>
@@ -525,7 +550,13 @@ export class DataModel {
       scope: this.scopeOf(page),
       period: this.periodMeta(query.period, query.from, query.to, now),
       diagnostics: SCENARIO_DATA.diagnostics,
-      items: rows.slice(query.offset, query.offset + query.limit),
+      items: rows.slice(query.offset, query.offset + query.limit).map((row) => {
+        if (!accounts) {
+          const { accountState: _drop, ...older } = row;
+          return older;
+        }
+        return 'accountState' in row ? row : { ...row, accountState: null };
+      }),
       limit: query.limit,
       offset: query.offset,
       total: rows.length,

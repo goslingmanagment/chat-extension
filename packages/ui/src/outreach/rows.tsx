@@ -8,7 +8,7 @@ import { type JSX } from 'preact';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type OutreachMediaVM, type OutreachRowVM } from '@cg/contracts/vm';
 
-import { Button, Dot, FanBadge, Icon, pure, Spinner, TalkingMark, useDispatch, useI18n, useTooltip } from '../kit';
+import { Button, Dot, FanBadge, FanGoneTag, Icon, pure, Spinner, TalkingMark, useDispatch, useI18n, useTooltip } from '../kit';
 import { NewcomerAvatar } from '../newcomers/frame';
 import { asideText, tierWords } from './words';
 
@@ -258,6 +258,9 @@ function RowView({ item, index, active, locked, media, onPick }: RowProps): JSX.
   const aside = item.kind === 'aside';
   const draft = draftKind(row);
   const went = row.state === 'sending' || row.state === 'accepted' || row.state === 'sent' || row.state === 'uncertain';
+  // The fan's mark in place of the @handle, as Spenders says it (2026-11-12).
+  const handle = row.gone !== undefined ? <FanGoneTag gone={row.gone} /> : row.username === null ? null : `@${row.username}`;
+  const money = i18n.formatMoneyMills(row.lifetime);
   return (
     <div
       class={`cg-nw__row${row.selected ? ' is-sel' : ''}${draft === null ? '' : ' has-draft'}${aside ? ' is-aside' : ''}${!locked && !aside && !row.ticked ? ' is-off' : ''}`}
@@ -282,7 +285,11 @@ function RowView({ item, index, active, locked, media, onPick }: RowProps): JSX.
           {row.tier === null ? null : <span class="cg-nw__tag">{tierWords(i18n, row.tier)}</span>}
         </span>
         <span class="cg-nw__mline">
-          <span class="cg-nw__meta cg-num">{[row.gone === true ? i18n.t('spenders.tag.deleted') : row.username === null ? null : `@${row.username}`, i18n.formatMoneyMills(row.lifetime)].filter((part) => part !== null && part !== '').join(' · ')}</span>
+          <span class="cg-nw__meta cg-num">
+            {handle}
+            {handle !== null && money !== '' ? ' · ' : null}
+            {money}
+          </span>
           <TalkingMark handle={row.handle} />
         </span>
         <Status row={row} media={media} />

@@ -7,8 +7,11 @@
 // than 21; §8.7). The sorts are the table's headers (1.44.0): «Потратил» by
 // the lifetime sum, «Ждёт ответа» the longest waiting first, «Мы писали» the
 // longest since our message first, the period's sum; unknown last in each.
+// 2026-11-12: «Ушедшие» — the fans the page does not see (rows.ts `gone`): shown, hidden or alone. A group of its own
+// that «Все» does not lift (it is how the list is looked at, not which fans to pick), only «Сбросить фильтры»; the
+// counts of «Все», the tiers and the menu are of the fans it lets through.
 
-import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
+import { type SpendersFilter, type SpendersGoneFilter, type SpendersSort } from '@cg/contracts/vm';
 
 import { normalizeSearch, type SpenderRow } from './rows';
 
@@ -16,18 +19,35 @@ export type MainFilter = 'all' | 'waiting' | 'new';
 export type LastMessageFilter = 'we-wrote' | 'fan-wrote';
 export type HistoryFilter = 'history' | 'no-history';
 export type SilenceFilter = 'silent-8-21' | 'silent-over-21';
+export type GoneFilter = Exclude<SpendersGoneFilter, 'gone-show'>;
 
 export interface BoardFilters {
   readonly main: MainFilter;
   readonly lastMessage: LastMessageFilter | null;
   readonly history: HistoryFilter | null;
   readonly silence: SilenceFilter | null;
+  /** «Ушедшие»: hidden, alone; null — shown with the rest. */
+  readonly gone: GoneFilter | null;
 }
 
-export const NO_FILTERS: BoardFilters = { main: 'all', lastMessage: null, history: null, silence: null };
+export const NO_FILTERS: BoardFilters = { main: 'all', lastMessage: null, history: null, silence: null, gone: null };
+
+/** A filter but «Ушедшие» narrows the list: «Все» is not pressed. */
+function pickActive(filters: BoardFilters): boolean {
+  return filters.main !== 'all' || filters.lastMessage !== null || filters.history !== null || filters.silence !== null;
+}
 
 export function filtersActive(filters: BoardFilters): boolean {
-  return filters.main !== 'all' || filters.lastMessage !== null || filters.history !== null || filters.silence !== null;
+  return pickActive(filters) || filters.gone !== null;
+}
+
+/** «Ушедшие» as the menu shows it. */
+export const goneFilterOf = (filters: BoardFilters): SpendersGoneFilter => filters.gone ?? 'gone-show';
+
+/** Whether «Ушедшие» lets the row through. */
+export function goneLets(row: Pick<SpenderRow, 'gone'>, gone: GoneFilter | null): boolean {
+  if (gone === null) return true;
+  return gone === 'gone-only' ? row.gone !== null : row.gone === null;
 }
 
 /**
@@ -38,7 +58,12 @@ export function filtersActive(filters: BoardFilters): boolean {
 export function pressFilter(filters: BoardFilters, pressed: SpendersFilter): BoardFilters {
   switch (pressed) {
     case 'all':
-      return NO_FILTERS;
+      return { ...NO_FILTERS, gone: filters.gone };
+    case 'gone-show':
+      return { ...filters, gone: null };
+    case 'gone-hide':
+    case 'gone-only':
+      return { ...filters, gone: pressed };
     case 'waiting':
     case 'new':
       return { ...filters, main: filters.main === pressed ? 'all' : pressed };
@@ -55,8 +80,9 @@ export function pressFilter(filters: BoardFilters, pressed: SpendersFilter): Boa
 }
 
 export function filterPressed(filters: BoardFilters, id: SpendersFilter): boolean {
-  if (id === 'all') return !filtersActive(filters);
-  return filters.main === id || filters.lastMessage === id || filters.history === id || filters.silence === id;
+  if (id === 'all') return !pickActive(filters);
+  if (id === 'gone-show') return filters.gone === null;
+  return filters.main === id || filters.lastMessage === id || filters.history === id || filters.silence === id || filters.gone === id;
 }
 
 const DAY_MS = 86_400_000;
@@ -96,6 +122,11 @@ export function rowPasses(row: SpenderRow, id: SpendersFilter, now: number): boo
       const days = silentDays(row, now);
       return days !== null && days > 21;
     }
+    case 'gone-show':
+      return true;
+    case 'gone-hide':
+    case 'gone-only':
+      return goneLets(row, id);
   }
 }
 
@@ -105,7 +136,7 @@ export function rowMatches(row: SpenderRow, filters: BoardFilters, needle: strin
   if (filters.lastMessage !== null && !rowPasses(row, filters.lastMessage, now)) return false;
   if (filters.history !== null && !rowPasses(row, filters.history, now)) return false;
   if (filters.silence !== null && !rowPasses(row, filters.silence, now)) return false;
-  return true;
+  return goneLets(row, filters.gone);
 }
 
 /** The search text as it is compared: normalized, without a leading «@». */
@@ -113,10 +144,11 @@ export function searchNeedle(query: string): string {
   return normalizeSearch(query).replace(/^@+/, '');
 }
 
-/** How many loaded rows each filter button would show on its own. */
-export function filterCounts(rows: readonly SpenderRow[], ids: readonly SpendersFilter[], now: number): Record<SpendersFilter, number> {
+/** How many loaded rows each filter button would show on its own, of the rows «Ушедшие» lets through (`gone`). */
+export function filterCounts(rows: readonly SpenderRow[], ids: readonly SpendersFilter[], now: number, gone: GoneFilter | null = null): Record<SpendersFilter, number> {
   const counts = Object.fromEntries(ids.map((id) => [id, 0])) as Record<SpendersFilter, number>;
   for (const row of rows) {
+    if (!goneLets(row, gone)) continue;
     for (const id of ids) if (rowPasses(row, id, now)) counts[id] += 1;
   }
   return counts;

@@ -38,6 +38,7 @@ import * as z from 'zod/mini';
 import { SoundBatchSchema } from './sound';
 
 import { CgAnyErrorWireSchema } from './errors-fansly';
+import { FanGoneSchema } from './fan-account';
 import { FanBadgesSchema, FbuddyStateSchema } from './fan-badges';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
@@ -161,6 +162,11 @@ export const FanslyFanMarksSchema = z.strictObject({
     .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkPostsMax)),
   /** The other Fansly pages where the fan paid or lately wrote, the biggest money first; absent: none. Not a warning. */
   otherPages: z.optional(FanslyOtherPagesSchema),
+  /**
+   * 2026-11-12: the page does not see the fan — deleted, blocked or not seen for a reason not known yet (contracts
+   * fan-account.ts), the hub's word merged with the background's fresher read; absent: none.
+   */
+  gone: z.optional(FanGoneSchema),
 });
 export type FanslyFanMarks = z.infer<typeof FanslyFanMarksSchema>;
 

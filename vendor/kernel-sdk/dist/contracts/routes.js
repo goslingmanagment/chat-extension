@@ -38,7 +38,7 @@ import { agentKeyAdminRouteSchemas } from "./routes-agent-keys";
 // agent envelope, so a sibling module for the same reason as the keys above.
 import { syncRouteSchemas } from "./routes-sync";
 // The chat extension's routes (client bootstrap and what follows); same spread.
-import { clientFanCardResponseSchema, clientNumericIdSchema, clientOpenToken, clientRouteSchemas, compareClientNumericIds, } from "./routes-client";
+import { clientFanAccountStateSchema, clientFanCardResponseSchema, clientNumericIdSchema, clientOpenToken, clientRouteSchemas, compareClientNumericIds, } from "./routes-client";
 // House primitives shared with the sibling route modules (see primitives.ts).
 import { businessDate, errorResponseSchema, fanLookupParamsSchema, fanSearchMatchKindEnum, intId, isoDateTime, isoTimestamp, mills, pageParamsSchema, paginationQuerySchema, platformEnum, queryBooleanSchema, sortDirEnum, transactionStateEnum, transactionTypeEnum, } from "./primitives";
 const periodEnum = z.enum(PERIOD_OPTIONS);
@@ -1068,6 +1068,14 @@ const spenderLastTransactionSchema = z.object({
 // latest answer returned the fan, the page never asked, or the list spans more
 // than one page. Optional: a server before it omits the key.
 const accountLookupMissAtSchema = isoTimestamp.nullable().optional();
+// The fan's account as THIS page knows it (fan-account-state-v1): `seen`,
+// `deleted`, `blocked` or `unchecked` (the page does not see him and Hub does
+// not know why yet), `since` when the page stopped seeing him (null: seen, or
+// the start is unknown), `checkedAt` its latest answer. Like
+// `accountLookupMissAt`, only this page's row: null when the page never
+// answered about him or the list spans more than one page. Optional: a server
+// before it omits the key.
+const accountStateSchema = clientFanAccountStateSchema.nullable().optional();
 const spenderListItemSchema = z.object({
     fan: spenderFanSchema,
     metrics: spenderMetricsSchema,
@@ -1077,6 +1085,7 @@ const spenderListItemSchema = z.object({
     lastTransaction: spenderLastTransactionSchema,
     retentionStatus: spenderRetentionStatusEnum.exclude(["all"]),
     accountLookupMissAt: accountLookupMissAtSchema,
+    accountState: accountStateSchema,
 });
 export const spenderListResponseSchema = z.object({
     scope: spenderScopeResponseSchema,
@@ -1117,6 +1126,7 @@ const pageSpenderAutoListFanSchema = z.object({
     lifetimeCreatorNetAmountMills: mills,
     lastTransactionAt: isoTimestamp.nullable(),
     accountLookupMissAt: accountLookupMissAtSchema,
+    accountState: accountStateSchema,
 });
 export const pageSpenderAutoListDetailResponseSchema = z.object({
     page: pageRefSchema,

@@ -284,7 +284,6 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   await refreshSettings();
   // The client of a feature's call: the realm's own; a test build's, on the stand's loopback API.
   const clientNow = async () => (__CG_TEST_HOSTS__ ? (session === undefined || api === null ? null : await standFanslyClient(kit, session, api)) : (api?.client ?? null));
-  const notes = createNotesService(kit, clientNow);
   const outreach = createOutreachService(kit, clientNow);
   // «Онлайн»'s gems: FBuddy's tiers in this browser's FBuddy sign-in, once the person allowed its address (a test build
   // reads the stand's copy).
@@ -297,7 +296,9 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   });
   const online = createOnlineSeen(kit, FANSLY_SLICE, clientNow);
   const badges = createFanBadges(kit, clientNow, fbuddy);
-  const marks = createFanMarksReader(kit, FANSLY_SLICE);
+  // «Заметки»' read of the open fan's account feeds the badges' memory: the chat header's «не виден» needs no read of its own.
+  const notes = createNotesService(kit, clientNow, (creator, fanRef, response) => badges.observe(creator, fanRef, response));
+  const marks = createFanMarksReader(kit, FANSLY_SLICE, (creator, fanRef) => badges.accountRead(creator, fanRef));
   const deleted = createDeletedMessagesReader(kit, FANSLY_SLICE);
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });

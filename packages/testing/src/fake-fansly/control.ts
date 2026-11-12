@@ -44,6 +44,12 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
     case 'vault-filenames':
       for (const [name, original] of Object.entries(command.filenames)) world.uploadFilenames.set(name, original);
       return { ok: true };
+    case 'gone':
+      for (const id of command.accountIds) {
+        if (command.back === true) world.goneAccounts.delete(id);
+        else world.goneAccounts.add(id);
+      }
+      return { ok: true };
     case 'message': {
       const group = groupOf(state, command.groupId);
       const from = command.from ?? 'fan';

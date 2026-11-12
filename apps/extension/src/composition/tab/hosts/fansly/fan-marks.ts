@@ -57,7 +57,7 @@ export function startFanslyFanMarks(env: SiteAppEnv<FanslyPort>): () => void {
   const place = (): void => {
     if (env.life.aborted) return;
     const view = client.view();
-    const on = allowed() && (view.lists !== null || view.posts.length > 0 || view.otherPages.length > 0);
+    const on = allowed() && (view.lists !== null || view.posts.length > 0 || view.otherPages.length > 0 || view.gone !== null);
     if (on && slot === null) {
       slot = host.header.mount(FAN_MARKS_ORDER);
       mount = mountKitSurface('header-slot' as MountSurfaceKind, slot.root, env.deps, fanMarksSurface(client, FAN_MARKS_TEXTS), { report: env.report });

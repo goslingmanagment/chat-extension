@@ -41,8 +41,15 @@ export interface FanBadges {
   readonly tier: FbuddyTier | null;
 }
 
+/**
+ * One fan of the background's answer (`fansly.fans.badges`): the badges, and (2026-11-12) whether Fansly returned the
+ * fan's account to the background's latest read of it in the page's session (`seen`) and when that read was (`seenAt`,
+ * ms); both null — no such read is kept.
+ */
 export const FanBadgesSchema = z.strictObject({
   fanRef: z.string(),
   recentSpender: z.nullable(z.boolean()),
   tier: z.nullable(FbuddyTierSchema),
+  seen: z.nullable(z.boolean()),
+  seenAt: z.nullable(z.number().check(z.int(), z.gte(0))),
 });

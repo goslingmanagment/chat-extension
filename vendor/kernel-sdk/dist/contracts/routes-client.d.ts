@@ -94,7 +94,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration", "onlineProbe", "ofFeed", "ofPoll"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "message-authors-v1", "deleted-messages-v1", "fansly-proxies-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "other-pages-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1", "chatspace-tab-state-v2", "outreach-store-v1", "fan-badges-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "message-authors-v1", "deleted-messages-v1", "fansly-proxies-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "other-pages-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1", "chatspace-tab-state-v2", "outreach-store-v1", "fan-badges-v1", "fan-account-state-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -2794,6 +2794,25 @@ export declare const clientFanLinkDecideResponseSchema: z.ZodObject<{
         serverNow: z.ZodString;
     }, z.core.$strip>;
 }, z.core.$strip>;
+/**
+ * - `seen`: the page's latest answer returned the account;
+ * - `deleted`: the page does not see him and the account is gone (Fansly: the
+ *   public check made after he went missing found no account);
+ * - `blocked`: the page does not see him but the account exists — he blocked
+ *   the page;
+ * - `unchecked`: the page does not see him and Hub does not know why yet.
+ */
+export declare const CLIENT_FAN_ACCOUNT_STATES: readonly ["seen", "deleted", "blocked", "unchecked"];
+export declare const clientFanAccountStateSchema: z.ZodObject<{
+    state: z.ZodEnum<{
+        blocked: "blocked";
+        deleted: "deleted";
+        unchecked: "unchecked";
+        seen: "seen";
+    }>;
+    since: z.ZodNullable<z.ZodString>;
+    checkedAt: z.ZodString;
+}, z.core.$strip>;
 /** Blocklist posts one read lists at most, the newest first. */
 export declare const CLIENT_FAN_MARKS_MAX_POSTS = 5;
 /** A post's text is cut at this many characters, with «…». */
@@ -2842,6 +2861,16 @@ export declare const clientFanMarksResponseSchema: z.ZodObject<{
             subscriber: "subscriber";
             follower: "follower";
         }>>;
+    }, z.core.$strip>>>;
+    accountState: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        state: z.ZodEnum<{
+            blocked: "blocked";
+            deleted: "deleted";
+            unchecked: "unchecked";
+            seen: "seen";
+        }>;
+        since: z.ZodNullable<z.ZodString>;
+        checkedAt: z.ZodString;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
 /** Fans one read names at most. */
@@ -3088,12 +3117,14 @@ export declare const clientFanBadgesBodySchema: z.ZodObject<{
             platinum: "platinum";
         }>>>;
         recentSpender: z.ZodOptional<z.ZodBoolean>;
+        accountSeen: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
 }, z.core.$strict>;
 export declare const clientFanBadgesResponseSchema: z.ZodObject<{
     changed: z.ZodNumber;
     unchanged: z.ZodNumber;
     skipped: z.ZodNumber;
+    accountSignals: z.ZodOptional<z.ZodNumber>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export declare const clientOnlineProbeBodySchema: z.ZodObject<{}, z.core.$strict>;
@@ -5646,6 +5677,16 @@ export declare const clientRouteSchemas: {
                         follower: "follower";
                     }>>;
                 }, z.core.$strip>>>;
+                accountState: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    state: z.ZodEnum<{
+                        blocked: "blocked";
+                        deleted: "deleted";
+                        unchecked: "unchecked";
+                        seen: "seen";
+                    }>;
+                    since: z.ZodNullable<z.ZodString>;
+                    checkedAt: z.ZodString;
+                }, z.core.$strip>>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
@@ -6318,6 +6359,7 @@ export declare const clientRouteSchemas: {
                     platinum: "platinum";
                 }>>>;
                 recentSpender: z.ZodOptional<z.ZodBoolean>;
+                accountSeen: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strict>>;
         }, z.core.$strict>;
         readonly response: {
@@ -6325,6 +6367,7 @@ export declare const clientRouteSchemas: {
                 changed: z.ZodNumber;
                 unchanged: z.ZodNumber;
                 skipped: z.ZodNumber;
+                accountSignals: z.ZodOptional<z.ZodNumber>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -7775,6 +7818,7 @@ export type ClientFanCardPage = z.infer<typeof clientFanCardPageSchema>;
 export type ClientFanCardResponse = z.infer<typeof clientFanCardResponseSchema>;
 export type ClientFanMarksQuery = z.infer<typeof clientFanMarksQuerySchema>;
 export type ClientFanMarksResponse = z.infer<typeof clientFanMarksResponseSchema>;
+export type ClientFanAccountState = z.infer<typeof clientFanAccountStateSchema>;
 export type ClientOtherPagesBody = z.infer<typeof clientOtherPagesBodySchema>;
 export type ClientOtherPagesResponse = z.infer<typeof clientOtherPagesResponseSchema>;
 export type ClientFanLinkDecideBody = z.infer<typeof clientFanLinkDecideBodySchema>;

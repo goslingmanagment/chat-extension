@@ -30,6 +30,21 @@ export const OtherPageSchema = z.object({
 });
 export type OtherPage = z.infer<typeof OtherPageSchema>;
 
+/**
+ * What the asked page knows of a fan's account (hub `clientFanAccountStateSchema`, `fan-account-state-v1`), on the
+ * Spenders items and the fan marks: `state` — `seen` (its latest answer returned him), `deleted` (the account is gone),
+ * `blocked` (the account exists but the page does not see him: he blocked the page; on OnlyFans, in the page's block
+ * list), `unchecked` (the page does not see him, why is not known yet). Read open: an unknown state is `unchecked`
+ * (`fanAccountOf`). `since` — when the page stopped seeing him, null when unknown; `checkedAt` — the page's latest
+ * answer. null — the page never answered about him.
+ */
+export const FanAccountStateSchema = z.object({
+  state: z.string(),
+  since: z.nullable(IsoTimestampSchema),
+  checkedAt: IsoTimestampSchema,
+});
+export type FanAccountState = z.infer<typeof FanAccountStateSchema>;
+
 /** Hub local business date `YYYY-MM-DD` (hub `businessDate`): a real calendar date. */
 export const BUSINESS_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -318,6 +333,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * passed on to the hub (`clientFanBadges`). A hub without it is never told.
    */
   'fan-badges-v1',
+  /**
+   * 2026-11-12: a fan's account on the page (`accountState` on the Spenders items and the fan marks: seen, deleted,
+   * blocked, unchecked) and the tab's word whether Fansly returned it (`accountSeen` of `clientFanBadges`). A hub
+   * without it sends neither and is never told: its badges body is strict.
+   */
+  'fan-account-state-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

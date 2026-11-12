@@ -6,13 +6,15 @@
 // sort or reveal. The hub's total is shown next to what is loaded; a board
 // cut at the visible limit says so.
 
+import { type FanAccountRead } from '@cg/contracts/fan-account';
 import { type AutoLists, type HubSpenderPeriod, type SpendersBoard } from '@cg/contracts/hub';
 import { STORAGE_LIMITS } from '@cg/contracts/limits';
 import { type CoverageLevel } from '@cg/contracts/ops';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
 
-import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, waitingGroups, type BoardFilters } from './filters';
+import { fanGoneOf, sameFanGone } from '../fans/account-state';
+import { filterCounts, filtersActive, rowMatches, searchNeedle, sortRows, waitingGroups, type BoardFilters, type GoneFilter } from './filters';
 import { isNewSpender, spenderRows, type SpenderRow } from './rows';
 import { UNBOUNDED, buildShelves, needsCents, shelfTotals, shownTotals, type BucketBasis, type Shelf, type ShelfRange, type ShelfTotals } from './shelves';
 
@@ -96,6 +98,27 @@ export function withPeriod(list: BoardIndex, period: HubSpenderPeriod, delta: Bo
     return { ...row, period: amount, isNew: isNewSpender(row.lifetime, amount, period) };
   });
   return { ...list, period, rows, shelves: buildShelves(rows, list.tiers), byFan: new Map(rows.map((row) => [row.fanRef, row])) };
+}
+
+/**
+ * 2026-11-12: the site's own reads of the fans' accounts laid over the hub's word (`fanGoneOf`): a fresher «not seen»
+ * marks the row «не виден», a fresher «seen» clears the hub's mark. The same index when no row's mark changes.
+ */
+export function withAccountReads(index: BoardIndex, readOf: (fanRef: string) => FanAccountRead | null): BoardIndex {
+  let changed = false;
+  const rows = index.rows.map((row): SpenderRow => {
+    const gone = fanGoneOf(row.account, readOf(row.fanRef));
+    if (sameFanGone(gone, row.gone)) return row;
+    changed = true;
+    return { ...row, gone };
+  });
+  if (!changed) return index;
+  return { ...index, rows, shelves: buildShelves(rows, index.tiers), byFan: new Map(rows.map((row) => [row.fanRef, row])) };
+}
+
+/** The rows of the board the page does not see: «N ушли» of the window's header. */
+export function goneCount(index: BoardIndex): number {
+  return index.rows.reduce((n, row) => n + (row.gone === null ? 0 : 1), 0);
 }
 
 export interface BoardQuery {
@@ -199,9 +222,9 @@ export function viewBoard(index: BoardIndex, query: BoardQuery, source?: readonl
   return { shelves, shown: narrowed ? shown.length : null, narrowed, order, tierOf };
 }
 
-/** Counters of the filter buttons over the loaded rows («Все 40», «Ждут ответа 12», «Новые 3»). */
-export function boardFilterCounts(index: BoardIndex, ids: readonly SpendersFilter[], now: number): Record<SpendersFilter, number> {
-  return filterCounts(index.rows, ids, now);
+/** Counters of the filter buttons over the loaded rows «Ушедшие» lets through («Все 40», «Ждут ответа 12», «Новые 3»). */
+export function boardFilterCounts(index: BoardIndex, ids: readonly SpendersFilter[], now: number, gone: GoneFilter | null = null): Record<SpendersFilter, number> {
+  return filterCounts(index.rows, ids, now, gone);
 }
 
 /** The fan before and after `fanRef` in the visible order (SP-056); null at either end or when it is not listed. */

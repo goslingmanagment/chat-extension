@@ -128,7 +128,13 @@ const SpendersPeriodChoiceSchema = z.enum(['lifetime', '30d', 'mtd', '7d', 'toda
  * fans silent 8–21 and more than 21 full days since their last message (§8.7 «Молчание»; the statistics' «Кому
  * написать» opens them).
  */
-export const SPENDERS_FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history', 'silent-8-21', 'silent-over-21'] as const;
+/**
+ * 2026-11-12: «Ушедшие» of the menu «Фильтр» — the fans the page does not see (deleted, blocked, not seen): shown with
+ * the rest (`gone-show`, the default), hidden, or alone. Its own group, beside the others; «Все» keeps it.
+ */
+export const SPENDERS_GONE_FILTERS = ['gone-show', 'gone-hide', 'gone-only'] as const;
+export type SpendersGoneFilter = (typeof SPENDERS_GONE_FILTERS)[number];
+export const SPENDERS_FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history', 'silent-8-21', 'silent-over-21', ...SPENDERS_GONE_FILTERS] as const;
 export type SpendersFilter = (typeof SPENDERS_FILTERS)[number];
 /**
  * 1.44.0: a click on a column's header. `sum` — «Потратил», by the lifetime under the tiers' headers; `waiting` — «Ждёт

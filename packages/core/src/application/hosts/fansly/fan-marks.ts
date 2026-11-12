@@ -18,7 +18,7 @@ export interface FanMarksTarget {
 
 export type FanMarksAnswer = { readonly ok: true; readonly marks: FanslyFanMarks } | { readonly ok: false };
 
-export const FAN_MARKS_NONE: FanMarksView = { lists: null, posts: [], otherPages: [] };
+export const FAN_MARKS_NONE: FanMarksView = { lists: null, posts: [], otherPages: [], gone: null };
 /** Answers the tab keeps for chats opened again; the oldest goes first. */
 const KEPT = 50;
 
@@ -56,7 +56,9 @@ export function fanMarksView(marks: FanslyFanMarks, username: string | null): Fa
   posts.sort((a, b) => b.postedAt - a.postedAt);
   const first = shown[0];
   const otherPages = otherPagesOf(marks.otherPages).otherPages ?? [];
-  return first === undefined && posts.length === 0 && otherPages.length === 0 ? FAN_MARKS_NONE : { lists: first === undefined ? null : { label: first.label, groups: shown }, posts, otherPages };
+  // The background merged the hub's word on his account with its own fresher read (domain/fans/account-state.ts).
+  const gone = marks.gone ?? null;
+  return first === undefined && posts.length === 0 && otherPages.length === 0 && gone === null ? FAN_MARKS_NONE : { lists: first === undefined ? null : { label: first.label, groups: shown }, posts, otherPages, gone };
 }
 
 export function createFanMarks(deps: {

@@ -82,6 +82,11 @@ export type FakeFanslyCommand =
   | { readonly op: 'status' }
   /** The upload service retains these original filenames instead of the selected File names. */
   | { readonly op: 'vault-filenames'; readonly filenames: Readonly<Record<string, string>> }
+  /**
+   * 2026-11-12: these accounts are no longer returned to the creator's session by `GET /account?ids=` (the fan deleted
+   * his account or blocked the page); `back` — returned again. The inbox and the groups keep them.
+   */
+  | { readonly op: 'gone'; readonly accountIds: readonly string[]; readonly back?: boolean }
   /** A message appears in a group and its `5/1` frame goes out (`silent` — no frame: the socket «lost» it). */
   | {
       readonly op: 'message';

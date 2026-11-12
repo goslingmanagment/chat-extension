@@ -9,7 +9,7 @@ import * as z from 'zod/mini';
 
 import { CountSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, TimeZoneSchema, boundedText } from '../primitives';
 import { HUB_PLATFORMS, HubPageRefSchema } from './auth';
-import { BusinessDateSchema, HubCursorSchema, PageLabelSchema } from './wire';
+import { BusinessDateSchema, FanAccountStateSchema, HubCursorSchema, PageLabelSchema } from './wire';
 
 /** Board pages: 5 × 200 rows, 2 in parallel, one 120 s budget, 10 min shared cache (§8.5). */
 export const SPENDERS_BOARD = {
@@ -169,6 +169,12 @@ export const SpenderListItemSchema = z.object({
    * never asked, or the list spans several pages. Absent from a hub before it.
    */
   accountLookupMissAt: z.optional(z.nullable(IsoTimestampSchema)),
+  /**
+   * 2026-11-12 (`fan-account-state-v1`): the fan's account as this page knows it — seen, deleted, blocked or not
+   * seen for a reason not known yet — when it stopped seeing him and its latest answer; null — the page never
+   * answered about him, or the list spans several pages. Absent from a hub before it (`accountLookupMissAt` stands in).
+   */
+  accountState: z.optional(z.nullable(FanAccountStateSchema)),
 });
 export type SpenderListItem = z.infer<typeof SpenderListItemSchema>;
 

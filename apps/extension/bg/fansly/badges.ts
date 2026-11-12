@@ -17,12 +17,20 @@
 // (the tier where FBuddy answered, null where it has none for him; the blue card where Fansly said it). A fan whose
 // badges equal what went in the last six hours does not go again. A refusal or no answer is one warning, and those
 // fans go again with a later read; nothing is repeated by itself.
+//
+// 2026-11-12 (`fan-account-state-v1`): the same read also says whether Fansly returned each asked fan's account
+// (core `readAccountsSeen`: a fan who deleted his account or blocked the page is not in the answer). It is kept with the
+// fan's card and answered to the tab (`seen`, `seenAt`: the boards' «не виден» before the hub knows), and goes to the hub
+// as `accountSeen` only for the fans read from Fansly in this very request, never from what is kept (a kept answer must
+// not look fresh), and only to a hub that lists the capability (its badges body is strict). «Заметки»' own read of the
+// open fan's account (`observe`) goes into the same memory, so the chat header's mark needs no read of its own.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
+import type { FanAccountRead } from '@cg/contracts/fan-account';
 import type { FbuddyTier } from '@cg/contracts/fan-badges';
 import { FAN_BADGES_REPORT_MAX, hasCapability, type FanBadgesReportFan } from '@cg/contracts/hub';
 import type { FanslyTabRequestPayload, FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
-import { readRecentSpenders } from '@cg/core/domain/hosts/fansly/badges';
+import { readAccountsSeen, readRecentSpenders } from '@cg/core/domain/hosts/fansly/badges';
 import { FanslyApiError, type FanslyClient } from '@cg/fansly-api';
 
 import type { BackgroundKit, HostSiteSender } from '../../src/composition/background/host-module';
@@ -54,6 +62,13 @@ export const FAN_BADGES_REPORT = {
 
 export interface FanBadgesService {
   badges(request: Request, sender: HostSiteSender): Promise<Answer>;
+  /**
+   * Another read of `GET /account?ids=` in the creator's session (one fan, «Заметки»): what it says of the fan's card
+   * and account is kept as a read of this service's own. Nothing goes to the hub for it.
+   */
+  observe(creator: string, fanRef: string, response: unknown): void;
+  /** The kept read of a fan's account through the creator's session; null — none kept. */
+  accountRead(creator: string, fanRef: string): FanAccountRead | null;
   /** Forgets everything (another person signed in). */
   clear(): void;
 }
@@ -63,13 +78,28 @@ interface Sent {
   readonly at: number;
   readonly tier: FbuddyTier | null | undefined;
   readonly card: boolean | undefined;
+  /** The last `accountSeen` that went within the six hours; undefined — none did. */
+  readonly seen: boolean | undefined;
+}
+
+/** A fan's read of `GET /account?ids=`: when, the blue card (null — not known) and whether the account was returned (null — the answer did not say). */
+interface Card {
+  readonly at: number;
+  readonly value: boolean | null;
+  readonly seen: boolean | null;
+}
+
+/** What the asked fans' reads say: by fan, and which of them were read from Fansly in this request. */
+interface Read {
+  readonly cards: ReadonlyMap<string, Card | null>;
+  readonly fresh: ReadonlySet<string>;
 }
 
 const fail = (error: CgAnyErrorWire): Answer => ({ ok: false, error });
 
 export function createFanBadges(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'networkSession' | 'log'>, clientNow: () => Promise<Pick<FanslyClient, 'call'> | null>, fbuddy: FbuddyTiers | null, random: () => number = Math.random): FanBadgesService {
-  /** Each fan's blue card, by creator and fan, and when it was read. */
-  const cards = new Map<string, { readonly at: number; readonly value: boolean | null }>();
+  /** Each fan's blue card and account, by creator and fan, and when it was read. */
+  const cards = new Map<string, Card>();
   /** What went to the hub, by creator and fan, the oldest first. */
   const sent = new Map<string, Sent>();
   /** Each creator's last turn to read Fansly: the next request waits for it. */
@@ -101,15 +131,21 @@ export function createFanBadges(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'netw
     });
   }
 
-  /** The fans' blue cards: the ones kept, the rest from `GET /account?ids=` in the creator's turn; a failed read leaves them unknown. */
-  async function readCards(creator: string, account: string, fanRefs: readonly string[]): Promise<Map<string, boolean | null>> {
+  /** The kept reads past thirty minutes, and the oldest beyond the bound. */
+  function pruneCards(now: number): void {
+    for (const [name, entry] of cards) if (cards.size > FAN_BADGES_READ.keepMax || now - entry.at >= FAN_BADGES_READ.keepMs) cards.delete(name);
+  }
+
+  /** The fans' blue cards and accounts: the ones kept, the rest from `GET /account?ids=` in the creator's turn; a failed read leaves them unknown. */
+  async function readCards(creator: string, account: string, fanRefs: readonly string[]): Promise<Read> {
     const begun = generation;
     const signal = stop.signal;
     const now = kit.clock.now();
     const deadline = now + FAN_BADGES_READ.waitMs;
-    for (const [name, entry] of cards) if (cards.size > FAN_BADGES_READ.keepMax || now - entry.at >= FAN_BADGES_READ.keepMs) cards.delete(name);
+    pruneCards(now);
     const key = (fan: string): string => `${creator}:${fan}`;
-    const known = (): Map<string, boolean | null> => new Map(fanRefs.map((fan) => [fan, cards.get(key(fan))?.value ?? null]));
+    const fresh = new Set<string>();
+    const known = (): Read => ({ cards: new Map(fanRefs.map((fan) => [fan, cards.get(key(fan)) ?? null])), fresh });
     if (fanRefs.every((fan) => cards.has(key(fan)))) return known();
     // One read of the creator at a time, in the order asked. Whoever comes next waits for the one before this one too,
     // even when this one gave up waiting.
@@ -120,7 +156,7 @@ export function createFanBadges(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'netw
     });
     chains.set(creator, turn);
     try {
-      if ((await race(previous, deadline, signal)) === 'work') await readMissing(account, fanRefs, key, deadline, signal, begun);
+      if ((await race(previous, deadline, signal)) === 'work') await readMissing(account, fanRefs, key, deadline, signal, begun, fresh);
     } finally {
       void previous.then(() => {
         release();
@@ -131,7 +167,7 @@ export function createFanBadges(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'netw
   }
 
   /** The fans not kept now (the turn before may have read them), in one read; `early` is asked again at its moment. */
-  async function readMissing(account: string, fanRefs: readonly string[], key: (fan: string) => string, deadline: number, signal: AbortSignal, begun: number): Promise<void> {
+  async function readMissing(account: string, fanRefs: readonly string[], key: (fan: string) => string, deadline: number, signal: AbortSignal, begun: number, fresh: Set<string>): Promise<void> {
     let client: Pick<FanslyClient, 'call'> | null | undefined;
     for (;;) {
       const missing = fanRefs.filter((fan) => !cards.has(key(fan)));
@@ -143,8 +179,16 @@ export function createFanBadges(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'netw
         // Read for someone signed out meanwhile: not kept.
         if (begun !== generation) return;
         const found = readRecentSpenders(answer.response, missing);
-        if (found === null) kit.log.service({ level: 'warn', scope: 'fansly.badges', msg: 'accounts malformed', fields: {} });
-        else for (const fan of missing) cards.set(key(fan), { at: kit.clock.now(), value: found.get(fan) ?? null });
+        if (found === null) {
+          kit.log.service({ level: 'warn', scope: 'fansly.badges', msg: 'accounts malformed', fields: {} });
+          return;
+        }
+        const seen = readAccountsSeen(answer.response, missing);
+        const at = kit.clock.now();
+        for (const fan of missing) {
+          cards.set(key(fan), { at, value: found.get(fan) ?? null, seen: seen?.get(fan) ?? null });
+          fresh.add(fan);
+        }
         return;
       } catch (error) {
         // Too early for the creator's `/account*` spacing: nothing left; asked again at the pacer's moment, while in time.
@@ -168,27 +212,35 @@ export function createFanBadges(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'netw
     }
   }
 
-  /** What is known of the asked fans and did not go lately, to the hub; never awaited by the tab's answer. */
-  async function report(pageLabel: string, creator: string, fanRefs: readonly string[], found: ReadonlyMap<string, boolean | null>, tiers: FbuddyAnswer): Promise<void> {
+  /**
+   * What is known of the asked fans and did not go lately, to the hub; never awaited by the tab's answer. `accounts` —
+   * the hub takes `accountSeen`: only a fan read from Fansly in this request carries it.
+   */
+  async function report(pageLabel: string, creator: string, fanRefs: readonly string[], read: Read, tiers: FbuddyAnswer, accounts: boolean): Promise<void> {
     const now = kit.clock.now();
     prune(now);
     const fans: FanBadgesReportFan[] = [];
     const marked: Array<{ readonly name: string; readonly before: Sent | undefined; readonly entry: Sent }> = [];
     for (const fanRef of fanRefs) {
       if (fans.length >= FAN_BADGES_REPORT_MAX) break;
-      const value = found.get(fanRef);
+      const kept = read.cards.get(fanRef) ?? null;
+      const value = kept?.value ?? null;
       const card = typeof value === 'boolean' ? value : undefined;
       const tier = tiers.state === 'on' && tiers.tiers.has(fanRef) ? (tiers.tiers.get(fanRef) ?? null) : undefined;
-      if (card === undefined && tier === undefined) continue;
+      // A kept read is not fresh: only what Fansly answered this request goes as the account's word.
+      const accountSeen = accounts && read.fresh.has(fanRef) && typeof kept?.seen === 'boolean' ? kept.seen : undefined;
+      if (card === undefined && tier === undefined && accountSeen === undefined) continue;
       const name = `${creator}:${fanRef}`;
       const before = sent.get(name);
-      if (before !== undefined && now - before.at < FAN_BADGES_REPORT.againMs && before.tier === tier && before.card === card) continue;
+      const recent = before !== undefined && now - before.at < FAN_BADGES_REPORT.againMs ? before : undefined;
+      // A request without a fresh word on the account says nothing new of it; one with the word it sent lately, neither.
+      if (recent !== undefined && recent.tier === tier && recent.card === card && (accountSeen === undefined || recent.seen === accountSeen)) continue;
       // Remembered before the call: a request meanwhile does not send the fan again.
-      const entry: Sent = { at: now, tier, card };
+      const entry: Sent = { at: now, tier, card, seen: accountSeen ?? recent?.seen };
       sent.delete(name);
       sent.set(name, entry);
       marked.push({ name, before, entry });
-      fans.push({ fanRef, ...(tier === undefined ? {} : { fbuddyTier: tier }), ...(card === undefined ? {} : { recentSpender: card }) });
+      fans.push({ fanRef, ...(tier === undefined ? {} : { fbuddyTier: tier }), ...(card === undefined ? {} : { recentSpender: card }), ...(accountSeen === undefined ? {} : { accountSeen }) });
     }
     if (fans.length === 0) return;
     prune(now);
@@ -220,12 +272,37 @@ export function createFanBadges(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'netw
       const creator = page.platformAccountId;
       // The hub is told only when it serves the badges, for this page of the same bootstrap.
       const reportTo = hasCapability(bootstrap.capabilities, 'fan-badges-v1') ? page.pageLabel : null;
+      const accounts = hasCapability(bootstrap.capabilities, 'fan-account-state-v1');
       const begun = generation;
       const fanRefs = [...new Set(request.fanRefs)].filter((fan) => fan !== creator);
       const none: FbuddyAnswer = { state: 'failed', tiers: new Map<string, FbuddyTier | null>() };
-      const [found, tiers] = await Promise.all([readCards(creator, request.hostAccountId, fanRefs), fbuddy === null ? Promise.resolve(none) : fbuddy.read(creator, fanRefs).catch(() => none)]);
-      if (reportTo !== null && begun === generation) void report(reportTo, creator, fanRefs, found, tiers).catch(() => undefined);
-      return { ok: true, fans: fanRefs.map((fanRef) => ({ fanRef, recentSpender: found.get(fanRef) ?? null, tier: tiers.tiers.get(fanRef) ?? null })), fbuddy: tiers.state };
+      const [read, tiers] = await Promise.all([readCards(creator, request.hostAccountId, fanRefs), fbuddy === null ? Promise.resolve(none) : fbuddy.read(creator, fanRefs).catch(() => none)]);
+      if (reportTo !== null && begun === generation) void report(reportTo, creator, fanRefs, read, tiers, accounts).catch(() => undefined);
+      return {
+        ok: true,
+        fans: fanRefs.map((fanRef) => {
+          const kept = read.cards.get(fanRef) ?? null;
+          const seen = kept?.seen ?? null;
+          return { fanRef, recentSpender: kept?.value ?? null, tier: tiers.tiers.get(fanRef) ?? null, seen, seenAt: seen === null || kept === null ? null : kept.at };
+        }),
+        fbuddy: tiers.state,
+      };
+    },
+    observe(creator, fanRef, response) {
+      const seen = readAccountsSeen(response, [fanRef])?.get(fanRef);
+      if (seen === undefined) return;
+      const now = kit.clock.now();
+      pruneCards(now);
+      const name = `${creator}:${fanRef}`;
+      // The card as this answer gives it; a fan not returned keeps no card of his.
+      const card = readRecentSpenders(response, [fanRef])?.get(fanRef) ?? null;
+      cards.delete(name);
+      cards.set(name, { at: now, value: card, seen });
+    },
+    accountRead(creator, fanRef) {
+      const kept = cards.get(`${creator}:${fanRef}`);
+      if (kept === undefined || kept.seen === null || kit.clock.now() - kept.at >= FAN_BADGES_READ.keepMs) return null;
+      return { seen: kept.seen, at: kept.at };
     },
     clear() {
       cards.clear();

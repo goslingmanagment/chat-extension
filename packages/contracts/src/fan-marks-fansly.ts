@@ -1,6 +1,7 @@
 // The open fan's marks in Fansly's chat header (hub `clientFanMarks`): the header's own client, like «Регистрация»'s;
 // no DOM or network. Two warnings and, not a warning, his money on other pages: nothing here disables or blocks anything.
 
+import type { FanGone, FanGoneState } from './fan-account';
 import type { OtherPageVM } from './vm/other-pages';
 
 /** Where the fan is in a list of one label: on this page (`here`), and the other models' names, deduplicated. */
@@ -29,6 +30,8 @@ export interface FanMarksView {
   readonly posts: readonly FanMarksPostView[];
   /** The fan's money on other pages, the biggest first; empty — none. */
   readonly otherPages: readonly OtherPageVM[];
+  /** 2026-11-12: the page does not see the fan («Удалён», «Заблокировал», «Не виден»); null — it does, or nobody knows otherwise. */
+  readonly gone: FanGone | null;
 }
 
 export interface FanMarksClient {
@@ -40,6 +43,8 @@ export interface FanMarksClient {
 export interface FanMarksCopy {
   /** The blocklist mark in the header. */
   readonly blocklist: string;
+  /** 2026-11-12: the mark of a fan the page does not see; its card has the shared words of Spenders. */
+  readonly gone: Readonly<Record<FanGoneState, string>>;
   /** «В списке «{label}» у {who}». */
   listsWhere(label: string, here: boolean, names: readonly string[]): string;
   /** The explanation's title over the posts. */

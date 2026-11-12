@@ -1195,7 +1195,7 @@ export class FakeHub {
       case 'pageFanProfile':
         return read(s.data.dossier(need(page), (request as DossierQuery).fanRef, s.config.spendersTotal));
       case 'spenders':
-        return read(s.data.spenders(need(page), request as SpendersQuery, now, s.config.spendersTotal));
+        return read(s.data.spenders(need(page), request as SpendersQuery, now, s.config.spendersTotal, s.config.capabilities.includes('fan-account-state-v1')));
       case 'spenderDetail':
         return read(s.data.spenderDetail(need(page), request as SpenderDetailQuery, now, s.config.spendersTotal));
       case 'spenderBatch':
@@ -1289,7 +1289,15 @@ export class FakeHub {
       case 'clientFanCard':
         return { kind: 'json', status: 200, body: s.data.fanCard(need(page), (request as FanCardQuery).fanRef, now) };
       case 'clientFanMarks':
-        return { kind: 'json', status: 200, body: fakeFanMarks(need(page), request as FanMarksQuery, now) };
+        return {
+          kind: 'json',
+          status: 200,
+          body: {
+            ...fakeFanMarks(need(page), request as FanMarksQuery, now),
+            // 2026-11-12: the page's word on his account, from the Spenders seeds (never answered for anyone else).
+            ...(s.config.capabilities.includes('fan-account-state-v1') ? { accountState: s.data.fanAccountState((request as FanMarksQuery).fanRef, now) } : {}),
+          },
+        };
       case 'clientDeletedMessages':
         return { kind: 'json', status: 200, body: s.data.deletedMessages(need(page), (request as DeletedMessagesQuery).fanRef, need(principal).user.userId, now, (request as DeletedMessagesQuery).conversationRef) };
       case 'clientOtherPages':
@@ -1310,9 +1318,16 @@ export class FakeHub {
         return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal, s.config.onlineStand));
       case 'clientOnlinePresence':
         return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now, s.config.spendersTotal));
-      case 'clientFanBadges':
+      case 'clientFanBadges': {
         // The fans' badges a Fansly tab's background read: taken as new, kept nowhere (the journal holds the request).
-        return { kind: 'json', status: 200, body: { changed: (request as FanBadgesReport).fans.length, unchanged: 0, skipped: 0, serverNow: iso(now) } };
+        const fans = (request as FanBadgesReport).fans;
+        const accounts = s.config.capabilities.includes('fan-account-state-v1');
+        // A hub before `fan-account-state-v1` has no `accountSeen` in its strict body: an unknown key, 400.
+        if (!accounts && fans.some((fan) => fan.accountSeen !== undefined)) return { kind: 'refuse', refusal: { error: 'bad_request' } };
+        // `accountSeen` is a signal: one that disagrees with the page's word is kept, and the page asks again.
+        const signals = fans.filter((fan) => fan.accountSeen !== undefined && (s.data.fanAccountState(fan.fanRef, now)?.state === 'seen') !== fan.accountSeen).length;
+        return { kind: 'json', status: 200, body: { changed: fans.length, unchanged: 0, skipped: 0, ...(accounts ? { accountSignals: signals } : {}), serverNow: iso(now) } };
+      }
       case 'clientOnlyfansPoll':
         return read(s.data.onlyfansPoll(need(page), now, (request as OnlyfansPollRequest).passed));
       case 'clientOnlyfansFeed':
