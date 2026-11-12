@@ -12,7 +12,8 @@
 // P7c) — which places the dock by Fansly's composer (R20 P7d) and reads the
 // page's theme. Until the dock has a place, nothing of the application
 // starts on a Fansly page — but on `/creator/vault`, where the vault's entry
-// has its place (P13b); the palette of the page's variables is P8d's.
+// has its place (P13b), and on the list of chats (2026-11-12: the strip of
+// pinned chats); the palette of the page's variables is P8d's.
 // P7g waits for coexistence admission before the shared tab registers or
 // starts background work. A retired copy stays off until reload.
 
@@ -20,6 +21,7 @@ import { removeStaleHosts } from '@cg/host-kit/isolated/hosts';
 
 import type { LauncherViewEnv } from './launcher-view';
 import { watchCoexistence } from './legacy';
+import { isMessagesPath } from './route';
 import type { FanslyDiagnostic } from './host-port';
 import { startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } from './start';
 
@@ -44,7 +46,9 @@ export interface StartedFanslyTab extends StartedFanslyHost {
   /**
    * The application is wanted without a composer (R20 P13b): on `/creator/vault` the vault's entry has its place, so
    * the application loads as for the dock's — and with it, if the page's owner switched the vault on, the entry. And
-   * from the first click on the floating launcher on (X46): the window it asked for comes with the application.
+   * from the first click on the floating launcher on (X46): the window it asked for comes with the application. And
+   * (2026-11-12, temporary chat pins) on the list of chats, `/messages` and `/messages/<id>`: the strip comes with it,
+   * an SPA move there from another page included.
    */
   readonly wantsApp: { current(): boolean; onChange(listener: () => void): () => void };
 }
@@ -65,10 +69,10 @@ export function startFanslyTab(env: FanslyStartEnv): StartedFanslyTab {
   });
   const { launcher } = started;
   const wantsApp = {
-    current: () => launcher.wanted() || onVault(started.route.current().path),
+    current: () => launcher.wanted() || onVault(started.route.current().path) || isMessagesPath(started.route.current().path),
     onChange(listener: () => void) {
       const offRoute = started.route.onChange((change) => {
-        if (onVault(change.route.path) !== onVault(change.previous.path)) listener();
+        if (onVault(change.route.path) !== onVault(change.previous.path) || isMessagesPath(change.route.path) !== isMessagesPath(change.previous.path)) listener();
       });
       // Every click: an application whose load failed is asked for again (UP-016: nothing reloads by itself).
       const offLauncher = launcher.onWanted(listener);

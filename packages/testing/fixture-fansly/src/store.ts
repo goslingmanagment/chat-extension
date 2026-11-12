@@ -70,6 +70,19 @@ export class GroupService {
     this.cache.delete(groupId);
   }
 
+  /**
+   * A message of a chat the list has not loaded (the socket's): the group is read and goes on top of the list, the one
+   * row Fansly's route adds above its loaded ones (main:74291-74296, 74362).
+   */
+  fetchNewGroup(groupId: string): void {
+    this.backend.group(groupId, (detail) => {
+      if (detail === null) return;
+      this.upsert(detail);
+      if (!this.inboxIds.includes(detail.id)) this.inboxIds.unshift(detail.id);
+      this.emitGroupsChange();
+    });
+  }
+
   /** `GET /group/<id>/` on every entry into a chat; its answer refreshes the cache and tells every listener. */
   fetchGroup(groupId: string): void {
     this.backend.group(groupId, (detail) => {
@@ -239,7 +252,17 @@ export class GroupService {
   /** A message the socket brings (5/1): into the loaded list, then to the group's listeners. One the page has already is not taken twice. */
   receive(message: Message): void {
     const group = this.cache.get(message.groupId);
-    if (group === undefined) return;
+    if (group === undefined) {
+      // A chat the page has not loaded yet (beyond the list's pages): read, then on top of the list with its message.
+      // A loaded chat keeps its place: Fansly's route does not sort its loaded rows again (main:74291-74296, 74362).
+      this.backend.group(message.groupId, (detail) => {
+        if (detail === null || this.cache.has(detail.id)) return;
+        this.upsert(detail);
+        if (!this.inboxIds.includes(detail.id)) this.inboxIds.unshift(detail.id);
+        this.receive(message);
+      });
+      return;
+    }
     if (group.messages.some((known) => known.id === message.id)) return;
     const item: PageMessage = { ...message, queued: false };
     if (group.latestLoaded) group.messages = merged(group.messages, [item]);

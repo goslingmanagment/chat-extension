@@ -85,6 +85,10 @@
 // — the agency's «💩 Бомж» lists and FANSLY BLOCKLIST's posts — once per opened chat, each page's and fan's answer kept
 // ten minutes, a read in flight joined.
 //
+// 2026-11-12, temporary chat pins (`fansly.pins.{read,change}`, core services/hosts/fansly/pins.ts): the person's own, in
+// storage.local by creator, never to the hub; a pin or an unpin is told to every Fansly tab (`fansly.pins.changed`), and
+// «Закрепы чатов» switched on the settings page too (`fansly.pins.switched`).
+//
 // «Фан удалил» (`fansly.deleted.read`, bg/fansly/deleted.ts): the hub's `clientDeletedMessages` for the chat header, the
 // open fan's deleted messages with the text the hub kept, when the chat opens and after the page heard a deletion in it.
 //
@@ -122,6 +126,7 @@ import { createFanslySend, type FanslySend, type FanslySendDeps, type FanslySend
 import { createFanslyGreeting, type FanslyGreeting } from '@cg/core/services/hosts/fansly/greeting';
 import { freshForSend, verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
+import { FanslyPinsStorageError, createFanslyPins } from '@cg/core/services/hosts/fansly/pins';
 import { arrangeVaultAlbum, createFanslyApi, createFanslyClient, readVaultAlbum, renameVaultMember, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
@@ -272,6 +277,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   let notesView = kit.settingsExt?.current().hosts['fansly-web'].notesView ?? null;
   // 2026-10-29: so is the mark of the list of chats, chosen on the settings page.
   let inboxMark = kit.settingsExt?.current().hosts['fansly-web'].inboxMark ?? null;
+  // 2026-11-12: and «Закрепы чатов».
+  let pinsOn = kit.settingsExt?.current().hosts['fansly-web'].pins ?? null;
   const offSettings = kit.settingsExt?.onChange(() => {
     void refreshSettings();
     const view = kit.settingsExt?.current().hosts['fansly-web'].notesView ?? null;
@@ -280,6 +287,9 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     const mark = kit.settingsExt?.current().hosts['fansly-web'].inboxMark ?? null;
     if (mark !== null && mark !== inboxMark) kit.site?.emit('fansly.inbox.markChanged', { mark });
     inboxMark = mark;
+    const on = kit.settingsExt?.current().hosts['fansly-web'].pins ?? null;
+    if (on !== null && on !== pinsOn) kit.site?.emit('fansly.pins.switched', { on });
+    pinsOn = on;
   });
   await refreshSettings();
   // The client of a feature's call: the realm's own; a test build's, on the stand's loopback API.
@@ -300,6 +310,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const notes = createNotesService(kit, clientNow, (creator, fanRef, response) => badges.observe(creator, fanRef, response));
   const marks = createFanMarksReader(kit, FANSLY_SLICE, (creator, fanRef) => badges.accountRead(creator, fanRef));
   const deleted = createDeletedMessagesReader(kit, FANSLY_SLICE);
+  // The person's pins: whoever is signed in now owns them; nobody — nothing read or written.
+  const pins = createFanslyPins({ local: kit.storage.local, now: () => kit.clock.now(), owner: () => kit.install.owner(), log: kit.log.service });
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
@@ -450,6 +462,23 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       }
       case 'fansly.inbox.mark':
         return kit.settingsExt === undefined ? unreachable('no settings.ext port') : ok({ mark: (await kit.settingsExt.state()).state.ext.hosts['fansly-web'].inboxMark });
+      case 'fansly.pins.read':
+      case 'fansly.pins.change': {
+        const request = payload as FanslyTabRequestPayload<'fansly.pins.read'> | FanslyTabRequestPayload<'fansly.pins.change'>;
+        const creator = request.hostAccountId;
+        // Only a tab of the creator changes its pins (a tab that has not said its account yet is not refused).
+        if (type === 'fansly.pins.change' && !tabOnCreator(kit, tab, creator)) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+        try {
+          const change = type === 'fansly.pins.change' ? (request as FanslyTabRequestPayload<'fansly.pins.change'>) : null;
+          // The switch first: nothing is awaited after the queue's step, so no answer lands after a newer change's event.
+          const on = change !== null || kit.settingsExt === undefined ? true : (await kit.settingsExt.state()).state.ext.hosts['fansly-web'].pins;
+          const answer = change === null ? await pins.read(creator) : await pins.change(creator, change.op === 'pin' ? { op: 'pin', pin: change.pin } : change.op === 'unpin' ? { op: 'unpin', groupId: change.groupId } : { op: 'touch', groupId: change.groupId, at: change.at });
+          if (answer.changed) kit.site?.emit('fansly.pins.changed', { hostAccountId: creator, pins: [...answer.pins] });
+          return change === null ? ok({ on, pins: answer.pins }) : ok({ pins: answer.pins });
+        } catch (error) {
+          return { ok: false, error: { code: error instanceof FanslyPinsStorageError ? error.code : 'CG-STORAGE-READ' } };
+        }
+      }
       case 'fansly.sound.batch': {
         const batch = payload as FanslyTabRequestPayload<'fansly.sound.batch'>;
         // Our own messages of the batch may be the echoes of greeting receipts (§8.6).

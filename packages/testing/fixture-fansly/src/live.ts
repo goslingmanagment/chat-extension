@@ -162,7 +162,7 @@ export class LiveSession {
     const open = store.activeGroupId === wire.groupId && document.hasFocus();
     if (store.getGroup(wire.groupId) === null) {
       // `addGroupMessage`: an own automated message of an unknown group is skipped; any other makes the page ask for the group.
-      if (!(wire.type === 2 && own)) store.fetchGroup(wire.groupId);
+      if (!(wire.type === 2 && own)) store.fetchNewGroup(wire.groupId);
     } else {
       store.receive(toMessage(wire));
     }

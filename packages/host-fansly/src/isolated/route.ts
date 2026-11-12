@@ -31,6 +31,11 @@ export function groupIdOfPath(pathname: string): string | null {
   return CONVERSATION.exec(pathname)?.[1] ?? null;
 }
 
+/** The list of chats, with a chat open or none (`/messages`, `/messages/<id>`, a trailing slash too): pins' and the open chat's surfaces. */
+export function isMessagesPath(pathname: string): boolean {
+  return pathname === '/messages' || pathname === '/messages/' || groupIdOfPath(pathname.replace(/\/$/, '')) !== null;
+}
+
 /**
  * The route by the address alone, for the early key dispatcher: a conversation is a chat, everything else is other
  * (Fansly has no route of an account). `epoch` is the path: a key kept for the lazy part runs only on the same one.

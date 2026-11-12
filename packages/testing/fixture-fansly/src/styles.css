@@ -19,6 +19,7 @@
   --green-1: #40bb55;
   --pure-white: #fff;
   --button-radius: 0.5em;
+  --border-radius-2: 8px;
   /* The rest of what our palette reads (host-fansly isolated/palette.ts, R20 P8d). */
   --font-tint-1: #d6dce8;
   --font-tint-2: #bbc1cb;
@@ -105,15 +106,37 @@ app-messages-route { flex: 1; display: flex; position: relative; min-height: 0; 
 
 .messages-list-wrapper { flex: 0 0 40%; max-width: 498px; display: flex; flex-direction: column; overflow-y: hidden; border-right: 1px solid var(--border-color); }
 .messages-top-header { display: flex; align-items: center; height: 56px; padding: 0 1em; border-bottom: 1px solid var(--border-color); }
-.message-search { padding: 0.5em 1em; }
-.messages-nav-wrapper { padding: 0 1em 0.5em; }
-.message-list { flex: 1; overflow-y: auto; }
+.message-search { display: flex; align-items: center; margin: 0 0.75em 1em 0.75em; padding-top: 0.5em; }
+.search-input { flex: 1; height: 38px; box-sizing: border-box; padding: 0 0.75em; border: 1px solid var(--border-color); border-radius: var(--border-radius-2); background: var(--input-bg); color: inherit; font: inherit; font-size: 0.95em; outline: none; }
+/* Fansly's filter chips (main:74582 route styles): rows of pills, 1em under them. */
+.messages-nav-wrapper { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; width: 100%; box-sizing: border-box; align-items: center; margin-bottom: 1em; padding: 0 0.75em; }
+.messages-nav-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; box-sizing: border-box; padding: 0 12px; border-radius: 16px; background: var(--dark-3); font-size: 0.8em; cursor: pointer; white-space: nowrap; }
+.messages-nav-chip.selected { box-shadow: inset 0 0 0 1px var(--blue-1); }
+.messages-nav-count { min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px; border-radius: 9px; background: var(--blue-1); color: #fff; font-size: 0.85em; font-weight: 700; line-height: 18px; text-align: center; }
+/* Fansly's spinner on a search or a switch of filter: 32 px under the chips (live 2026-11-12). */
+.messages-list-wrapper > .flex-center.margin-top-2 { align-items: center; justify-content: center; height: 32px; flex: 0 0 auto; }
+.inbox-spinner { width: 18px; height: 18px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--dark-blue-1); border-top-color: transparent; animation: inbox-spin 0.8s linear infinite; }
+@keyframes inbox-spin { to { transform: rotate(360deg); } }
+.message-list { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; margin: 0 0.5em; }
 .message-list a { display: block; color: inherit; text-decoration: none; }
-app-messaging-group.message { display: flex; height: 73px; box-sizing: border-box; padding: 0.5em 1em; gap: 0.75em; border-bottom: 1px solid var(--border-color); }
+/* The row's host as Fansly's (main:57494): positioned, its content centred in 1em of padding (73 px with a 40 px
+   avatar, taller when a neighbour adds a line), lit on hover and when selected, rounded (route styles). */
+/* The avatar's box without a line box around it: 40 px, so a row is Fansly's 73 px. */
+.message-avatar { display: flex; flex: 0 0 auto; }
+app-messaging-group.message { position: relative; display: flex; align-items: center; min-height: 73px; box-sizing: border-box; padding: 1em 0.5em; gap: 0.75em; border-bottom: 1px solid transparent; border-radius: var(--border-radius-2); cursor: pointer; }
+.message-list a:hover app-messaging-group,
 .message-list a.selected app-messaging-group { background: var(--dark-3); }
-.message-time { margin-left: auto; font-size: 0.75em; color: var(--dark-blue-1); }
+/* At 1200 px and below an open chat takes the whole content: the list column is hidden (route styles). Only while a
+   scenario switches it on (control `setNarrowRule`): the others run narrower with the list beside the chat. */
+@media (max-width: 1200px) {
+  html.stand-narrow-rule .page-content.active-group .messages-list-wrapper { display: none; }
+}
+.message-time { flex: 0 0 auto; margin-left: auto; margin-right: 0.5em; font-size: 0.75em; color: var(--dark-blue-1); }
 .eclipse { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.badge { min-width: 1.25em; border-radius: 1em; background: var(--blue-1); color: #fff; text-align: center; font-size: 0.75em; }
+.message-list .eclipse { flex: 1; min-width: 0; }
+/* The unread count at the end of the preview's line, in its 8 px-padded container (main:57494). */
+.badge-container { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; margin-left: auto; padding: 0 8px; }
+.badge { box-sizing: border-box; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--blue-1); color: #fff; text-align: center; font-size: 12px; font-weight: 700; line-height: 18px; }
 /* Positioned, as Fansly's own component host is (main:1004): its online dot and our inbox mark stand on its corners. */
 app-account-avatar { position: relative; display: inline-block; width: 40px; height: 40px; border-radius: 50%; background: var(--dark-3); flex: 0 0 auto; }
 
@@ -195,7 +218,4 @@ app-messaging-overlay-group { display: flex; flex-direction: column; width: 440p
 
 .chatgoose-launcher { position: fixed; right: 16px; bottom: 96px; }
 
-/* The showcase world (world.ts): the inbox's unread count as a small pill beside the preview, not stretched down the row. */
-html[data-stand-world='showcase'] .message-list .eclipse { flex: 1; min-width: 0; }
-html[data-stand-world='showcase'] .badge-container { align-self: flex-start; margin-left: 0.5em; }
-html[data-stand-world='showcase'] .badge { box-sizing: border-box; height: 1.5em; min-width: 1.5em; padding: 0 0.4em; line-height: 1.5em; font-weight: 700; }
+

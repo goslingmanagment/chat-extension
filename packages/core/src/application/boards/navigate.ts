@@ -25,7 +25,7 @@ import { type IdSource, type RpcResult, type TabRpc } from './ports';
 export type TokenKind = 'generate' | 'insert' | 'navigate' | 'send';
 
 /** A one-time token of a trusted click, issued by the background for one kind of write (§14). */
-export async function issueCause(rpc: TabRpc, kind: TokenKind, surface: Surface): Promise<{ readonly ok: true; readonly cause: HumanCause } | { readonly ok: false; readonly code: CgCode }> {
+export async function issueCause(rpc: Pick<TabRpc, 'request'>, kind: TokenKind, surface: Surface): Promise<{ readonly ok: true; readonly cause: HumanCause } | { readonly ok: false; readonly code: CgCode }> {
   const issued = await rpc.request('token.issue', { kind, surface });
   if (!issued.ok) return { ok: false, code: issued.error.code };
   return { ok: true, cause: { kind: 'click', actionToken: issued.payload.actionToken } };

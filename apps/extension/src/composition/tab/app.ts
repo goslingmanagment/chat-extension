@@ -698,6 +698,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         features: site.features,
         report: reportSurface,
         probe,
+        gated: controllerRpc(rpc, tokens),
         keys: keysOfSite,
         journal: {
           watch: (surface) => siteJournal.watch(surface),

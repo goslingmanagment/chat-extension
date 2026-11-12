@@ -16,6 +16,8 @@ export const STYLE_FIXES = [
   '.message-composer{flex-wrap:wrap-reverse!important}',
   '.message-entry{flex:1 0 100%!important}',
   '.message-composer .collapsable-actions button{min-width:0!important;padding:0 .25rem!important;background:none!important}',
+  // The list's filter chips with no gap under them (FBuddy main.js:45397-45462, seen live 2026-11-12).
+  '.messages-nav-wrapper{margin-bottom:0!important}',
 ].join('\n');
 
 /** `style#fb-dynamic-tweaks-css` with the defaults (`b3 = 1800`, S5 §2.5). */

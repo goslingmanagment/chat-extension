@@ -82,6 +82,8 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   newcomers: 'fansly/newcomers.ts',
   // «Заметки» (R20 P11b): their button, panel and controller, with «Регистрация» on /messages.
   notes: 'fansly/notes.ts',
+  // Temporary chat pins (2026-11-12): the strip over the list of chats, the rows' and the header's buttons, on /messages.
+  pins: 'fansly/pins.ts',
   // The floating launcher of Spenders and «Новые» (X46): plain DOM, every page of an admitted tab, before any application.
   launcher: 'fansly/launcher.ts',
 };

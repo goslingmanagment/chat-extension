@@ -21,9 +21,11 @@
 // - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`; the floating launcher's clicks (X46) — «Онлайн», Spenders
 //   and «Новые» from every page, as the popup opens them; the mark of a chat waiting for a reply in Fansly's own list of
 //   chats (2026-10-29), as the settings page holds it; the page's hub label in front of the tab's title (2026-10-31);
-//   who wrote each of the model's messages of the open chat, before its time (2026-11-03, message-authors.ts).
+//   who wrote each of the model's messages of the open chat, before its time (2026-11-03, message-authors.ts); the
+//   person's temporary chat pins over the list of chats (2026-11-12, `pins` chunk).
 
 import { showProxyNotice } from '@cg/host-fansly/isolated/proxy-notice';
+import { isMessagesPath } from '@cg/host-fansly/isolated/route';
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
@@ -35,6 +37,7 @@ import { FANSLY_DOCK_SHEET } from '@cg/ui/hosts/fansly';
 import type * as AiChunk from '../../../../../lazy/fansly/ai-fansly';
 import { fanslyRegistrationDate } from '@cg/core/domain/hosts/fansly/snowflake';
 import type * as NotesChunk from '../../../../../lazy/fansly/notes';
+import type * as PinsChunk from '../../../../../lazy/fansly/pins';
 import type * as RegistrationChunk from '../../../../../lazy/fansly/registration';
 import type * as VaultChunk from '../../../../../lazy/fansly/vault';
 import { FANSLY_FEATURE_SLICE } from '../../../features/fansly';
@@ -145,10 +148,11 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   if (__CG_TEST_HOSTS__ && env.probe !== null) void import('./ops-probe').then((probe) => { if (!env.life.aborted) offOps = probe.startFanslyOpsProbe(env); }, () => undefined);
   let registration: Promise<(() => void) | null> | null = null;
   let notes: Promise<(() => void) | null> | null = null;
+  let pins: Promise<(() => void) | null> | null = null;
   let vault: Promise<(() => void) | null> | null = null;
   const sync = (): void => {
     if (env.life.aborted) return;
-    if (registration === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
+    if (registration === null && isMessagesPath(env.win.location.pathname)) {
       // The open chat's chunk: «Регистрация» and, after it, the fan's warning marks; «кто написал» in the list.
       registration = env.lazy<typeof RegistrationChunk>('registration').then((chunk) => {
         if (env.life.aborted) return null;
@@ -160,10 +164,18 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
         return null;
       });
     }
-    if (notes === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
+    if (notes === null && isMessagesPath(env.win.location.pathname)) {
       notes = env.lazy<typeof NotesChunk>('notes').then((chunk) => (env.life.aborted ? null : chunk.startFanslyNotes(env)), () => {
         notes = null;
         env.report({ kind: 'render', surface: 'notes' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'NotesChunk' });
+        return null;
+      });
+    }
+    // 2026-11-12: temporary chat pins — the strip over the list of chats, the rows' and the header's buttons.
+    if (pins === null && isMessagesPath(env.win.location.pathname)) {
+      pins = env.lazy<typeof PinsChunk>('pins').then((chunk) => (env.life.aborted ? null : chunk.startFanslyPins(env)), () => {
+        pins = null;
+        env.report({ kind: 'render', surface: 'inbox-slot' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'PinsChunk' });
         return null;
       });
     }
@@ -200,6 +212,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
     off();
     void registration?.then((stop) => stop?.());
     void notes?.then((stop) => stop?.());
+    void pins?.then((stop) => stop?.());
     void vault?.then((stop) => stop?.());
   };
 }

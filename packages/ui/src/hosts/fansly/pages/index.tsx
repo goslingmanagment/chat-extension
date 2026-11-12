@@ -318,6 +318,22 @@ function InboxMarkRow({ control }: { readonly control: FanslyPagesControl }): JS
   );
 }
 
+/** «Вид и звук»: «Закрепы чатов» (2026-11-12) — the strip of temporary chat pins over Fansly's list, while Fansly is on. */
+function PinsRow({ control }: { readonly control: FanslyPagesControl }): JSX.Element | null {
+  const i18n = useI18n();
+  const view = useFansly(control);
+  if (!view.on || view.settings === null) return null;
+  const on = view.settings.ext.hosts[FANSLY].pins;
+  const label = text(i18n, 'fansly.pages.pins');
+  return (
+    <Opt label={label} hint={text(i18n, 'fansly.pages.pinsHint')} anchor="fansly-pins">
+      <span class="pg-line" data-pg-fansly-pins={on ? 'on' : 'off'}>
+        <Checkbox label={label} stateWord={i18n.t('settings.generation.on')} checked={on} size={14} reason={lockOf(i18n, view)} onChange={(next) => void control.setPins(next)} />
+      </span>
+    </Opt>
+  );
+}
+
 /** «Вид и звук» → «Звук»: the tones on Fansly, while Fansly is on. */
 function SoundRows({ control }: { readonly control: FanslyPagesControl }): JSX.Element | null {
   const i18n = useI18n();
@@ -477,7 +493,12 @@ export function fanslyOptionsSlots(control: FanslyPagesControl): OptionsSlots {
     accounts: () => <AccountsCard control={control} />,
     signIn: () => <FanslyCard control={control} settings={false} />,
     appearanceSound: () => <SoundRows control={control} />,
-    appearanceView: () => <InboxMarkRow control={control} />,
+    appearanceView: () => (
+      <>
+        <InboxMarkRow control={control} />
+        <PinsRow control={control} />
+      </>
+    ),
     generationWindows: () => <DeepRow control={control} />,
     checklist: () => <Steps control={control} />,
     personas: () => <LegacyPersonas />,

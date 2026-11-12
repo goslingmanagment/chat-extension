@@ -172,7 +172,7 @@ import { createBackgroundSound } from './background/sound';
 import { createTabAccountsGate } from './background/tab-accounts';
 import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
-import { tokenRefusal } from './background/token-gate';
+import { SITE_SURFACES, tokenRefusal } from './background/token-gate';
 import { createBackgroundNotes } from './background/notes';
 import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
@@ -2056,6 +2056,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // Only an insert reads the site's slice; a site whose slice its module brings has the module up first.
     const site = hostOfTab(sender.tabSessionId);
     if (!(await siteOn(site))) return fail('CG-SITE-OFF');
+    // A site's own surface (Fansly's pins) navigates in that site's tabs only.
+    const own = SITE_SURFACES[surface];
+    if (own !== undefined && own !== site) return fail('CG-FEATURE-DISABLED', `${surface}: ${own} only`);
     if (kind === 'insert' && site !== null && featuresOf(site) === null && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
     // The module of the site did not start: its services do not answer (op.start says the same).
     if (kind === 'insert' && site !== null && featuresOf(site) === null) return fail('CG-RUNTIME-UNREACHABLE', `${site} services`);

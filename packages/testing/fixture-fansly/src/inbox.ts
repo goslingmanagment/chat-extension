@@ -5,6 +5,12 @@
 // heights of the list around the view are in the DOM, 73 px each, between two
 // spacers; the set is recomputed when the list moved more than its own
 // height. A row is `<a href="/messages/<groupId>" routerLinkActive="selected">`.
+// Over the list (live 2026-11-12, main:74215-74308): the search row, the filter chips in
+// `.messages-nav-wrapper` (rows of pills, `margin-bottom: 1em`), three of Angular's anchors and the scroller, two
+// anchors after it. A search or a switch of filter shows Fansly's 32 px spinner for ~240 ms, inserted before the third
+// anchor (under anything placed right after the chips), then the same list again; the stand's filters keep every chat,
+// its search keeps the chats whose name or handle has the words. The list is laid out again on every change of its
+// groups, as Fansly's is.
 
 import { record } from './journal';
 import { NgFor, el, scope, setClass, setStyle, setText, type Scope, type View } from './ng';
@@ -17,6 +23,19 @@ import { clock, picture } from './world';
 export const INBOX_ROW_PX = 73;
 export const INBOX_PAGE = 20;
 const REFETCH_GUARD_MS = 10_000;
+/** How long Fansly's spinner stands on a search or a switch of filter (live: 240–330 ms). */
+export const INBOX_SPINNER_MS = 240;
+/** The filter chips of a creator's list as Fansly draws them (her tiers and lists): names and counts of the stand's own. */
+const FILTERS: ReadonlyArray<readonly [string, number | null]> = [
+  ['All', 12],
+  ['Fans', null],
+  ['Bronze', null],
+  ['Silver', null],
+  ['Gold', 3],
+  ['Diamond', null],
+  ['Close friends', 2],
+  ['New', 7],
+];
 
 interface RowView extends View {
   readonly link: HTMLAnchorElement;
@@ -35,6 +54,11 @@ export class Inbox {
   private lastFetchedOffset = -1;
   private lastFetched = 0;
   private readonly unsubscribe: Array<() => void> = [];
+  /** Angular's third anchor before the list: its spinner goes right before it. */
+  private readonly spinnerAnchor: Comment;
+  private spinner: HTMLElement | null = null;
+  private spinnerTimer: ReturnType<typeof setTimeout> | null = null;
+  private search = '';
 
   constructor(
     private readonly store: GroupService,
@@ -48,15 +72,34 @@ export class Inbox {
     this.topSpacer = el(s, 'div', { class: 'spacer' });
     this.bottomSpacer = el(s, 'div', { class: 'spacer' });
     this.list = el(s, 'div', { class: 'message-list noselect', attrs: { xdscrollwatcher: '' } }, [this.topSpacer, this.rows.anchor, this.bottomSpacer]);
+    const input = el(s, 'input', { class: 'search-input', attrs: { type: 'text', placeholder: 'Search conversations' } });
+    const chips = FILTERS.map(([name, count], index) => {
+      const chip = el(s, 'div', { class: index === 0 ? 'messages-nav-chip selected' : 'messages-nav-chip' }, [name, count === null ? null : el(s, 'span', { class: 'messages-nav-count' }, [String(count)])]);
+      chip.addEventListener('click', () => {
+        for (const other of chips) setClass(other, 'selected', other === chip);
+        this.reload();
+      });
+      return chip;
+    });
+    this.spinnerAnchor = document.createComment('');
     this.root = el(s, 'div', { class: 'messages-list-wrapper border-color' }, [
       el(s, 'div', { class: 'messages-top-header border-color sm-mobile-hidden' }, [el(s, 'span', { class: 'flex-1' }, [el(s, 'xd-localization-string', {}, ['Messages'])])]),
-      el(s, 'div', { class: 'message-search' }, [el(s, 'input', { class: 'search-input', attrs: { type: 'text', placeholder: 'Search' } })]),
-      el(s, 'div', { class: 'messages-nav-wrapper' }, [el(s, 'div', { class: 'messages-nav' }, ['All'])]),
+      el(s, 'div', { class: 'message-search' }, [input]),
+      el(s, 'div', { class: 'messages-nav-wrapper' }, chips),
+      document.createComment(''),
+      document.createComment(''),
+      this.spinnerAnchor,
       this.list,
+      document.createComment(''),
+      document.createComment(''),
     ]);
+    input.addEventListener('input', () => {
+      this.search = input.value.trim().toLowerCase();
+      this.reload();
+    });
     this.unsubscribe.push(
       watchScroll(this.list, { scroll: (top) => this.onScroll(top), bottom: () => this.loadMore() }),
-      store.onGroupsChange(() => this.refresh()),
+      store.onGroupsChange(() => this.calculate(this.list.scrollTop)),
       router.onNavigation(() => this.refresh()),
     );
   }
@@ -76,6 +119,32 @@ export class Inbox {
     this.store.loadInbox(INBOX_PAGE, () => {
       this.calculate(this.list.scrollTop);
       record('inbox-loaded', { loaded: this.store.inbox.length });
+    });
+  }
+
+  /** A search or another filter: Fansly's spinner under the chips for a moment, then the list from its top. */
+  private reload(): void {
+    if (this.spinnerTimer !== null) clearTimeout(this.spinnerTimer);
+    if (this.spinner === null) {
+      this.spinner = el(this.s, 'div', { class: 'flex-row flex-center dark-blue-1 margin-top-2' }, [el(this.s, 'i', { class: 'inbox-spinner' })]);
+      this.spinnerAnchor.before(this.spinner);
+    }
+    this.spinnerTimer = setTimeout(() => {
+      this.spinnerTimer = null;
+      this.spinner?.remove();
+      this.spinner = null;
+      this.list.scrollTop = 0;
+      this.lastScrollPoint = 0;
+      this.calculate(0);
+    }, INBOX_SPINNER_MS);
+  }
+
+  /** The chats the list shows: all of them, or those a search names. */
+  private shown(): readonly string[] {
+    if (this.search === '') return this.store.inbox;
+    return this.store.inbox.filter((id) => {
+      const partner = this.store.getGroup(id)?.partners[0];
+      return `${partner?.displayName ?? ''} ${partner?.username ?? ''}`.toLowerCase().includes(this.search);
     });
   }
 
@@ -99,7 +168,7 @@ export class Inbox {
     let below = 0;
     let end = 0;
     const render: string[] = [];
-    for (const id of this.store.inbox) {
+    for (const id of this.shown()) {
       end += INBOX_ROW_PX;
       if (end < from - margin) above += INBOX_ROW_PX;
       else if (end > to + margin) below += INBOX_ROW_PX;
@@ -172,6 +241,7 @@ export class Inbox {
   }
 
   destroy(): void {
+    if (this.spinnerTimer !== null) clearTimeout(this.spinnerTimer);
     for (const stop of this.unsubscribe) stop();
     this.rows.destroy();
   }
