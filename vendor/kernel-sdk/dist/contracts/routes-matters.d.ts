@@ -75,6 +75,7 @@ export declare const matterRouteSchemas: {
                         kind: import("zod").ZodLiteral<"user">;
                         userId: import("zod").ZodNumber;
                         username: import("zod").ZodString;
+                        displayName: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                         kind: import("zod").ZodLiteral<"role">;
                         role: import("zod").ZodEnum<{
@@ -84,6 +85,7 @@ export declare const matterRouteSchemas: {
                         }>;
                     }, import("zod/v4/core").$strip>], "kind">;
                     watcherUserIds: import("zod").ZodArray<import("zod").ZodNumber>;
+                    mine: import("zod").ZodBoolean;
                     money: import("zod").ZodBoolean;
                     evidence: import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>;
                     link: import("zod").ZodNullable<import("zod").ZodString>;
@@ -150,13 +152,14 @@ export declare const matterRouteSchemas: {
                     id: import("zod").ZodEnum<{
                         other: "other";
                         unknown: "unknown";
+                        reports: "reports";
+                        customs: "customs";
                         login: "login";
                         drafts: "drafts";
-                        reports: "reports";
+                        content: "content";
                         held: "held";
                         history: "history";
                         ledger: "ledger";
-                        customs: "customs";
                         people: "people";
                         extension: "extension";
                         questions: "questions";
@@ -169,17 +172,41 @@ export declare const matterRouteSchemas: {
                     to: import("zod").ZodString;
                     matterIds: import("zod").ZodArray<import("zod").ZodNumber>;
                 }, import("zod/v4/core").$strip>>;
+                groups: import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodEnum<{
+                        other: "other";
+                        info: "info";
+                        reports: "reports";
+                        customs: "customs";
+                        content: "content";
+                        system: "system";
+                        publications: "publications";
+                        held: "held";
+                        ledger: "ledger";
+                        people: "people";
+                        questions: "questions";
+                    }>;
+                    title: import("zod").ZodString;
+                    count: import("zod").ZodNumber;
+                    checked: import("zod").ZodBoolean;
+                    tone: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        warn: "warn";
+                        bad: "bad";
+                    }>>;
+                    to: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
                 total: import("zod").ZodNumber;
                 failed: import("zod").ZodArray<import("zod").ZodEnum<{
                     other: "other";
                     unknown: "unknown";
+                    reports: "reports";
+                    customs: "customs";
                     login: "login";
                     drafts: "drafts";
-                    reports: "reports";
+                    content: "content";
                     held: "held";
                     history: "history";
                     ledger: "ledger";
-                    customs: "customs";
                     people: "people";
                     extension: "extension";
                     questions: "questions";
@@ -198,8 +225,8 @@ export declare const matterRouteSchemas: {
                     elsewhere: import("zod").ZodNumber;
                     failed: import("zod").ZodArray<import("zod").ZodEnum<{
                         reports: "reports";
-                        held: "held";
                         customs: "customs";
+                        held: "held";
                         questions: "questions";
                     }>>;
                 }, import("zod/v4/core").$strip>;

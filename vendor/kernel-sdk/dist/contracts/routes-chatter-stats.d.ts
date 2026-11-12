@@ -177,13 +177,13 @@ export declare const chatterStatsRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     biggestSale: import("zod").ZodNullable<import("zod").ZodObject<{
                         at: import("zod").ZodString;
-                        pageLabel: import("zod").ZodString;
                         kind: import("zod").ZodEnum<{
                             subscription: "subscription";
                             tip: "tip";
                             post: "post";
                             ppv: "ppv";
                         }>;
+                        pageLabel: import("zod").ZodString;
                         netMills: import("zod").ZodNumber;
                         fanName: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
@@ -379,13 +379,13 @@ export declare const chatterStatsRouteSchemas: {
                         }, import("zod/v4/core").$strip>>;
                         biggestSale: import("zod").ZodNullable<import("zod").ZodObject<{
                             at: import("zod").ZodString;
-                            pageLabel: import("zod").ZodString;
                             kind: import("zod").ZodEnum<{
                                 subscription: "subscription";
                                 tip: "tip";
                                 post: "post";
                                 ppv: "ppv";
                             }>;
+                            pageLabel: import("zod").ZodString;
                             netMills: import("zod").ZodNumber;
                             fanName: import("zod").ZodNullable<import("zod").ZodString>;
                         }, import("zod/v4/core").$strip>>;

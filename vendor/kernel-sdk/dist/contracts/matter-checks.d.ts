@@ -52,3 +52,13 @@ export declare const LEDGER_OFF_PLATFORM_DAYS = 7;
 export declare const PEOPLE_ACCESS_IDLE_DAYS = 30;
 /** How many days before its end an agent key is said to expire. */
 export declare const AGENT_KEY_EXPIRING_DAYS = 7;
+/**
+ * A chatter's post in «Отчётность» the ledger cannot accrue for a reason its author can fix (ecosystem plan §6
+ * «Пост против сданного отчёта → Чаттеру»): one matter per post for the author's own chatter login, opened and closed
+ * by the matters mirror from the same ledger read as `ledger.report_post`. Never money. The server is its one writer.
+ */
+export declare const REPORT_POST_MATTER_KINDS: readonly ["report.post_fix"];
+export type ReportPostMatterKind = (typeof REPORT_POST_MATTER_KINDS)[number];
+export declare function isReportPostMatterKind(kind: string): kind is ReportPostMatterKind;
+/** The flags of a post its author can fix in the chat (the same four the team agent's reminder names). */
+export declare const REPORT_POST_FIXABLE_FLAGS: readonly ["sum_mismatch", "date_mismatch", "no_date", "duplicate"];

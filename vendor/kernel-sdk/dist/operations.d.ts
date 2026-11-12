@@ -739,6 +739,18 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/resolve";
     };
+    readonly agentSaleChain: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/team/sale-chain";
+    };
+    readonly agentSaleClaimAnswer: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/sale-claims/answer";
+    };
+    readonly agentSaleClaims: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/sale-claims";
+    };
     readonly agentSaleContext: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/team/sale-context";
@@ -1459,6 +1471,14 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/ofapi/webhook";
     };
+    readonly offPlatformDecide: {
+        readonly method: "POST";
+        readonly path: "/api/v1/off-platform/:offPlatformId/decide";
+    };
+    readonly offPlatformPending: {
+        readonly method: "GET";
+        readonly path: "/api/v1/off-platform";
+    };
     readonly openApiJson: {
         readonly method: "GET";
         readonly path: "/api/v1/openapi.json";
@@ -1691,6 +1711,22 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/pages";
     };
+    readonly peopleMessagePress: {
+        readonly method: "POST";
+        readonly path: "/api/v1/system/people-messages/press";
+    };
+    readonly peopleMessageRecipient: {
+        readonly method: "GET";
+        readonly path: "/api/v1/system/people-messages/recipient";
+    };
+    readonly peopleMessageSwitch: {
+        readonly method: "POST";
+        readonly path: "/api/v1/system/people-messages/kinds/:kind";
+    };
+    readonly peopleMessages: {
+        readonly method: "GET";
+        readonly path: "/api/v1/system/people-messages";
+    };
     readonly publicVaultUploadFile: {
         readonly method: "GET";
         readonly path: "/api/v1/public/vault-upload-files/:token";
@@ -1702,6 +1738,42 @@ export declare const kernelOperations: {
     readonly reportsList: {
         readonly method: "GET";
         readonly path: "/api/v1/reports";
+    };
+    readonly saleChain: {
+        readonly method: "GET";
+        readonly path: "/api/v1/sales/chain";
+    };
+    readonly saleClaimAnswer: {
+        readonly method: "POST";
+        readonly path: "/api/v1/sale-claims/:claimId/answer";
+    };
+    readonly saleDecisionLink: {
+        readonly method: "POST";
+        readonly path: "/api/v1/sale-decisions/:decisionId/link";
+    };
+    readonly saleDecisionsUnlinked: {
+        readonly method: "GET";
+        readonly path: "/api/v1/sale-decisions/unlinked";
+    };
+    readonly saleDispute: {
+        readonly method: "GET";
+        readonly path: "/api/v1/sale-disputes/:transactionId";
+    };
+    readonly saleDisputeDecide: {
+        readonly method: "POST";
+        readonly path: "/api/v1/sale-disputes/decide";
+    };
+    readonly saleDisputeOfClaim: {
+        readonly method: "GET";
+        readonly path: "/api/v1/sale-disputes/claim/:claimId";
+    };
+    readonly saleNobody: {
+        readonly method: "GET";
+        readonly path: "/api/v1/sale-nobody";
+    };
+    readonly saleNobodyKeep: {
+        readonly method: "POST";
+        readonly path: "/api/v1/sale-nobody/keep";
     };
     readonly setFanFlags: {
         readonly method: "PATCH";
@@ -1838,6 +1910,10 @@ export declare const kernelOperations: {
     readonly teamGreetings: {
         readonly method: "GET";
         readonly path: "/api/v1/team/greetings";
+    };
+    readonly teamLedgerMonth: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/ledger-month";
     };
     readonly teamLedgerPayoutPerson: {
         readonly method: "GET";

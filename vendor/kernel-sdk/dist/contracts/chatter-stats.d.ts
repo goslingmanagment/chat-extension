@@ -161,13 +161,13 @@ export declare const chatterStatsSchema: z.ZodObject<{
         }, z.core.$strip>>;
         biggestSale: z.ZodNullable<z.ZodObject<{
             at: z.ZodString;
-            pageLabel: z.ZodString;
             kind: z.ZodEnum<{
                 subscription: "subscription";
                 tip: "tip";
                 post: "post";
                 ppv: "ppv";
             }>;
+            pageLabel: z.ZodString;
             netMills: z.ZodNumber;
             fanName: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
@@ -327,13 +327,13 @@ export declare const teamChatterStatsResponseSchema: z.ZodObject<{
             }, z.core.$strip>>;
             biggestSale: z.ZodNullable<z.ZodObject<{
                 at: z.ZodString;
-                pageLabel: z.ZodString;
                 kind: z.ZodEnum<{
                     subscription: "subscription";
                     tip: "tip";
                     post: "post";
                     ppv: "ppv";
                 }>;
+                pageLabel: z.ZodString;
                 netMills: z.ZodNumber;
                 fanName: z.ZodNullable<z.ZodString>;
             }, z.core.$strip>>;

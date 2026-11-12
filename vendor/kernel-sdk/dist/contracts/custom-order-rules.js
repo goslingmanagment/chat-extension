@@ -45,6 +45,22 @@ export const STEP_TO = {
     close: "closed",
     cancel: "cancelled",
 };
+/**
+ * Each state in people's words: the one table for every door that names an order's step — the board «Кастомы»
+ * in Workboard and the extension's fan panel (the wire's `stepLabel`, shown as it is).
+ */
+export const CUSTOM_STATE_WORDS = {
+    recorded: "Записан",
+    paid: "Оплачен",
+    at_model: "У модели",
+    partly: "Сдан частично",
+    shot: "Снят",
+    revision: "Правка",
+    refused: "Отказ модели",
+    given: "Отдан фану",
+    closed: "Закрыт",
+    cancelled: "Отменён",
+};
 /** The lead's steps belong to the lead, the owner and a team lead. */
 export function leadsSteps(viewer) {
     return viewer.lead || viewer.role === "owner" || viewer.role === "team_lead";

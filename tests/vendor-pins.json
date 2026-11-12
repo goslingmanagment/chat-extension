@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "0da81ea50d42f52968ea37da4b8350eeb9358562d21b28b38743ca94e9be1893",
-    "sourceCommit": "4abdbbb4c53507615a4e6f4d2b77ee670b37f486",
-    "note": "Vendored on 2026-11-12 from hub main 4abdbbb4 (#1247) with scripts/vendor-sdk.mjs: the beat's `matters` count (hub #1232), the shift-report routes (hub #1225), the toolbar icon's «Ждут вас»."
+    "contractHash": "62a2f60b156fd2cf667efea78c520eda62391982cec9c6f4720a6fc5c2586058",
+    "sourceCommit": "669a52f9aadbd2fbb6ea1e9d84e82cbe4c9de8fa",
+    "note": "Vendored on 2026-11-12 from hub branch eco/review-fan-panel-step 669a52f9 (hub #1275, not merged yet) with scripts/vendor-sdk.mjs: a custom order's `code`, `stepLabel` and `stepAt` in the fan card's and the handoff's customs. Re-vendor from hub main once #1275 is merged, before a release."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

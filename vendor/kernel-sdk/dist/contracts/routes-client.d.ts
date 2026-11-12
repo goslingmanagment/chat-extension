@@ -2433,6 +2433,9 @@ export declare const clientFanFactSchema: z.ZodObject<{
 /** Chat Memory week 4: the states of a custom; open on the wire. */
 export declare const CLIENT_FAN_CUSTOM_STATES: readonly ["ordered", "paid", "delivered", "cancelled"];
 export declare const clientFanCustomSchema: z.ZodObject<{
+    code: z.ZodOptional<z.ZodString>;
+    stepLabel: z.ZodOptional<z.ZodString>;
+    stepAt: z.ZodOptional<z.ZodString>;
     id: z.ZodNumber;
     pageLabel: z.ZodString;
     granted: z.ZodBoolean;
@@ -2522,6 +2525,9 @@ export declare const clientFanCardResponseSchema: z.ZodObject<{
         }, z.core.$strip>>>;
     }, z.core.$strip>>;
     customs: z.ZodArray<z.ZodObject<{
+        code: z.ZodOptional<z.ZodString>;
+        stepLabel: z.ZodOptional<z.ZodString>;
+        stepAt: z.ZodOptional<z.ZodString>;
         id: z.ZodNumber;
         pageLabel: z.ZodString;
         granted: z.ZodBoolean;
@@ -2655,6 +2661,9 @@ export declare const clientFanFactChangeResponseSchema: z.ZodObject<{
             }, z.core.$strip>>>;
         }, z.core.$strip>>;
         customs: z.ZodArray<z.ZodObject<{
+            code: z.ZodOptional<z.ZodString>;
+            stepLabel: z.ZodOptional<z.ZodString>;
+            stepAt: z.ZodOptional<z.ZodString>;
             id: z.ZodNumber;
             pageLabel: z.ZodString;
             granted: z.ZodBoolean;
@@ -2767,6 +2776,9 @@ export declare const clientFanLinkDecideResponseSchema: z.ZodObject<{
             }, z.core.$strip>>>;
         }, z.core.$strip>>;
         customs: z.ZodArray<z.ZodObject<{
+            code: z.ZodOptional<z.ZodString>;
+            stepLabel: z.ZodOptional<z.ZodString>;
+            stepAt: z.ZodOptional<z.ZodString>;
             id: z.ZodNumber;
             pageLabel: z.ZodString;
             granted: z.ZodBoolean;
@@ -3179,6 +3191,9 @@ export declare const clientHandoffResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
     }, z.core.$strip>;
     customs: z.ZodArray<z.ZodObject<{
+        code: z.ZodOptional<z.ZodString>;
+        stepLabel: z.ZodOptional<z.ZodString>;
+        stepAt: z.ZodOptional<z.ZodString>;
         fanRef: z.ZodString;
         conversationRef: z.ZodNullable<z.ZodString>;
         description: z.ZodString;
@@ -5511,6 +5526,9 @@ export declare const clientRouteSchemas: {
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 customs: z.ZodArray<z.ZodObject<{
+                    code: z.ZodOptional<z.ZodString>;
+                    stepLabel: z.ZodOptional<z.ZodString>;
+                    stepAt: z.ZodOptional<z.ZodString>;
                     id: z.ZodNumber;
                     pageLabel: z.ZodString;
                     granted: z.ZodBoolean;
@@ -5824,6 +5842,9 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        code: z.ZodOptional<z.ZodString>;
+                        stepLabel: z.ZodOptional<z.ZodString>;
+                        stepAt: z.ZodOptional<z.ZodString>;
                         id: z.ZodNumber;
                         pageLabel: z.ZodString;
                         granted: z.ZodBoolean;
@@ -5981,6 +6002,9 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        code: z.ZodOptional<z.ZodString>;
+                        stepLabel: z.ZodOptional<z.ZodString>;
+                        stepAt: z.ZodOptional<z.ZodString>;
                         id: z.ZodNumber;
                         pageLabel: z.ZodString;
                         granted: z.ZodBoolean;
@@ -6712,6 +6736,9 @@ export declare const clientRouteSchemas: {
                     }, z.core.$strip>>;
                 }, z.core.$strip>;
                 customs: z.ZodArray<z.ZodObject<{
+                    code: z.ZodOptional<z.ZodString>;
+                    stepLabel: z.ZodOptional<z.ZodString>;
+                    stepAt: z.ZodOptional<z.ZodString>;
                     fanRef: z.ZodString;
                     conversationRef: z.ZodNullable<z.ZodString>;
                     description: z.ZodString;
@@ -6848,6 +6875,9 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        code: z.ZodOptional<z.ZodString>;
+                        stepLabel: z.ZodOptional<z.ZodString>;
+                        stepAt: z.ZodOptional<z.ZodString>;
                         id: z.ZodNumber;
                         pageLabel: z.ZodString;
                         granted: z.ZodBoolean;
@@ -7012,6 +7042,9 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        code: z.ZodOptional<z.ZodString>;
+                        stepLabel: z.ZodOptional<z.ZodString>;
+                        stepAt: z.ZodOptional<z.ZodString>;
                         id: z.ZodNumber;
                         pageLabel: z.ZodString;
                         granted: z.ZodBoolean;

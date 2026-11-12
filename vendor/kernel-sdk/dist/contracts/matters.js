@@ -8,6 +8,7 @@
  */
 import { z } from "zod";
 import { intId, isoTimestamp } from "./primitives";
+import { WAITING_GROUP_IDS, WAITING_TONES } from "./waiting-groups";
 /** Dotted words: `send.held`, `shift.report.missing`. */
 export const MATTER_KIND_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
 export const matterKindSchema = z.string().max(64).regex(MATTER_KIND_PATTERN);
@@ -102,17 +103,21 @@ export const MATTER_SOURCE_NAMES = ["server", "agent", "ledger", "contentops", "
 export const MATTER_OWNER_ROLE_NAMES = ["owner", "team_lead", "chatter"];
 /**
  * «Ждут вас»'s rows, in the screen's order (apps/dashboard/src/api/waiting.ts); after them the matters no old row
- * counts (package K): people and access, the ledger's checks, and every other kind.
+ * counts (package K): ContentOps' (`contentops.*`), people and access, the ledger's checks, and every other kind.
  */
 export const WAITING_ROW_IDS = [
-    "drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history", "people", "ledger", "other",
+    "drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history", "content", "people", "ledger", "other",
 ];
 /** «Решения»'s queues, in the screen's order (apps/workboard/src/shared/decisions.ts). */
 export const DECISION_QUEUE_IDS = ["questions", "reports", "customs", "held"];
 const username = z.string().trim().min(1).max(64);
 const pageLabel = z.string().trim().min(1).max(64);
 export const matterOwnerSchema = z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("user"), userId: intId, username: z.string() }),
+    z.object({
+        kind: z.literal("user"), userId: intId, username: z.string(),
+        /** The person's name where the login is a person's (the people registry); null — a login of no person. */
+        displayName: z.string().nullable(),
+    }),
     z.object({ kind: z.literal("role"), role: z.enum(MATTER_OWNER_ROLE_NAMES) }),
 ]);
 export const matterSchema = z.object({
@@ -129,6 +134,12 @@ export const matterSchema = z.object({
     pageLabels: z.array(z.string()),
     owner: matterOwnerSchema,
     watcherUserIds: z.array(intId),
+    /**
+     * It waits for the viewer themself: their user's, or a role they hold (the owner's, and the team lead's while
+     * nobody holds that role). Otherwise the viewer reads it as oversight: it waits for someone else, and it is in no
+     * count of theirs («Ждут вас», the menu, the extension's icon).
+     */
+    mine: z.boolean(),
     /** The evidence carries money: only the owner is served such a matter. */
     money: z.boolean(),
     /** What the finding saw: ids, states, moments; money only in the owner's matters. */
@@ -184,7 +195,22 @@ export const mattersWaitingResponseSchema = z.object({
     active: z.boolean(),
     /** «Ждут вас»: the viewer's rows in the screen's order, none with a zero. */
     rows: z.array(mattersWaitingRowSchema),
-    /** The sum of what did answer: the menu's number. */
+    /**
+     * «Ждут вас» by the list's groups (waiting-groups.ts, the one table): a group per kind the viewer's own open
+     * matters fall in, in the list's order, never «Для сведения»; the console Home's chips. A group's count is the list's
+     * (one per matter; the custom orders' count where they are customs' home); `checked: false` — a source of the group
+     * did not answer lately. The owner's `total` is their sum; a team lead's stays the sum of `rows`.
+     */
+    groups: z.array(z.object({
+        id: z.enum(WAITING_GROUP_IDS),
+        title: z.string(),
+        count: z.number().int().nonnegative(),
+        checked: z.boolean(),
+        /** The worst tone of its matters (`bad` broken, `warn` outcome unknown or not checked; waiting-groups.ts); null — none. */
+        tone: z.enum(WAITING_TONES).nullable(),
+        to: z.string(),
+    })),
+    /** The sum of what did answer: the menu's number (the owner's: of `groups`, the list's numbers). */
     total: z.number().int().nonnegative(),
     /** The rows that could not be checked. */
     failed: z.array(z.enum(WAITING_ROW_IDS)),

@@ -5,6 +5,11 @@ export declare function isBoardAction(step: CustomStepName): step is CustomOrder
 /** The states each step may be taken from. A step that moves the order names its new state in `STEP_TO`. */
 export declare const STEP_FROM: Readonly<Record<CustomStepName, readonly CustomOrderState[]>>;
 export declare const STEP_TO: Partial<Readonly<Record<CustomOrderAction, CustomOrderState>>>;
+/**
+ * Each state in people's words: the one table for every door that names an order's step — the board «Кастомы»
+ * in Workboard and the extension's fan panel (the wire's `stepLabel`, shown as it is).
+ */
+export declare const CUSTOM_STATE_WORDS: Readonly<Record<CustomOrderState, string>>;
 /** Who looks at an order: a person of a role, the lead (the right «ведёт кастомы»), and the pages they reach. */
 export interface CustomViewer {
     userId: number;

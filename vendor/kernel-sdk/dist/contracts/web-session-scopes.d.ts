@@ -11,13 +11,24 @@
  * route, stream, export, screen or document opens with it. Routes that take no
  * principal (`public`, `hmac`) are not subject to it: sign-out works.
  *
- * The list is the chatter's part of Workboard (`apps/workboard`, «Мои смены»):
- * who is signed in, their own shifts and their own reports. A screen of the
- * team's place that a narrow session should open joins here in its own PR.
- * Never on it: a route of the account's credentials (devices, password), any
- * owner or team-lead route, the hand-off's own mint (a narrow session never
- * travels to another name).
+ * The list is what the chatter's part of Workboard reads and does (`apps/workboard`:
+ * «Мои смены» and a shift's report, «Кастомы», «Начало»): every operation a
+ * screen of the chatter's menu or name menu calls is either here or on
+ * NARROW_WEB_SESSION_PASSWORD_ONLY below, and the screen says so — the test
+ * `tests/narrow-session-screens.test.ts` walks the screens' code and fails on
+ * anything else. Never on it: a route of the account's credentials (devices,
+ * password), where a person is paid, any owner or team-lead route, the
+ * hand-off's own mint (a narrow session never travels to another name).
+ * Services read a narrow session as a chatter whatever the role.
  */
-export declare const NARROW_WEB_SESSION_OPERATIONS: readonly ["me", "accountChatterStats", "accountReports", "mattersList", "shiftReport", "shiftReportsList", "shiftReportClaimable", "shiftReportLineSet", "shiftReportCommentSet", "shiftReportOffPlatformAdd", "shiftReportOffPlatformWithdraw", "shiftReportSubmit", "accountPay"];
+export declare const NARROW_WEB_SESSION_OPERATIONS: readonly ["me", "accountChatterStats", "accountReports", "mattersList", "shiftReport", "shiftReportsList", "shiftReportClaimable", "shiftReportLineSet", "shiftReportCommentSet", "shiftReportOffPlatformAdd", "shiftReportOffPlatformWithdraw", "shiftReportSubmit", "saleClaimAnswer", "saleChain", "accountPay", "customOrdersBoard", "customOrder", "customOrderCreate", "customOrderAct", "customSaleDismiss", "pages", "accountStart"];
+/**
+ * What a screen of the chatter's part calls and a narrow session must NOT do:
+ * a change that needs the person's password behind it. The screen shows the
+ * person the way in instead (Workboard's `PasswordWayIn`: «чтобы изменить,
+ * войдите на сайте с паролем»), never an error. Not one of these is on the
+ * list above.
+ */
+export declare const NARROW_WEB_SESSION_PASSWORD_ONLY: readonly ["accountPayoutDetailsSet", "authListDevices", "authRevokeDevice", "authRevokeAllDevices", "authChangePassword", "authMyUsage"];
 /** Whether a narrow web session may call the route with this key. */
 export declare function narrowWebSessionAllows(operationKey: string): boolean;

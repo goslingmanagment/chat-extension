@@ -245,6 +245,9 @@ export declare const teamLedgerReportPageSchema: z.ZodObject<{
     diffMills: z.ZodNullable<z.ZodNumber>;
     state: z.ZodString;
     postedAt: z.ZodNullable<z.ZodString>;
+    hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+    hubState: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+    basis: z.ZodDefault<z.ZodNullable<z.ZodString>>;
 }, z.core.$strip>;
 /** A post in «Отчётность» the ledger could not use in full (a flag on it). */
 export declare const teamLedgerReportPostSchema: z.ZodObject<{
@@ -294,9 +297,13 @@ export declare const teamLedgerReportDaySchema: z.ZodObject<{
         diffMills: z.ZodNullable<z.ZodNumber>;
         state: z.ZodString;
         postedAt: z.ZodNullable<z.ZodString>;
+        hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        hubState: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        basis: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>;
     postedMills: z.ZodNullable<z.ZodNumber>;
     draftMills: z.ZodNullable<z.ZodNumber>;
+    hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     postedAt: z.ZodNullable<z.ZodString>;
     draft: z.ZodNullable<z.ZodObject<{
         id: z.ZodNumber;
@@ -354,9 +361,13 @@ export declare const teamLedgerReportsResponseSchema: z.ZodObject<{
             diffMills: z.ZodNullable<z.ZodNumber>;
             state: z.ZodString;
             postedAt: z.ZodNullable<z.ZodString>;
+            hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+            hubState: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            basis: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         postedMills: z.ZodNullable<z.ZodNumber>;
         draftMills: z.ZodNullable<z.ZodNumber>;
+        hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         postedAt: z.ZodNullable<z.ZodString>;
         draft: z.ZodNullable<z.ZodObject<{
             id: z.ZodNumber;
@@ -474,6 +485,88 @@ export declare const teamLedgerQuestionsResponseSchema: z.ZodObject<{
     questionsRead: z.ZodBoolean;
     serverNow: z.ZodString;
 }, z.core.$strip>;
+/** A calendar month, «2026-11»: Moscow days. */
+export declare const ledgerMonthSchema: z.ZodString;
+export declare const teamLedgerMonthQuerySchema: z.ZodObject<{
+    month: z.ZodString;
+}, z.core.$strip>;
+/** One model's line of the month card. Money in mills of the ledger's whole cents. */
+export declare const teamLedgerMonthModelSchema: z.ZodObject<{
+    model: z.ZodString;
+    pagesNetMills: z.ZodNumber;
+    offPlatformMills: z.ZodNumber;
+    earnedMills: z.ZodNumber;
+    arrivedMills: z.ZodNumber;
+    ridingMills: z.ZodNumber;
+}, z.core.$strip>;
+/**
+ * The ledger's month card as its hub read serves it (GET /v1/payouts/month/{month}, ledger#85): no expenses, no
+ * decision figure, no owner's draws. `pagesNetMills` is the card's «Оборот» less what came past the platforms, the
+ * «не согласовано» pages included: the pages' income after the platforms' commission as the ledger read it from Hub;
+ * the screen sets it beside Hub's own income of the same Moscow month. The totals are the ledger's own (its lines
+ * are rounded one by one, so the models may sum a cent apart). Nothing here is counted by Hub.
+ */
+export declare const teamLedgerMonthCardSchema: z.ZodObject<{
+    status: z.ZodEnum<{
+        unknown: "unknown";
+        proven: "proven";
+    }>;
+    reason: z.ZodNullable<z.ZodString>;
+    asOf: z.ZodNullable<z.ZodString>;
+    computedAt: z.ZodNullable<z.ZodString>;
+    pagesNetMills: z.ZodNullable<z.ZodNumber>;
+    offPlatformMills: z.ZodNullable<z.ZodNumber>;
+    turnoverMills: z.ZodNullable<z.ZodNumber>;
+    earnedMills: z.ZodNullable<z.ZodNumber>;
+    arrivedMills: z.ZodNullable<z.ZodNumber>;
+    ridingMills: z.ZodNullable<z.ZodNumber>;
+    holdMills: z.ZodNullable<z.ZodNumber>;
+    stuckMills: z.ZodNullable<z.ZodNumber>;
+    onPageMills: z.ZodNullable<z.ZodNumber>;
+    models: z.ZodArray<z.ZodObject<{
+        model: z.ZodString;
+        pagesNetMills: z.ZodNumber;
+        offPlatformMills: z.ZodNumber;
+        earnedMills: z.ZodNumber;
+        arrivedMills: z.ZodNumber;
+        ridingMills: z.ZodNumber;
+    }, z.core.$strip>>;
+    notes: z.ZodArray<z.ZodString>;
+}, z.core.$strip>;
+export declare const teamLedgerMonthResponseSchema: z.ZodObject<{
+    month: z.ZodString;
+    from: z.ZodString;
+    to: z.ZodString;
+    served: z.ZodBoolean;
+    card: z.ZodNullable<z.ZodObject<{
+        status: z.ZodEnum<{
+            unknown: "unknown";
+            proven: "proven";
+        }>;
+        reason: z.ZodNullable<z.ZodString>;
+        asOf: z.ZodNullable<z.ZodString>;
+        computedAt: z.ZodNullable<z.ZodString>;
+        pagesNetMills: z.ZodNullable<z.ZodNumber>;
+        offPlatformMills: z.ZodNullable<z.ZodNumber>;
+        turnoverMills: z.ZodNullable<z.ZodNumber>;
+        earnedMills: z.ZodNullable<z.ZodNumber>;
+        arrivedMills: z.ZodNullable<z.ZodNumber>;
+        ridingMills: z.ZodNullable<z.ZodNumber>;
+        holdMills: z.ZodNullable<z.ZodNumber>;
+        stuckMills: z.ZodNullable<z.ZodNumber>;
+        onPageMills: z.ZodNullable<z.ZodNumber>;
+        models: z.ZodArray<z.ZodObject<{
+            model: z.ZodString;
+            pagesNetMills: z.ZodNumber;
+            offPlatformMills: z.ZodNumber;
+            earnedMills: z.ZodNumber;
+            arrivedMills: z.ZodNumber;
+            ridingMills: z.ZodNumber;
+        }, z.core.$strip>>;
+        notes: z.ZodArray<z.ZodString>;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
 export type TeamLedgerPayoutsResponse = z.infer<typeof teamLedgerPayoutsResponseSchema>;
 export type TeamLedgerPayoutPrepareResponse = z.infer<typeof teamLedgerPayoutPrepareResponseSchema>;
 export type TeamLedgerPayoutPerson = z.infer<typeof teamLedgerPayoutPersonSchema>;
@@ -487,7 +580,84 @@ export type TeamLedgerReportPost = z.infer<typeof teamLedgerReportPostSchema>;
 export type TeamLedgerReportPerson = z.infer<typeof teamLedgerReportPersonSchema>;
 export type TeamLedgerQuestion = z.infer<typeof teamLedgerQuestionSchema>;
 export type TeamLedgerQuestionsResponse = z.infer<typeof teamLedgerQuestionsResponseSchema>;
+export type TeamLedgerMonthResponse = z.infer<typeof teamLedgerMonthResponseSchema>;
+export type TeamLedgerMonthCard = z.infer<typeof teamLedgerMonthCardSchema>;
 export declare const teamLedgerRouteSchemas: {
+    readonly teamLedgerMonth: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The agency's month card from the ledger: the pages' income, past the platforms, turnover, earned and where it is";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            month: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                month: z.ZodString;
+                from: z.ZodString;
+                to: z.ZodString;
+                served: z.ZodBoolean;
+                card: z.ZodNullable<z.ZodObject<{
+                    status: z.ZodEnum<{
+                        unknown: "unknown";
+                        proven: "proven";
+                    }>;
+                    reason: z.ZodNullable<z.ZodString>;
+                    asOf: z.ZodNullable<z.ZodString>;
+                    computedAt: z.ZodNullable<z.ZodString>;
+                    pagesNetMills: z.ZodNullable<z.ZodNumber>;
+                    offPlatformMills: z.ZodNullable<z.ZodNumber>;
+                    turnoverMills: z.ZodNullable<z.ZodNumber>;
+                    earnedMills: z.ZodNullable<z.ZodNumber>;
+                    arrivedMills: z.ZodNullable<z.ZodNumber>;
+                    ridingMills: z.ZodNullable<z.ZodNumber>;
+                    holdMills: z.ZodNullable<z.ZodNumber>;
+                    stuckMills: z.ZodNullable<z.ZodNumber>;
+                    onPageMills: z.ZodNullable<z.ZodNumber>;
+                    models: z.ZodArray<z.ZodObject<{
+                        model: z.ZodString;
+                        pagesNetMills: z.ZodNumber;
+                        offPlatformMills: z.ZodNumber;
+                        earnedMills: z.ZodNumber;
+                        arrivedMills: z.ZodNumber;
+                        ridingMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    notes: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly teamLedgerPayouts: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -802,9 +972,13 @@ export declare const teamLedgerRouteSchemas: {
                         diffMills: z.ZodNullable<z.ZodNumber>;
                         state: z.ZodString;
                         postedAt: z.ZodNullable<z.ZodString>;
+                        hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                        hubState: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                        basis: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     postedMills: z.ZodNullable<z.ZodNumber>;
                     draftMills: z.ZodNullable<z.ZodNumber>;
+                    hubMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
                     postedAt: z.ZodNullable<z.ZodString>;
                     draft: z.ZodNullable<z.ZodObject<{
                         id: z.ZodNumber;

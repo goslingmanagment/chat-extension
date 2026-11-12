@@ -51,9 +51,9 @@ export declare const MATTER_SOURCE_NAMES: readonly ["server", "agent", "ledger",
 export declare const MATTER_OWNER_ROLE_NAMES: readonly ["owner", "team_lead", "chatter"];
 /**
  * «Ждут вас»'s rows, in the screen's order (apps/dashboard/src/api/waiting.ts); after them the matters no old row
- * counts (package K): people and access, the ledger's checks, and every other kind.
+ * counts (package K): ContentOps' (`contentops.*`), people and access, the ledger's checks, and every other kind.
  */
-export declare const WAITING_ROW_IDS: readonly ["drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history", "people", "ledger", "other"];
+export declare const WAITING_ROW_IDS: readonly ["drafts", "unknown", "questions", "reports", "customs", "held", "login", "failures", "extension", "history", "content", "people", "ledger", "other"];
 export type WaitingRowId = (typeof WAITING_ROW_IDS)[number];
 /** «Решения»'s queues, in the screen's order (apps/workboard/src/shared/decisions.ts). */
 export declare const DECISION_QUEUE_IDS: readonly ["questions", "reports", "customs", "held"];
@@ -61,6 +61,7 @@ export declare const matterOwnerSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     kind: z.ZodLiteral<"user">;
     userId: z.ZodNumber;
     username: z.ZodString;
+    displayName: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>, z.ZodObject<{
     kind: z.ZodLiteral<"role">;
     role: z.ZodEnum<{
@@ -99,6 +100,7 @@ export declare const matterSchema: z.ZodObject<{
         kind: z.ZodLiteral<"user">;
         userId: z.ZodNumber;
         username: z.ZodString;
+        displayName: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>, z.ZodObject<{
         kind: z.ZodLiteral<"role">;
         role: z.ZodEnum<{
@@ -108,6 +110,7 @@ export declare const matterSchema: z.ZodObject<{
         }>;
     }, z.core.$strip>], "kind">;
     watcherUserIds: z.ZodArray<z.ZodNumber>;
+    mine: z.ZodBoolean;
     money: z.ZodBoolean;
     evidence: z.ZodRecord<z.ZodString, z.ZodUnknown>;
     link: z.ZodNullable<z.ZodString>;
@@ -161,6 +164,7 @@ export declare const mattersListResponseSchema: z.ZodObject<{
             kind: z.ZodLiteral<"user">;
             userId: z.ZodNumber;
             username: z.ZodString;
+            displayName: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>, z.ZodObject<{
             kind: z.ZodLiteral<"role">;
             role: z.ZodEnum<{
@@ -170,6 +174,7 @@ export declare const mattersListResponseSchema: z.ZodObject<{
             }>;
         }, z.core.$strip>], "kind">;
         watcherUserIds: z.ZodArray<z.ZodNumber>;
+        mine: z.ZodBoolean;
         money: z.ZodBoolean;
         evidence: z.ZodRecord<z.ZodString, z.ZodUnknown>;
         link: z.ZodNullable<z.ZodString>;
@@ -196,13 +201,14 @@ export declare const mattersWaitingRowSchema: z.ZodObject<{
     id: z.ZodEnum<{
         other: "other";
         unknown: "unknown";
+        reports: "reports";
+        customs: "customs";
         login: "login";
         drafts: "drafts";
-        reports: "reports";
+        content: "content";
         held: "held";
         history: "history";
         ledger: "ledger";
-        customs: "customs";
         people: "people";
         extension: "extension";
         questions: "questions";
@@ -221,13 +227,14 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
         id: z.ZodEnum<{
             other: "other";
             unknown: "unknown";
+            reports: "reports";
+            customs: "customs";
             login: "login";
             drafts: "drafts";
-            reports: "reports";
+            content: "content";
             held: "held";
             history: "history";
             ledger: "ledger";
-            customs: "customs";
             people: "people";
             extension: "extension";
             questions: "questions";
@@ -240,17 +247,41 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
         to: z.ZodString;
         matterIds: z.ZodArray<z.ZodNumber>;
     }, z.core.$strip>>;
+    groups: z.ZodArray<z.ZodObject<{
+        id: z.ZodEnum<{
+            other: "other";
+            info: "info";
+            reports: "reports";
+            customs: "customs";
+            content: "content";
+            system: "system";
+            publications: "publications";
+            held: "held";
+            ledger: "ledger";
+            people: "people";
+            questions: "questions";
+        }>;
+        title: z.ZodString;
+        count: z.ZodNumber;
+        checked: z.ZodBoolean;
+        tone: z.ZodNullable<z.ZodEnum<{
+            warn: "warn";
+            bad: "bad";
+        }>>;
+        to: z.ZodString;
+    }, z.core.$strip>>;
     total: z.ZodNumber;
     failed: z.ZodArray<z.ZodEnum<{
         other: "other";
         unknown: "unknown";
+        reports: "reports";
+        customs: "customs";
         login: "login";
         drafts: "drafts";
-        reports: "reports";
+        content: "content";
         held: "held";
         history: "history";
         ledger: "ledger";
-        customs: "customs";
         people: "people";
         extension: "extension";
         questions: "questions";
@@ -269,8 +300,8 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
         elsewhere: z.ZodNumber;
         failed: z.ZodArray<z.ZodEnum<{
             reports: "reports";
-            held: "held";
             customs: "customs";
+            held: "held";
             questions: "questions";
         }>>;
     }, z.core.$strip>;

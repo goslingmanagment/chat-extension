@@ -2453,6 +2453,11 @@ export declare const peopleRouteSchemas: {
                     handle: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
                     reportTag: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
+                kind: import("zod").ZodOptional<import("zod").ZodEnum<{
+                    human: "human";
+                    agent: "agent";
+                    service: "service";
+                }>>;
                 displayName: import("zod").ZodString;
                 state: import("zod").ZodOptional<import("zod").ZodEnum<{
                     left: "left";
@@ -2461,11 +2466,6 @@ export declare const peopleRouteSchemas: {
                     working: "working";
                 }>>;
                 note: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
-                kind: import("zod").ZodOptional<import("zod").ZodEnum<{
-                    human: "human";
-                    agent: "agent";
-                    service: "service";
-                }>>;
                 code: import("zod").ZodString;
                 onboarding: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
                     step: import("zod").ZodString;
@@ -2565,6 +2565,10 @@ export declare const peopleRouteSchemas: {
             readonly 200: import("zod").ZodObject<{
                 proposal: import("zod").ZodObject<{
                     id: import("zod").ZodNumber;
+                    kind: import("zod").ZodEnum<{
+                        update: "update";
+                        create: "create";
+                    }>;
                     reason: import("zod").ZodString;
                     state: import("zod").ZodEnum<{
                         rejected: "rejected";
@@ -2573,10 +2577,6 @@ export declare const peopleRouteSchemas: {
                         accepted: "accepted";
                     }>;
                     createdAt: import("zod").ZodString;
-                    kind: import("zod").ZodEnum<{
-                        update: "update";
-                        create: "create";
-                    }>;
                     requestedBy: import("zod").ZodNullable<import("zod").ZodString>;
                     decidedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     personCode: import("zod").ZodString;
@@ -2642,6 +2642,10 @@ export declare const peopleRouteSchemas: {
             readonly 200: import("zod").ZodObject<{
                 proposals: import("zod").ZodArray<import("zod").ZodObject<{
                     id: import("zod").ZodNumber;
+                    kind: import("zod").ZodEnum<{
+                        update: "update";
+                        create: "create";
+                    }>;
                     reason: import("zod").ZodString;
                     state: import("zod").ZodEnum<{
                         rejected: "rejected";
@@ -2650,10 +2654,6 @@ export declare const peopleRouteSchemas: {
                         accepted: "accepted";
                     }>;
                     createdAt: import("zod").ZodString;
-                    kind: import("zod").ZodEnum<{
-                        update: "update";
-                        create: "create";
-                    }>;
                     requestedBy: import("zod").ZodNullable<import("zod").ZodString>;
                     decidedAt: import("zod").ZodNullable<import("zod").ZodString>;
                     personCode: import("zod").ZodString;

@@ -30,10 +30,13 @@ import { customOrderRouteSchemas } from "./routes-custom-orders";
 import { accountReportsRouteSchemas } from "./routes-account-reports";
 import { peopleRouteSchemas } from "./routes-people";
 import { shiftHandinRouteSchemas } from "./routes-shift-handins";
+import { saleClaimRouteSchemas } from "./routes-sale-claims";
+import { saleChainRouteSchemas } from "./routes-sale-chain";
 // One sign-in across the names Hub serves: the one-time code between names (ecosystem plan §3.2).
 import { signinRouteSchemas } from "./routes-signin";
 // Система → «Состояние»: every routine and copy, from the owner's place (ecosystem plan, package P).
 import { systemStateRouteSchemas } from "./routes-system-state";
+import { peopleMessageRouteSchemas } from "./routes-people-messages";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
@@ -7731,4 +7734,7 @@ export const routeSchemas = {
     ...systemStateRouteSchemas,
     ...customOrderRouteSchemas,
     ...shiftHandinRouteSchemas,
+    ...peopleMessageRouteSchemas,
+    ...saleClaimRouteSchemas,
+    ...saleChainRouteSchemas,
 };
