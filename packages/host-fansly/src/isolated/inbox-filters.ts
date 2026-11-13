@@ -292,6 +292,13 @@ export function createInboxFilters(doc: Document, deps: InboxFiltersDeps) {
       unread = facts === null ? null : unreadOf(facts);
       changed();
     },
+    /**
+     * The strip stopped wanting the unread: the copy held goes (no listener told: the caller is the controller's own
+     * pass), so a strip coming back sees only one MAIN builds after it asked again.
+     */
+    forgetUnread(): void {
+      unread = null;
+    },
     hide(on: boolean): void {
       if (disposed) return;
       wantHidden = on;

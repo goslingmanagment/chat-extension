@@ -159,8 +159,10 @@ const chipItem = (key: string, ref: FanslyFilterRef, kind: FanslyFilterKind, chi
  * position, only when they agree), so a list unpinned since the data was read leaves the others matched; null — none.
  * A label that as many entries as chips do not share is ambiguous (two lists with one cut, one of them unpinned since the
  * data was read): its chips get no name and no id, never another list's — the strip would name one and unpin another.
+ * `repeats` false — the chips changed since the data came: a label two chips print can be matched by order no more (A
+ * unpinned and pinned again puts it after B in Fansly while the data still says A, B), so those chips get neither.
  */
-export function aligned<T>(chips: readonly FanslyFilterChip[], data: readonly T[], name: (entry: T) => string): Array<T | null> {
+export function aligned<T>(chips: readonly FanslyFilterChip[], data: readonly T[], name: (entry: T) => string, repeats = true): Array<T | null> {
   const cuts = data.map((entry) => fanslyCut(name(entry)));
   const tally = (labels: readonly string[]): Map<string, number> => {
     const counted = new Map<string, number>();
@@ -171,7 +173,8 @@ export function aligned<T>(chips: readonly FanslyFilterChip[], data: readonly T[
   const onChips = tally(chips.map((chip) => chip.label));
   let next = 0;
   return chips.map((chip) => {
-    if (inData.get(chip.label) !== onChips.get(chip.label)) return null;
+    const printed = onChips.get(chip.label) ?? 0;
+    if (inData.get(chip.label) !== printed || (!repeats && printed > 1)) return null;
     for (let at = next; at < data.length; at += 1) {
       if (cuts[at] !== chip.label) continue;
       next = at + 1;
@@ -184,12 +187,18 @@ export function aligned<T>(chips: readonly FanslyFilterChip[], data: readonly T[
 /** Fansly's label of a chip it cut: `...` at its end. */
 const printedCut = (label: string): boolean => label.endsWith('...');
 
+/** Whether a label two chips print may still take its names by order (aligned's `repeats`), for the tiers and the lists. */
+export interface FanslyNamesFresh {
+  readonly tiers: boolean;
+  readonly lists: boolean;
+}
+
 /**
  * The set of a block: every filter as an item, the full names taken where the page's data agrees with the chip (in
  * order, `fanslyCut(full) === label`), the lists classified. `staff` — our own label of Fansly's Staff chip (it prints
- * the VIPs string on it).
+ * the VIPs string on it); `fresh` — the names came after the chips last changed (aligned's `repeats`).
  */
-export function filterSet(block: FanslyFilterBlock, names: FanslyFilterNames, staff: string): FanslyFilterSet & { readonly items: ReadonlyMap<string, FanslyFilterItem> } {
+export function filterSet(block: FanslyFilterBlock, names: FanslyFilterNames, staff: string, fresh: FanslyNamesFresh = { tiers: true, lists: true }): FanslyFilterSet & { readonly items: ReadonlyMap<string, FanslyFilterItem> } {
   const base: FanslyFilterItem[] = [
     chipItem('all', { kind: 'base', base: 'all' }, 'base', block.all, {}),
     chipItem('subscribers', { kind: 'base', base: 'subscribers' }, 'base', block.subscribers, {}),
@@ -197,7 +206,7 @@ export function filterSet(block: FanslyFilterBlock, names: FanslyFilterNames, st
     chipItem('followers', { kind: 'base', base: 'followers' }, 'base', block.followers, {}),
     ...(block.staff === null ? [] : [chipItem('staff', { kind: 'base', base: 'staff' }, 'base', block.staff, { label: staff, full: staff })]),
   ];
-  const tierOf = aligned(block.tiers, names.tiers ?? [], (data) => data.name);
+  const tierOf = aligned(block.tiers, names.tiers ?? [], (data) => data.name, fresh.tiers);
   const tiers = block.tiers.map((chip, index) => {
     const matched = tierOf[index] ?? null;
     const full = matched?.name ?? chip.label;
@@ -210,7 +219,7 @@ export function filterSet(block: FanslyFilterBlock, names: FanslyFilterNames, st
       memo: matched?.id ?? `label:${chip.label}`,
     });
   });
-  const listOf = aligned(block.lists, names.lists ?? [], (data) => data.label);
+  const listOf = aligned(block.lists, names.lists ?? [], (data) => data.label, fresh.lists);
   const pinned = block.lists.map((chip, index) => {
     const matched = listOf[index] ?? null;
     const full = matched?.label ?? chip.label;

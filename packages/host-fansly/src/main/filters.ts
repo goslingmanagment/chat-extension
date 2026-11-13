@@ -18,7 +18,9 @@
 //   page's cache (main:24389, 24471) — kept only for the fans of loaded chats.
 // - What it costs: the facts are kept by every answer and frame, cheaply; the state is built at most every
 //   FILTERS_EVERY_MS (trailing), and its unread only while a strip asks for it (`fx.filtersWanted`, «Четыре группы»).
-// - Bounded: loaded chats and held messages are LRU caps; the unread ids have a cap past which the copy is not known
+// - Bounded: held messages are an LRU cap; loaded chats too, but only read ones go (Fansly never forgets a chat it
+//   loaded, and its badges count every unread one): unread in a chat whose fan went, or in more loaded chats than the
+//   cap, makes the unread not known (dots) rather than short. The unread ids have a cap past which the copy is not known
 //   until the next first page; the state is at most FILTERS_MAX_BYTES of UTF-8 (past it the unread, then the names, are
 //   not said). Everything resets with another creator.
 
@@ -36,12 +38,14 @@ const MAX_ROW_LISTS = 64;
 export const FILTERS_MAX_BYTES = 16 * 1024;
 /** The state at most this often (trailing): a burst of answers and frames costs one build. */
 export const FILTERS_EVERY_MS = 400;
-/** As identity's (MAX_GROUPS): the chats whose fans are kept. */
-const MAX_LOADED = 600;
+/** As identity's (MAX_GROUPS): the chats whose fans are kept (read ones go past it; unread ones never do). */
+export const MAX_LOADED = 600;
 /** Messages the page holds, for its read marks and deletions. */
 const MAX_HELD = 4000;
 /** Unread ids over every chat: past it the copy is not known until the next first page. */
 const MAX_UNREAD = 5000;
+/** Chats whose fan went with the cap: unread in one of them is unread the rows cannot place. */
+const MAX_EVICTED = MAX_UNREAD;
 const GROUP_SETTINGS = '4000';
 const PINNED_LISTS = '100';
 
@@ -104,8 +108,10 @@ export function createFilterFacts(stringify: (value: unknown) => string, dueIn: 
   let overflowed = false;
   /** First pages of `/message/unread` read: a fresh full read the strip may trust again (contracts `fresh`). */
   let fresh = 0;
-  /** The chats the page loaded, with their fan (LRU). */
+  /** The chats the page loaded, with their fan (LRU over the read ones). */
   const loaded = new Map<string, string | null>();
+  /** Chats that went from `loaded` (LRU): the page still has them and their fans. */
+  const evicted = new Map<string, true>();
   /** How many loaded chats each fan has: a fan's facts go with its last chat. */
   const partners = new Map<string, number>();
   const fans = new Map<string, Fan>();
@@ -125,6 +131,7 @@ export function createFilterFacts(stringify: (value: unknown) => string, dueIn: 
     unreadKnown = false;
     overflowed = false;
     loaded.clear();
+    evicted.clear();
     partners.clear();
     fans.clear();
     heldIds.clear();
@@ -161,11 +168,25 @@ export function createFilterFacts(stringify: (value: unknown) => string, dueIn: 
     }
   };
 
+  /** Past the cap the oldest read chats go, with their fans; a chat with unread never does (its row would go short). */
+  const evict = (): void => {
+    if (loaded.size <= MAX_LOADED) return;
+    for (const [groupId, fan] of loaded) {
+      if (loaded.size <= MAX_LOADED) return;
+      if ((unread.get(groupId)?.size ?? 0) > 0) continue;
+      loaded.delete(groupId);
+      unpartner(fan);
+      touch(evicted, groupId, true, MAX_EVICTED);
+      dirty = true;
+    }
+  };
+
   /**
    * The unread as the strips count it: `all` over every chat (loaded or not), the rows only for loaded chats whose fan
    * is in a filter of the strip — a subscriber, a tier, a pinned list. A row is `[unread, subscriber 0/1, tier index or
    * -1, ...pinned list indexes]` into `tiers` and `ids` (the pinned lists only): a few bytes a chat. null — not known:
-   * no full read yet, a pinned list not known, a limit passed.
+   * no full read yet, a pinned list not known, a limit passed, unread in a chat whose fan went or in more loaded chats
+   * than the cap.
    */
   const unreadOf = (): Plain | null => {
     if (!unreadKnown || overflowed || lists === null) return null;
@@ -174,10 +195,16 @@ export function createFilterFacts(stringify: (value: unknown) => string, dueIn: 
     const tierIndex = new Map<string, number>();
     const rows: number[][] = [];
     let all = 0;
+    let held = 0;
     for (const [groupId, messages] of unread) {
       if (messages.size === 0) continue;
       all += messages.size;
-      if (!loaded.has(groupId)) continue;
+      if (!loaded.has(groupId)) {
+        // Loaded once, its fan gone with the cap: the page counts it in its filters, the rows cannot.
+        if (evicted.has(groupId)) return null;
+        continue;
+      }
+      if ((held += 1) > MAX_LOADED) return null;
       const fanId = loaded.get(groupId) ?? null;
       const fan = fanId === null ? undefined : fans.get(fanId);
       if (fan === undefined) continue;
@@ -260,10 +287,10 @@ export function createFilterFacts(stringify: (value: unknown) => string, dueIn: 
         if (next !== null) partners.set(next, (partners.get(next) ?? 0) + 1);
         dirty = true;
       }
-      touch(loaded, groupId, next, MAX_LOADED, (_, was) => {
-        unpartner(was);
-        dirty = true;
-      });
+      loaded.delete(groupId);
+      loaded.set(groupId, next);
+      if (evicted.delete(groupId)) dirty = true;
+      evict();
     },
     unread(response, first) {
       if (first) {

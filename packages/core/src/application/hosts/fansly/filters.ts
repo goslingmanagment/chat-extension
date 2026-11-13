@@ -12,7 +12,15 @@
 // - «Четыре группы»'s numbers (groups spec §3, §7): our counts from MAIN's copy of the unread, shown only while they
 //   agree with Fansly's own badges. A mismatch keeps the last numbers that agreed for RECHECK_MS, then a second look:
 //   still a mismatch — dots. After dots, trust comes back only on an agreement no `99+` badge decided, or on one after
-//   a fresh full read of the unread (MAIN's `fresh`). MAIN builds the unread only while this strip stands.
+//   a fresh full read of the unread (MAIN's `fresh`). MAIN builds the unread only while this strip stands. Leaving it
+//   drops the numbers; coming back to it in the same tab (from the other strip, Fansly's chips or a narrow column)
+//   starts on dots, the copy then being whatever it was: numbers again only on an agreement no `99+` decided or after
+//   a full read newer than the first copy seen since. (The tab's first strip of «Четыре группы» trusts any agreement.)
+// - The full names of the tiers and the lists are matched to the chips by their cut (domain `aligned`). A label two chips
+//   print says nothing of which is which: their names are taken by order only while no chip went since the names last
+//   changed. Fansly's pin adds a chip at the end (main:74257-74263), which leaves the order of the others as the names
+//   have it; an unpin may not (A unpinned and pinned again comes after B): from then those chips get no name and no id
+//   until new names come, and show Fansly's own label.
 // - Fansly keeps a tier's filter after another chip is pressed, until Subscribers itself is (main:74387), and prints that
 //   tier's number on Subscribers meanwhile (main:74458-74460): our Subscribers is not checked against it then, and its
 //   own number is ours or none.
@@ -24,8 +32,10 @@ import type { FanslyPagePort } from '@cg/contracts/fansly';
 import {
   EMPTY_FILTER_MEMO,
   FANSLY_FILTER_LIMITS,
+  type FanslyFilterChip,
   type FanslyFilterItem,
   type FanslyFilterMemo,
+  type FanslyFilterNames,
   type FanslyFilterRef,
   type FanslyFiltersClient,
   type FanslyFiltersCopy,
@@ -99,13 +109,24 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
   /** The numbers are shown (vouched for); false — dots. */
   let trusted = false;
   let vouched: GroupCounts | null = null;
-  /** MAIN's `fresh` when trust was lost: an agreement after a newer full read may bring it back by itself. */
-  let distrustedAt = -1;
+  /**
+   * MAIN's `fresh` when trust was lost: an agreement after a newer full read may bring it back by itself. null — left
+   * «Четыре группы»: the first copy seen in it again sets it (that copy proves nothing).
+   */
+  let distrustedAt: number | null = -1;
   let recheck: unknown = null;
   let confirming = false;
   /** A tier was on since Subscribers itself was: Fansly's Subscribers badge counts that tier. */
   let tierStale = false;
   let unreadWanted = false;
+  /** The names' content and the chips' labels last seen, per group; `moved` — a chip went since the names changed. */
+  interface NamesSeen {
+    readonly names: string;
+    chips: readonly string[] | null;
+    moved: boolean;
+  }
+  const namesSeen: { tiers: NamesSeen; lists: NamesSeen } = { tiers: { names: '', chips: null, moved: false }, lists: { names: '', chips: null, moved: false } };
+  let namesHeld: FanslyFilterNames | null = null;
   let layoutCache: { readonly signature: string; readonly width: number; readonly layout: FanslyShelvesLayout } | null = null;
 
   const words = () => {
@@ -146,12 +167,13 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
   /** «Четыре группы»'s numbers: the counts vouched for by the self-check, or dots (the trust policy above). */
   const groupsOf = (set: FanslyFilterSet, items: ReadonlyMap<string, FanslyFilterItem>): FanslyGroupsView => {
     const unread = deps.page.unread();
+    if (distrustedAt === null && unread !== null) distrustedAt = unread.fresh;
     const counts = unread === null ? null : groupCounts(unread);
     const check = counts === null ? { agree: false, saturated: false } : countsAgree(set, items, counts, !tierStale);
     if (check.agree) {
       stopRecheck();
       // Back from dots only on numbers a `99+` did not decide, or on a full read newer than the mismatch.
-      if (trusted || !check.saturated || (unread?.fresh ?? -1) > distrustedAt) {
+      if (trusted || !check.saturated || (distrustedAt !== null && (unread?.fresh ?? -1) > distrustedAt)) {
         trusted = true;
         vouched = counts;
       }
@@ -177,6 +199,42 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
     const numbers = groupsNumbers(set, items, memo, shown, words().groups, tierStale);
     return { ...numbers, fallback: shown === null };
   };
+  /** «Четыре группы» left: nothing of its numbers stays for its next time in this tab. */
+  const leaveGroups = (): void => {
+    stopRecheck();
+    trusted = false;
+    vouched = null;
+    distrustedAt = null;
+  };
+  /** Whether a label of `before` is printed by fewer chips in `after`: a chip went. */
+  const lost = (before: readonly string[], after: readonly string[]): boolean => {
+    if (before.length === after.length && before.every((label, at) => label === after[at])) return false;
+    const left = new Map<string, number>();
+    for (const label of after) left.set(label, (left.get(label) ?? 0) + 1);
+    for (const label of before) {
+      const n = left.get(label) ?? 0;
+      if (n === 0) return true;
+      left.set(label, n - 1);
+    }
+    return false;
+  };
+  /** Whether each group's names may still be matched by order to labels two chips print: no chip went since they changed. */
+  const namesFresh = (block: { readonly tiers: readonly FanslyFilterChip[]; readonly lists: readonly FanslyFilterChip[] }, names: FanslyFilterNames) => {
+    if (names !== namesHeld) {
+      namesHeld = names;
+      const tiers = JSON.stringify(names.tiers);
+      const lists = JSON.stringify(names.lists);
+      if (tiers !== namesSeen.tiers.names) namesSeen.tiers = { names: tiers, chips: null, moved: false };
+      if (lists !== namesSeen.lists.names) namesSeen.lists = { names: lists, chips: null, moved: false };
+    }
+    const fresh = (seen: NamesSeen, chips: readonly FanslyFilterChip[]): boolean => {
+      const labels = chips.map((chip) => chip.label);
+      if (seen.chips !== null && !seen.moved && lost(seen.chips, labels)) seen.moved = true;
+      seen.chips = labels;
+      return !seen.moved;
+    };
+    return { tiers: fresh(namesSeen.tiers, block.tiers), lists: fresh(namesSeen.lists, block.lists) };
+  };
   /** MAIN builds the unread only while «Четыре группы» stands. */
   const wantUnread = (on: boolean): void => {
     if (on === unreadWanted) return;
@@ -199,10 +257,13 @@ export function createFanslyFilters(deps: FanslyFiltersDeps): FanslyFiltersContr
     const block = read.block;
     if (block.subscribers.active) tierStale = false;
     else if (block.tiers.some((chip) => chip.active)) tierStale = true;
-    const set = filterSet(block, deps.page.names(), words().staff);
+    const names = deps.page.names();
+    const set = filterSet(block, names, words().staff, namesFresh(block, names));
     const narrow = block.width < FANSLY_FILTER_LIMITS.minWidthPx;
     const mode = strip === null || strip === 'native' || narrow ? null : strip;
     wantUnread(mode === 'groups');
+    // Another strip once the setting is known: «Четыре группы» left (the tab's first strip is not a switch).
+    if (mode !== 'groups' && strip !== null) leaveGroups();
     const groups = mode === 'groups' ? groupsOf(set, set.items) : null;
     publish({ mode, set, items: set.items, width: block.width, spinning: block.spinning, groups });
   };

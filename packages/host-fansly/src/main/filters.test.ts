@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createEmitter, utf8Bytes } from './emitter';
-import { FILTERS_EVERY_MS, FILTERS_MAX_BYTES, createFilterFacts } from './filters';
+import { FILTERS_EVERY_MS, FILTERS_MAX_BYTES, MAX_LOADED, createFilterFacts } from './filters';
 import { MAX_BATCH_BYTES } from './protocol';
 
 const CREATOR = '700000000000000017';
@@ -97,6 +97,44 @@ describe('the filters’ facts in MAIN', () => {
     expect(f.take(1_100, false)).toBeNull();
     expect(wakes).toEqual([FILTERS_EVERY_MS - 100]);
     expect((f.take(1_000 + FILTERS_EVERY_MS, false)?.payload['unread'] as { all: number }).all).toBe(1);
+  });
+
+  it('never lets a chat with unread go past the cap: its fan stays in the rows', () => {
+    const { f } = facts();
+    f.want(true);
+    f.settings(settings([]), JSON.parse);
+    // The oldest loaded chat: a subscriber's, five unread; then as many read chats again as the cap.
+    f.loaded(id(0), fan(0));
+    f.account({ id: fan(0), subscriber: true, containingLists: [] });
+    f.unread(unreadPage([1, 2, 3, 4, 5].map((n) => ({ group: 0, message: n }))), true);
+    for (let n = 1; n <= MAX_LOADED; n += 1) f.loaded(id(n), fan(n));
+    const unread = f.take(10_000, false)?.payload['unread'] as { all: number; rows: number[][] };
+    expect(unread.all).toBe(5);
+    expect(unread.rows).toEqual([[5, 1, -1]]);
+  });
+
+  it('says dots, never a short copy, for unread it cannot place: a chat whose fan went, more unread chats than the cap', () => {
+    const { f } = facts();
+    f.want(true);
+    f.settings(settings([]), JSON.parse);
+    f.unread(unreadPage([]), true);
+    f.loaded(id(0), fan(0));
+    f.account({ id: fan(0), subscriber: true, containingLists: [] });
+    // Chat 0 is read: the cap takes it, and its fan.
+    for (let n = 1; n <= MAX_LOADED; n += 1) f.loaded(id(n), fan(n));
+    f.message(id(0), msg(1), fan(0), CREATOR, false);
+    expect(f.take(10_000, true)?.payload['unread']).toBeNull();
+    // The page loads it again: placed again.
+    f.loaded(id(0), fan(0));
+    f.account({ id: fan(0), subscriber: true, containingLists: [] });
+    expect((f.take(20_000, true)?.payload['unread'] as { rows: number[][] }).rows).toEqual([[1, 1, -1]]);
+
+    const { f: g } = facts();
+    g.want(true);
+    g.settings(settings([]), JSON.parse);
+    for (let n = 0; n <= MAX_LOADED; n += 1) g.loaded(id(n), fan(n));
+    g.unread(unreadPage(Array.from({ length: MAX_LOADED + 1 }, (_, n) => ({ group: n, message: n }))), true);
+    expect(g.take(10_000, false)?.payload['unread']).toBeNull();
   });
 
   it('forgets every chat and fan of another creator', () => {

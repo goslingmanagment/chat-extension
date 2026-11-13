@@ -91,6 +91,13 @@ describe('the set', () => {
     const stale = filterSet(block([], [b]), names([], [a, b]), 'Staff');
     expect(stale.lists[0]?.id).toBeNull();
     expect(stale.lists[0]?.full).toBe(fanslyCut(b));
+    // The chips changed since the names came: alike labels get nothing, a label of its own keeps its name.
+    const moved = filterSet(block([], [b, '💩 Бомж', a]), names([], [a, '💩 Бомж', b]), 'Staff', { tiers: true, lists: false });
+    expect(moved.lists.map((item) => [item.full, item.id === null])).toEqual([
+      [fanslyCut(b), true],
+      ['💩 Бомж', false],
+      [fanslyCut(a), true],
+    ]);
   });
 
   it('takes a full name only where Fansly’s cut of it is the chip’s label, in order', () => {

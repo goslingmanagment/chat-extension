@@ -741,7 +741,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       case 'fx.coverage':
         return;
       case 'fx.filters':
-        filters.facts(event.p);
+        // An unread built before MAIN heard that no strip wants it any more is not kept: a strip coming back starts
+        // from a copy built after it asked again.
+        filters.facts(filtersWanted ? event.p : { ...event.p, unread: null });
         return;
     }
   };
@@ -1015,6 +1017,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       wantUnread: (on) => {
         if (disposed || on === filtersWanted) return;
         filtersWanted = on;
+        if (!on) filters.forgetUnread();
         askFiltersWanted();
       },
       select: (ref) => !disposed && filters.select(ref),
