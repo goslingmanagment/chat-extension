@@ -127,6 +127,7 @@ import { createFanslyGreeting, type FanslyGreeting } from '@cg/core/services/hos
 import { freshForSend, verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 import { FanslyPinsStorageError, createFanslyPins } from '@cg/core/services/hosts/fansly/pins';
+import { FanslyFiltersStorageError, createFanslyFiltersMemory } from '@cg/core/services/hosts/fansly/filters';
 import { arrangeVaultAlbum, createFanslyApi, createFanslyClient, readVaultAlbum, renameVaultMember, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
@@ -279,6 +280,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   let inboxMark = kit.settingsExt?.current().hosts['fansly-web'].inboxMark ?? null;
   // 2026-11-12: and «Закрепы чатов».
   let pinsOn = kit.settingsExt?.current().hosts['fansly-web'].pins ?? null;
+  // 2026-11-13: and «Фильтры над чатами».
+  let filterStrip = kit.settingsExt?.current().hosts['fansly-web'].filterStrip ?? null;
   const offSettings = kit.settingsExt?.onChange(() => {
     void refreshSettings();
     const view = kit.settingsExt?.current().hosts['fansly-web'].notesView ?? null;
@@ -290,6 +293,9 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     const on = kit.settingsExt?.current().hosts['fansly-web'].pins ?? null;
     if (on !== null && on !== pinsOn) kit.site?.emit('fansly.pins.switched', { on });
     pinsOn = on;
+    const strip = kit.settingsExt?.current().hosts['fansly-web'].filterStrip ?? null;
+    if (strip !== null && strip !== filterStrip) kit.site?.emit('fansly.filters.stripChanged', { strip });
+    filterStrip = strip;
   });
   await refreshSettings();
   // The client of a feature's call: the realm's own; a test build's, on the stand's loopback API.
@@ -312,6 +318,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const deleted = createDeletedMessagesReader(kit, FANSLY_SLICE);
   // The person's pins: whoever is signed in now owns them; nobody — nothing read or written.
   const pins = createFanslyPins({ local: kit.storage.local, now: () => kit.clock.now(), owner: () => kit.install.owner(), log: kit.log.service });
+  // «Четыре группы»'s memory over the list of chats: the person's own, the same owner rule.
+  const filterMemory = createFanslyFiltersMemory({ local: kit.storage.local, now: () => kit.clock.now(), owner: () => kit.install.owner(), log: kit.log.service });
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
@@ -477,6 +485,21 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
           return change === null ? ok({ on, pins: answer.pins }) : ok({ pins: answer.pins });
         } catch (error) {
           return { ok: false, error: { code: error instanceof FanslyPinsStorageError ? error.code : 'CG-STORAGE-READ' } };
+        }
+      }
+      case 'fansly.filters.read':
+      case 'fansly.filters.remember': {
+        if (kit.settingsExt === undefined) return unreachable('no settings.ext port');
+        try {
+          if (type === 'fansly.filters.read') {
+            const { hostAccountId } = payload as FanslyTabRequestPayload<'fansly.filters.read'>;
+            const strip = (await kit.settingsExt.state()).state.ext.hosts['fansly-web'].filterStrip;
+            return ok({ strip, memo: await filterMemory.read(hostAccountId) });
+          }
+          const change = payload as FanslyTabRequestPayload<'fansly.filters.remember'>;
+          return ok({ memo: await filterMemory.remember(change.hostAccountId, change.group, change.key) });
+        } catch (error) {
+          return { ok: false, error: { code: error instanceof FanslyFiltersStorageError ? error.code : 'CG-STORAGE-READ' } };
         }
       }
       case 'fansly.sound.batch': {

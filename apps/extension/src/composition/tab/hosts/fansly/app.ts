@@ -22,7 +22,8 @@
 //   and «Новые» from every page, as the popup opens them; the mark of a chat waiting for a reply in Fansly's own list of
 //   chats (2026-10-29), as the settings page holds it; the page's hub label in front of the tab's title (2026-10-31);
 //   who wrote each of the model's messages of the open chat, before its time (2026-11-03, message-authors.ts); the
-//   person's temporary chat pins over the list of chats (2026-11-12, `pins` chunk).
+//   person's temporary chat pins over the list of chats (2026-11-12, `pins` chunk); the filters above the chats in the
+//   look the person chose (2026-11-13, the same chunk).
 
 import { showProxyNotice } from '@cg/host-fansly/isolated/proxy-notice';
 import { isMessagesPath } from '@cg/host-fansly/isolated/route';
@@ -171,9 +172,16 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
         return null;
       });
     }
-    // 2026-11-12: temporary chat pins — the strip over the list of chats, the rows' and the header's buttons.
+    // 2026-11-12: temporary chat pins — the strip over the list of chats, the rows' and the header's buttons; 2026-11-13:
+    // the filters above the chats, in the same chunk.
     if (pins === null && isMessagesPath(env.win.location.pathname)) {
-      pins = env.lazy<typeof PinsChunk>('pins').then((chunk) => (env.life.aborted ? null : chunk.startFanslyPins(env)), () => {
+      pins = env.lazy<typeof PinsChunk>('pins').then((chunk) => {
+        if (env.life.aborted) return null;
+        const stops = [chunk.startFanslyPins(env), chunk.startFanslyFilters(env)];
+        return () => {
+          for (const stop of stops) stop();
+        };
+      }, () => {
         pins = null;
         env.report({ kind: 'render', surface: 'inbox-slot' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'PinsChunk' });
         return null;

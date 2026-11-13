@@ -29,7 +29,7 @@ const KiB = 1024;
  * Requests isolated → MAIN (§6 `ToMainFansly`); payload and answer schemas: TO_MAIN_FANSLY in bridge-messages-fansly.ts.
  * `fx.health` (R20 P7a): MAIN's counts and parse times, read on demand.
  */
-export const TO_MAIN_FANSLY_TYPES = ['probe', 'fx.state', 'fx.focus', 'fx.generationSnapshot', 'fx.groupForFan', 'fx.windowMeta', 'fx.order', 'fx.ack', 'fx.health'] as const;
+export const TO_MAIN_FANSLY_TYPES = ['probe', 'fx.state', 'fx.focus', 'fx.generationSnapshot', 'fx.groupForFan', 'fx.windowMeta', 'fx.order', 'fx.filtersWanted', 'fx.ack', 'fx.health'] as const;
 export type ToMainFanslyType = (typeof TO_MAIN_FANSLY_TYPES)[number];
 
 /**
@@ -55,14 +55,15 @@ export const FROM_MAIN_FANSLY_TYPES = [
   'fx.vaultLoaded',
   'fx.vaultUpload',
   'fx.lastWord',
+  'fx.filters',
 ] as const;
 export type FromMainFanslyType = (typeof FROM_MAIN_FANSLY_TYPES)[number];
 
 /**
- * States: at most once per type in a batch, the latest wins; `fx.state` returns all three whole. `fx.chat` is the
- * focused group only.
+ * States: at most once per type in a batch, the latest wins; `fx.state` returns the first three whole. `fx.chat` is the
+ * focused group only. `fx.filters` (2026-11-13) is said again after every `fx.state`.
  */
-export const FANSLY_BRIDGE_STATE_EVENTS = ['fx.identity', 'fx.chat', 'fx.contract'] as const satisfies readonly FromMainFanslyType[];
+export const FANSLY_BRIDGE_STATE_EVENTS = ['fx.identity', 'fx.chat', 'fx.contract', 'fx.filters'] as const satisfies readonly FromMainFanslyType[];
 
 /**
  * The stream: in order, never coalesced, thinned or dropped one by one — freshness, sound, receipts and the vault

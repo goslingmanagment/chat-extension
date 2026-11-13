@@ -43,6 +43,8 @@ export const VAULT_UPLOAD_ALIVE_MS = 30_000;
 export const VAULT_UPLOADS_KEPT = 500;
 /** Who has the last word in a chat (2026-10-29): the mark of the list of chats. */
 export const EVT_LAST_WORD = 'fx.lastWord';
+/** 2026-11-13: what the page's answers say of its filter chips (filters.ts), a state said again after `fx.state`. */
+export const EVT_FILTERS = 'fx.filters';
 
 /** TO_MAIN_FANSLY_TYPES MAIN answers itself (`probe` is the boot's). */
 export const REQ_STATE = 'fx.state';
@@ -54,6 +56,8 @@ export const REQ_GROUP_FOR_FAN = 'fx.groupForFan';
 export const REQ_WINDOW = 'fx.windowMeta';
 /** 2026-11-03: the order of a group's messages, without a text (contracts FanslyOrderSchema). */
 export const REQ_ORDER = 'fx.order';
+/** 2026-11-13: whether a strip wants the unread of the filters (`fx.filters`). */
+export const REQ_FILTERS_WANTED = 'fx.filtersWanted';
 
 /** FANSLY_GAP_REASONS. */
 export const GAP_OVERFLOW = 'overflow';

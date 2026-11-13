@@ -257,6 +257,40 @@ export interface WireAccount {
   readonly following: boolean;
   readonly avatar: WireAvatar | null;
   readonly notes: readonly WireNote[];
+  /**
+   * 2026-11-13, the filters over the list of chats: a creator's own tiers (`/account/me`), and a fan's place — the
+   * creator's lists it is in, whether it subscribes and to which tier. `vip` and `staff` are the stand's own words for
+   * what Fansly's `isYourVip()` and `isAdmin()` decide.
+   */
+  readonly subscriptionTiers?: readonly WireSubscriptionTier[];
+  readonly containingLists?: readonly string[];
+  readonly subscriber?: boolean;
+  readonly subscriberSubscription?: { readonly subscriptionTierId: string } | null;
+  readonly vip?: boolean;
+  readonly staff?: boolean;
+}
+
+/** A creator's tier as `/account/me` carries it: Fansly prints the ones with a plan of status 1. */
+export interface WireSubscriptionTier {
+  readonly id: string;
+  readonly name: string;
+  readonly color: string;
+  readonly plans: ReadonlyArray<{ readonly id: string; readonly status: number; readonly billingCycle: number; readonly price: number }>;
+}
+
+/** `GET /settings?categoryIds=…`: the account's settings of those categories (the pinned lists: 4000/100). */
+export interface WireSetting {
+  readonly categoryId: string;
+  readonly keyId: string;
+  readonly value: number;
+  readonly metadata: string;
+}
+
+/** `GET /lists/account`: the creator's lists. */
+export interface WireList {
+  readonly id: string;
+  readonly label: string;
+  readonly itemCount: number;
 }
 
 /** `GET /account/me`. */

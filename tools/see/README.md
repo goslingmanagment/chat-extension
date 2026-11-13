@@ -68,7 +68,10 @@ someone else's change), `fansly-notes-new` (a fan without a questionnaire: the c
 record, one with a message nobody is known for, the chatter's own send named a moment later, a click on the time (the name on the «Sent» line) and another chat and back; the showcase world),
 `fansly-inbox` (who waits for a reply in Fansly's own list of chats: the dot on the avatar of a fan who wrote last,
 two fans answered from the composer, «Кто ждёт ответа» on the settings page, «Мы:», the light theme),
-`fansly-marks` (the open fan's warning marks after «Регистрация»: «💩 Бомж», the agency's list on this and another
+`fansly-filters` (the filters above the chats: the owner's set as Fansly's own chips, «Две полки» with every popover and
+the question before unpinning, a tier and a list picked, «много всего», the 400 px column, «Четыре группы» with both
+menus, the numbers' tooltip, a remembered tier, list and step, the settings row; the fake Fansly's `filters` command sets
+the tiers, the lists and the fans), `fansly-marks` (the open fan's warning marks after «Регистрация»: «💩 Бомж», the agency's list on this and another
 model's page, its «где» on hover, and «⛔ Блоклист» with FANSLY BLOCKLIST's posts pinned by a click),
 `fansly-deleted` («Удалил» after the marks: the fan's deleted messages the fake hub keeps, the fresh mark, its card on
 hover, the calm mark once seen, then one more written and deleted while the chat is open; both themes),

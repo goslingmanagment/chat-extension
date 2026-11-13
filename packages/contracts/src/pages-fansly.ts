@@ -8,7 +8,7 @@
 
 import type { CgErrorWire } from './errors';
 import type { ToneId } from './settings';
-import type { FanslyInboxMark, SettingsExtState } from './settings-ext';
+import type { FanslyFilterStrip, FanslyInboxMark, SettingsExtState } from './settings-ext';
 import type { SiteAccessView } from './site-access';
 import type { FanslyAccountsView } from './tab-messages-fansly';
 
@@ -77,6 +77,8 @@ export interface FanslyPagesControl {
   setInboxMark(mark: FanslyInboxMark): Promise<boolean>;
   /** «Закрепы чатов» (2026-11-12): the strip of temporary chat pins over Fansly's list, with the rows' and the header's buttons. */
   setPins(on: boolean): Promise<boolean>;
+  /** «Фильтры над чатами» (2026-11-13): «Две полки», «Четыре группы» or Fansly's own chips over the list of chats. */
+  setFilterStrip(strip: FanslyFilterStrip): Promise<boolean>;
   /** The Recap depth on Fansly above v1's 3000; null — none (v1's depth holds). */
   setDeep(deep: number | null): Promise<boolean>;
   /** «Повторить» the write that failed; false — nothing to repeat, or it failed again. */
@@ -150,5 +152,11 @@ export const FANSLY_PAGE_TEXT_KEYS = [
   // 2026-11-12: «Закрепы чатов» — the strip of temporary chat pins over Fansly's list of chats.
   'fansly.pages.pins',
   'fansly.pages.pinsHint',
+  // 2026-11-13: «Фильтры над чатами» — the look of Fansly's filter chips over the list of chats.
+  'fansly.pages.filterStrip',
+  'fansly.pages.filterStripHint',
+  'fansly.pages.filterStripShelves',
+  'fansly.pages.filterStripGroups',
+  'fansly.pages.filterStripNative',
 ] as const;
 export type FanslyPageTextKey = (typeof FANSLY_PAGE_TEXT_KEYS)[number];

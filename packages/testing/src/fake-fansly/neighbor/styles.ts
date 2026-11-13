@@ -18,6 +18,8 @@ export const STYLE_FIXES = [
   '.message-composer .collapsable-actions button{min-width:0!important;padding:0 .25rem!important;background:none!important}',
   // The list's filter chips with no gap under them (FBuddy main.js:45397-45462, seen live 2026-11-12).
   '.messages-nav-wrapper{margin-bottom:0!important}',
+  // Its tighter filter chips (the owner's screenshot of 2026-11-12, FBuddy main.js).
+  '.message-list-header .bubble{padding:0.05em 0.75em!important;margin:0.25em 0.25em!important}',
 ].join('\n');
 
 /** `style#fb-dynamic-tweaks-css` with the defaults (`b3 = 1800`, S5 §2.5). */

@@ -86,7 +86,7 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
       other?.remove();
       other = null;
       if (messages === null) {
-        messages = new MessagesRoute(store, modals, router, (container) => oldMarks.follow(container));
+        messages = new MessagesRoute(store, modals, router, (container) => oldMarks.follow(container), live?.xhr.filters ?? null);
         outlet.after(messages.host);
         record('route-created', { route: 'app-messages-route' });
       }

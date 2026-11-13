@@ -157,7 +157,35 @@ export type FakeFanslyCommand =
   /** `POST /message`: the order and the delays of its answer and its socket echo. */
   | { readonly op: 'send'; readonly echo?: SendEcho; readonly receiptDelayMs?: number; readonly echoDelayMs?: number }
   /** The session: `expire` — the page's token stops working (401, `t: 0` on the socket); `issue` — one more token, whose calls are journaled under that name. */
-  | { readonly op: 'session'; readonly expire?: boolean; readonly issue?: 'neighbour' };
+  | { readonly op: 'session'; readonly expire?: boolean; readonly issue?: 'neighbour' }
+  /**
+   * 2026-11-13, the filter chips over the list of chats: the creator's tiers (an inactive one has no plan of status 1)
+   * and lists (`pinned` ones in the order given), and the fans' places in them — by the fan's id or its place in the
+   * inbox (`at`); `tier` and `lists` are indexes into the ones given here. `unread` sets the chat's unread messages
+   * (new ones of the fan's, no frame: the page reads them on its next load); `clearUnread` reads every chat first.
+   */
+  | {
+      readonly op: 'filters';
+      readonly tiers?: ReadonlyArray<{ readonly name: string; readonly color?: string; readonly active?: boolean }>;
+      readonly lists?: ReadonlyArray<{ readonly label: string; readonly pinned?: boolean; readonly itemCount?: number }>;
+      readonly clearUnread?: boolean;
+      readonly fans?: ReadonlyArray<FilterFanSeed>;
+    };
+
+/** A fan's place in the filters (`filters`): its subscription tier, its lists, VIP, staff, follower, its chat's unread. */
+export interface FilterFanSeed {
+  readonly fanId?: string;
+  /** The fan of the inbox's chat at this place (newest first), when no `fanId`. */
+  readonly at?: number;
+  readonly tier?: number | null;
+  readonly lists?: readonly number[];
+  readonly vip?: boolean;
+  readonly staff?: boolean;
+  readonly follower?: boolean;
+  readonly unread?: number;
+  /** The unread are the chat's own last messages of the fan, not new ones: the chat keeps its place (beyond the first page). */
+  readonly old?: boolean;
+}
 
 export interface FakeFanslySocketView {
   /** Counts up with every connection the server took: the socket's epoch on the server's side. */
@@ -197,4 +225,7 @@ export interface FakeFanslyResult {
   readonly token?: string;
   /** How many sockets a frame went to. */
   readonly sent?: number;
+  /** `filters`: the ids of the tiers and the lists given, in their order. */
+  readonly tierIds?: readonly string[];
+  readonly listIds?: readonly string[];
 }

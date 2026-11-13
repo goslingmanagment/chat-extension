@@ -53,7 +53,7 @@ export type FrameItem =
   /** 5/10: a message deleted; a `type 3` takes its copies in every chat with it (by `correlationId`). */
   | { readonly k: 'deleted'; readonly id: string; readonly groupId: string | null; readonly cascade: boolean }
   /** 4/2 (production) or 5/2: who read which messages. Never crosses the bridge (§5.3). */
-  | { readonly k: 'read'; readonly userId: string | null; readonly ids: readonly string[] }
+  | { readonly k: 'read'; readonly userId: string | null; readonly ids: readonly string[]; readonly type: number | null }
   /** 4/6 a member added, 4/7 removed, 4/8 a group created: who the group's fan is must be read again. */
   | { readonly k: 'members'; readonly type: number; readonly groupId: string; readonly userId: string | null }
   /** 3/2: a new follower of the account. */
@@ -187,12 +187,12 @@ export function readFrame(text: string, parse: Parse): FrameRead {
         items.push({ k: 'deleted', id, groupId, cascade: (message as Plain)['type'] === MASS_SEND_PARENT });
       } else if (type === MESSAGE_ACK) {
         const ack = event['messageAckEvent'] ?? event['ackCommand'];
-        if (isPlain(ack)) items.push({ k: 'read', userId: idOrNull(ack['userId']), ids: ids(ack['messageIds']) });
+        if (isPlain(ack)) items.push({ k: 'read', userId: idOrNull(ack['userId']), ids: ids(ack['messageIds']), type: typeof ack['type'] === 'number' ? ack['type'] : null });
       } else if (type === MESSAGE_TYPING) typing += 1;
     } else if (serviceId === SERVICE_GROUP) {
       if (type === GROUP_ACK) {
         const ack = event['ackCommand'];
-        if (isPlain(ack)) items.push({ k: 'read', userId: idOrNull(ack['userId']), ids: ids(ack['messageIds']) });
+        if (isPlain(ack)) items.push({ k: 'read', userId: idOrNull(ack['userId']), ids: ids(ack['messageIds']), type: typeof ack['type'] === 'number' ? ack['type'] : null });
       } else if (typeof type === 'number' && type >= 6 && type <= 8) {
         // Who is in a group changed and the group cannot be told: whose fan is whose is not known for any chat.
         const member = isPlain(event['groupUser']) ? event['groupUser'] : isPlain(event['group']) ? { groupId: event['group']['id'] } : null;

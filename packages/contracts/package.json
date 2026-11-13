@@ -7,6 +7,7 @@
   "exports": {
     "./registration-fansly": "./src/registration-fansly.ts",
     "./fansly-pins": "./src/fansly-pins.ts",
+    "./fansly-filters": "./src/fansly-filters.ts",
     "./fansly-pin-glyph": "./src/fansly-pin-glyph.ts",
     "./fan-marks-fansly": "./src/fan-marks-fansly.ts",
     "./deleted-fansly": "./src/deleted-fansly.ts",

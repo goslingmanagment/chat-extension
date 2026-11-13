@@ -21,7 +21,7 @@ const sharedFailure = { ok: false, error: { code: 'CG-NETWORK' } } as const;
 const unknownFailure = { ok: false, error: { code: 'CG-FAN-01' } } as const;
 /** `settings.ext` as the settings page reads it (R20 P14b1). */
 const extState = {
-  ext: { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'drawer', inboxMark: 'dot', pins: true, sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
+  ext: { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'drawer', inboxMark: 'dot', pins: true, filterStrip: 'shelves', sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
   revision: 2,
   readOnly: false,
 } as const;
@@ -441,6 +441,20 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   'fansly.notes.view': { req: { valid: [{}], invalid: [{ view: 'docked' }] }, res: { valid: [{ view: 'docked' }, { view: 'drawer' }, { view: 'center' }], invalid: [{ view: 'left' }, {}] } },
   'fansly.notes.setView': { req: { valid: [{ view: 'center' }], invalid: [{ view: 'left' }, {}] }, res: { valid: [{ view: 'drawer' }], invalid: [{ view: null }] } },
   'fansly.inbox.mark': { req: { valid: [{}], invalid: [{ mark: 'dot' }] }, res: { valid: [{ mark: 'dot' }, { mark: 'we' }, { mark: 'off' }], invalid: [{ mark: 'ring' }, {}] } },
+  'fansly.filters.read': {
+    req: { valid: [{ hostAccountId: '700000000000000001' }], invalid: [{}, { hostAccountId: 'model' }] },
+    res: {
+      valid: [{ strip: 'shelves', memo: { tier: null, list: null } }, { strip: 'groups', memo: { tier: '700000000000000401', list: 'label:🟡 Потенциал' } }, { strip: 'native', memo: { tier: null, list: null } }],
+      invalid: [{ strip: 'pills', memo: { tier: null, list: null } }, { strip: 'groups' }, { strip: 'groups', memo: { tier: '', list: null } }],
+    },
+  },
+  'fansly.filters.remember': {
+    req: {
+      valid: [{ hostAccountId: '700000000000000001', group: 'tier', key: '700000000000000401' }, { hostAccountId: '700000000000000001', group: 'list', key: null }],
+      invalid: [{ hostAccountId: '700000000000000001', group: 'vips', key: null }, { hostAccountId: '700000000000000001', group: 'list' }],
+    },
+    res: { valid: [{ memo: { tier: null, list: '700000000000000411' } }], invalid: [{}, { memo: { tier: null } }] },
+  },
   'fansly.pins.read': {
     req: { valid: [{ hostAccountId: F.creator }], invalid: [{}, { hostAccountId: 'creator' }] },
     // At most six a creator; a pin names its fan and a name, never a text.
@@ -570,9 +584,9 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   'fansly.settings.read': { req: { valid: [{}], invalid: [{ host: 'fansly-web' }] }, res: { valid: [extState], invalid: [{ ...extState, revision: -1 }, { ext: extState.ext, revision: 1 }] } },
   'fansly.settings.write': {
     req: {
-      valid: [{ patch: { hosts: { 'fansly-web': { viaTab: true } } } }, { patch: { hosts: { 'fansly-web': { pins: false } } } }, { patch: { hosts: { 'fansly-web': { sound: { subscribersTone: 'bell' } } }, windows: { deep: 4000 } } }, { patch: { windows: { deep: null } } }, { patch: { hosts: { 'fansly-web': { inboxMark: 'we' } } } }],
+      valid: [{ patch: { hosts: { 'fansly-web': { viaTab: true } } } }, { patch: { hosts: { 'fansly-web': { pins: false } } } }, { patch: { hosts: { 'fansly-web': { filterStrip: 'groups' } } } }, { patch: { hosts: { 'fansly-web': { sound: { subscribersTone: 'bell' } } }, windows: { deep: 4000 } } }, { patch: { windows: { deep: null } } }, { patch: { hosts: { 'fansly-web': { inboxMark: 'we' } } } }],
       // «Fansly включён» goes through site.access; the view of «Заметки» is their panel's; a depth v1 holds; a mark of no kind.
-      invalid: [{ patch: { hosts: { 'fansly-web': { enabled: true } } } }, { patch: { hosts: { 'fansly-web': { notesView: 'center' } } } }, { patch: { windows: { deep: 3000 } } }, {}, { patch: { hosts: { 'fansly-web': { inboxMark: 'ring' } } } }, { patch: { hosts: { 'fansly-web': { pins: 'on' } } } }],
+      invalid: [{ patch: { hosts: { 'fansly-web': { enabled: true } } } }, { patch: { hosts: { 'fansly-web': { filterStrip: 'pills' } } } }, { patch: { hosts: { 'fansly-web': { notesView: 'center' } } } }, { patch: { windows: { deep: 3000 } } }, {}, { patch: { hosts: { 'fansly-web': { inboxMark: 'ring' } } } }, { patch: { hosts: { 'fansly-web': { pins: 'on' } } } }],
     },
     res: { valid: [extState, { ...extState, readOnly: true }], invalid: [{ ...extState, ext: { ...extState.ext, windows: { deep: 3000 } } }] },
   },
@@ -600,6 +614,7 @@ export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Ve
   'fansly.inbox.markChanged': { valid: [{ mark: 'we' }], invalid: [{ mark: 'ring' }, { mark: 'dot', text: 'never' }] },
   'fansly.pins.changed': { valid: [{ hostAccountId: F.creator, pins: [fanslyPin] }, { hostAccountId: F.creator, pins: [] }], invalid: [{ pins: [] }, { hostAccountId: F.creator, pins: [{ ...fanslyPin, groupId: 'g1' }] }] },
   'fansly.pins.switched': { valid: [{ on: true }, { on: false }], invalid: [{}, { on: 'yes' }] },
+  'fansly.filters.stripChanged': { valid: [{ strip: 'groups' }, { strip: 'native' }], invalid: [{}, { strip: 'pills' }] },
   'fansly.followers.changed': {
     valid: [{ pass: fanslyPass, seq: 3, rows: [fanslyRow] }, { pass: { ...fanslyPass, state: 'cooldown', cooldownUntil: T0 + 30_000 }, seq: 4, rows: [] }],
     invalid: [{ pass: fanslyPass, seq: 3, rows: Array.from({ length: 101 }, () => fanslyRow) }, { pass: fanslyPass, rows: [] }],
@@ -628,15 +643,15 @@ export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Ve
 export const SETTINGS_EXT_FIXTURES = {
   view: {
     valid: [
-      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: 4000 } },
-      { v: 1, hosts: { 'fansly-web': { enabled: false, viaTab: true, notesView: 'drawer', inboxMark: 'dot', pins: true, sound: { messagesTone: 'blip', subscribersTone: 'arpeggio' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
+      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, filterStrip: 'shelves', sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: 4000 } },
+      { v: 1, hosts: { 'fansly-web': { enabled: false, viaTab: true, notesView: 'drawer', inboxMark: 'dot', pins: true, filterStrip: 'shelves', sound: { messagesTone: 'blip', subscribersTone: 'arpeggio' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
     ],
     // A depth v1 holds (≤ 3000), one above the wire's 5000, a view of another version, an unknown notes view.
     invalid: [
-      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: 3000 } },
-      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: 5001 } },
-      { v: 2, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
-      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'left', inboxMark: 'dot', pins: true, sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
+      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, filterStrip: 'shelves', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: 3000 } },
+      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, filterStrip: 'shelves', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: 5001 } },
+      { v: 2, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', inboxMark: 'dot', pins: true, filterStrip: 'shelves', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
+      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'left', inboxMark: 'dot', pins: true, filterStrip: 'shelves', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
     ],
   },
   patch: {

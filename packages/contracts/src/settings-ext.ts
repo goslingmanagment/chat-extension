@@ -49,6 +49,14 @@ export type FanslyNotesView = (typeof FANSLY_NOTES_VIEWS)[number];
 export const FANSLY_INBOX_MARKS = ['dot', 'we', 'off'] as const;
 export type FanslyInboxMark = (typeof FANSLY_INBOX_MARKS)[number];
 
+/**
+ * «Фильтры над чатами» (2026-11-13, contracts fansly-filters.ts): how Fansly's own filter chips above the list of chats
+ * look — «Две полки» (`shelves`, the default), «Четыре группы» (`groups`), or Fansly's chips as they are (`native`).
+ * Either strip only redraws the block: every click is a click on Fansly's own chip.
+ */
+export const FANSLY_FILTER_STRIPS = ['shelves', 'groups', 'native'] as const;
+export type FanslyFilterStrip = (typeof FANSLY_FILTER_STRIPS)[number];
+
 export const SETTINGS_EXT_RANGES = {
   /**
    * The person's Recap depth above v1's 3000 (architecture §12: three limits). Up to 3000 it stays in v1
@@ -71,6 +79,8 @@ export const FanslySettingsSchema = z.strictObject({
   inboxMark: z.enum(FANSLY_INBOX_MARKS),
   /** «Закрепы чатов» (2026-11-12): the strip of pinned chats over Fansly's list, the rows' pin buttons and the header's. */
   pins: z.boolean(),
+  /** «Фильтры над чатами» (2026-11-13): the look of Fansly's filter chips over the list of chats. */
+  filterStrip: z.enum(FANSLY_FILTER_STRIPS),
   /** The tones on Fansly (FS-SND-2, X26); whether a sound plays at all, the volume and the muted accounts are v1's, shared. */
   sound: z.strictObject({ messagesTone: ToneIdSchema, subscribersTone: ToneIdSchema }),
 });
@@ -83,6 +93,7 @@ export const DEFAULT_FANSLY_SETTINGS: FanslySettings = {
   notesView: 'drawer',
   inboxMark: 'dot',
   pins: true,
+  filterStrip: 'shelves',
   sound: { messagesTone: 'chime', subscribersTone: 'double' },
 };
 
@@ -117,6 +128,7 @@ export const SettingsExtPatchSchema = z.strictObject({
           notesView: z.optional(z.enum(FANSLY_NOTES_VIEWS)),
           inboxMark: z.optional(z.enum(FANSLY_INBOX_MARKS)),
           pins: z.optional(z.boolean()),
+          filterStrip: z.optional(z.enum(FANSLY_FILTER_STRIPS)),
           sound: z.optional(z.partial(FanslySettingsSchema.shape.sound)),
         }),
       ),

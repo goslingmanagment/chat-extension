@@ -14,10 +14,11 @@
 //   never makes an ack request inside the gesture.
 
 import type { GroupDetail, HistoryPage, OutgoingMessage, StandBackend, UploadFile } from './backend';
+import type { StandFiltersSource } from './filters';
 import type { Account, Message, MessageAttachment } from './data';
 import type { FanslyHttp } from './http';
 import type { VaultApi } from './vault';
-import type { WireAccount, WireAccountMe, WireAckBody, WireGroup, WireHistoryPage, WireInboxPage, WireMediaUpload, WireMessage, WireSendBody, WireUnreadPage, WireVaultAlbum, WireVaultAlbumMediaPage, WireVaultAlbums } from './wire';
+import type { WireAccount, WireAccountMe, WireAckBody, WireList, WireSetting, WireGroup, WireHistoryPage, WireInboxPage, WireMediaUpload, WireMessage, WireSendBody, WireUnreadPage, WireVaultAlbum, WireVaultAlbumMediaPage, WireVaultAlbums } from './wire';
 
 const HISTORY_PAGE = 25;
 const UNREAD_CHUNK = 100;
@@ -76,6 +77,8 @@ export class XhrBackend implements StandBackend, VaultApi {
   private readonly ackQueue = new Map<number, string[]>();
   private readonly acked = new Set<string>();
   private ackTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The creator's tiers with an active plan (`/account/me`, 2026-11-13). */
+  private tierList: Array<{ readonly id: string; readonly name: string; readonly color: string }> = [];
   /** Runs of `readUnread` between their first chunk and their last (the gaps between chunks included). */
   private unreadReads = 0;
   private stopped = false;
@@ -102,9 +105,53 @@ export class XhrBackend implements StandBackend, VaultApi {
       }
       this.creatorId = response.account.id;
       this.accounts.set(response.account.id, response.account);
+      this.tierList = (response.account.subscriptionTiers ?? []).filter((tier) => tier.plans.some((plan) => plan.status === 1)).map((tier) => ({ id: tier.id, name: tier.name, color: tier.color }));
       done(toAccount(response.account), false);
     });
   }
+
+  // ── the filters over the list of chats (2026-11-13, filters.ts) ──
+
+  readonly filters: StandFiltersSource = {
+    tiers: () => this.tierList,
+    pinned: (done) => {
+      this.http.request<WireSetting[]>('GET', '/settings?categoryIds=4000', null, (error, response) => {
+        const entry = error === null ? (response ?? []).find((item) => item.categoryId === '4000' && item.keyId === '100') : undefined;
+        let lists: Array<{ id: string; label: string }>;
+        try {
+          lists = entry === undefined ? [] : ((JSON.parse(entry.metadata) as { pinnedLists?: Array<{ id: string; label: string }> }).pinnedLists ?? []);
+        } catch {
+          lists = [];
+        }
+        done(lists.map((list) => ({ id: list.id, label: list.label })));
+      });
+    },
+    savePinned: (lists) => {
+      const body: WireSetting = { categoryId: '4000', keyId: '100', value: 1, metadata: JSON.stringify({ pinnedLists: lists.map((list) => ({ id: list.id, label: list.label })) }) };
+      this.http.request<unknown>('POST', '/settings', body, () => undefined);
+    },
+    accountLists: (done) => {
+      this.http.request<WireList[]>('GET', '/lists/account?limit=50&offset=0', null, (error, response) => done(error === null ? (response ?? []) : []));
+    },
+    facts: (accountId) => {
+      const account = this.accounts.get(accountId);
+      if (account === undefined) return null;
+      return {
+        lists: account.containingLists ?? [],
+        subscriber: account.subscriber === true,
+        tierId: account.subscriberSubscription?.subscriptionTierId ?? null,
+        follower: account.followsYou,
+        vip: account.vip === true,
+        staff: account.staff === true,
+      };
+    },
+    refresh: (done) => {
+      this.readUnread();
+      setTimeout(done, 300);
+    },
+    // Fansly's All: every unread message the page read, in any chat, loaded or not (its empty groups, main:27904-27946).
+    allUnread: () => [...this.unreadIds.values()].reduce((total, ids) => total + ids.size, 0),
+  };
 
   // ── groups ──
 

@@ -44,6 +44,12 @@ export const LOCAL_KEYS = {
    * person signing in starts it empty.
    */
   fanslyPins: 'fansly.pins',
+  /**
+   * 2026-11-13: the memory of «Четыре группы» over Fansly's chats (services/hosts/fansly/filters.ts): its owner and each
+   * creator's last tier and list picked from the menus — ids or a chip's label; no text of a fan. Another person
+   * signing in starts it empty.
+   */
+  fanslyFilters: 'fansly.filters',
 } as const;
 
 /** One stored result (an OpView: up to 64k characters of stream plus the parsed result). */
@@ -84,6 +90,8 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
    * past it the quietest creator goes, as the last resort.
    */
   [LOCAL_KEYS.fanslyPins]: 64 * KiB,
+  /** Two short keys for every creator worked on: hundreds of creators fit; past it the oldest go. */
+  [LOCAL_KEYS.fanslyFilters]: 64 * KiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
   [SESSION_KEYS.settingsExtRevision]: 64,

@@ -20,7 +20,7 @@ import type { CgErrorWire, I18nKey } from '@cg/contracts/errors';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import type { FanslyPageFacts, FanslyPagesControl, FanslyPagesView, FanslyPageTextKey, FanslyStep, FanslyToneKey } from '@cg/contracts/pages-fansly';
 import { SETTINGS_RANGES, SOUND_TONE_IDS, type ToneId } from '@cg/contracts/settings';
-import { FANSLY_INBOX_MARKS, SETTINGS_EXT_RANGES, type FanslyInboxMark } from '@cg/contracts/settings-ext';
+import { FANSLY_FILTER_STRIPS, FANSLY_INBOX_MARKS, SETTINGS_EXT_RANGES, type FanslyFilterStrip, type FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { I18n } from '@cg/contracts/vm';
 
 import { Button, Checkbox, CodeLine, Dot, Icon, Spinner, TextField, useI18n, useView } from '../../../kit';
@@ -318,6 +318,34 @@ function InboxMarkRow({ control }: { readonly control: FanslyPagesControl }): JS
   );
 }
 
+const FILTER_STRIP_KEYS: Readonly<Record<FanslyFilterStrip, FanslyPageTextKey>> = { shelves: 'fansly.pages.filterStripShelves', groups: 'fansly.pages.filterStripGroups', native: 'fansly.pages.filterStripNative' };
+
+/** «Вид и звук»: «Фильтры над чатами» (2026-11-13) — the look of Fansly's filter chips over the list of chats, while Fansly is on. */
+function FilterStripRow({ control }: { readonly control: FanslyPagesControl }): JSX.Element | null {
+  const i18n = useI18n();
+  const view = useFansly(control);
+  if (!view.on || view.settings === null) return null;
+  const strip = view.settings.ext.hosts[FANSLY].filterStrip;
+  const label = text(i18n, 'fansly.pages.filterStrip');
+  return (
+    <Opt label={label} hint={text(i18n, 'fansly.pages.filterStripHint')} anchor="fansly-filter-strip">
+      <span class="pg-line" data-pg-fansly-filter-strip={strip}>
+        <Picker
+          label={label}
+          text={text(i18n, FILTER_STRIP_KEYS[strip])}
+          value={strip}
+          options={FANSLY_FILTER_STRIPS.map((id) => ({ value: id, label: text(i18n, FILTER_STRIP_KEYS[id]) }))}
+          reason={lockOf(i18n, view)}
+          onChange={(value) => {
+            const next = FANSLY_FILTER_STRIPS.find((id) => id === value);
+            if (next !== undefined) void control.setFilterStrip(next);
+          }}
+        />
+      </span>
+    </Opt>
+  );
+}
+
 /** «Вид и звук»: «Закрепы чатов» (2026-11-12) — the strip of temporary chat pins over Fansly's list, while Fansly is on. */
 function PinsRow({ control }: { readonly control: FanslyPagesControl }): JSX.Element | null {
   const i18n = useI18n();
@@ -496,6 +524,7 @@ export function fanslyOptionsSlots(control: FanslyPagesControl): OptionsSlots {
     appearanceView: () => (
       <>
         <InboxMarkRow control={control} />
+        <FilterStripRow control={control} />
         <PinsRow control={control} />
       </>
     ),

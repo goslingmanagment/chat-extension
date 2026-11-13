@@ -29,3 +29,4 @@ export { DELETED_TEXTS } from './deleted';
 export { CHAT_LENGTH_TEXTS } from './chat-length';
 export { MESSAGE_AUTHOR_TEXTS } from './message-authors';
 export { PINS_TEXTS } from './pins';
+export { FILTERS_TEXTS } from './filters';

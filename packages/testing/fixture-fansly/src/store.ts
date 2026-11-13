@@ -95,6 +95,11 @@ export class GroupService {
     return this.inboxIds;
   }
 
+  /** Every chat the page has loaded, with its unread count and its fan: what Fansly's filter badges count (2026-11-13). */
+  loadedGroups(): ReadonlyArray<{ readonly unread: number; readonly fanId: string | null }> {
+    return [...this.cache.values()].map((group) => ({ unread: group.unread, fanId: group.partners.length === 1 ? (group.partners[0]?.id ?? null) : null }));
+  }
+
   get inboxDone(): boolean {
     return this.inboxComplete;
   }

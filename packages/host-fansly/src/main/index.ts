@@ -1,6 +1,6 @@
 // host-fansly/main — Fansly's MAIN world, at document_start (docs/project-unite/
 // architecture.md §5, §3.1, §6): one self-contained bundle, `fansly-main.js`
-// (≤ 16 KiB gzip, ≤ 1 ms at document_start). The shared boot of host-kit — the
+// (≤ 20 KiB gzip since 2026-11-13 and the filters' facts, ≤ 1 ms at document_start). The shared boot of host-kit — the
 // handshake with the isolated script, the MessagePort, `probe`, `guard` —
 // with Fansly's runtime attached at once, so both traps stand before the
 // first script of the page (§5.1):
@@ -57,6 +57,7 @@ import { ERR_BAD_REQUEST, ERR_NOT_READY, ERR_UNKNOWN_REQUEST } from '@cg/host-ki
 import { createAutomation, madeBySomething, textHash, type Automation } from './automation';
 import type { Stamp } from './certificate';
 import { createEmitter } from './emitter';
+import { createFilterFacts } from './filters';
 import { frameMessage, readFrame, type FrameMessage } from './frame-parse';
 import { createIdentity, type Identity } from './identity';
 import { createLastWords, type LastWords } from './last-word';
@@ -69,6 +70,7 @@ import {
   CREATOR_NAME_MAX_CHARS,
   EVT_CHAT,
   EVT_CONTRACT,
+  EVT_FILTERS,
   EVT_FOLLOW,
   EVT_IDENTITY,
   EVT_INCOMING,
@@ -89,6 +91,7 @@ import {
   REQ_ORDER,
   REQ_WINDOW,
   REQ_GROUP_FOR_FAN,
+  REQ_FILTERS_WANTED,
   RESPONSE_MAX_CHARS,
   RESPONSE_NOW_CHARS,
   SILENT_MS,
@@ -222,9 +225,20 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   let chatSent = '';
   /** The isolated side asked `fx.state`: the last words go out from then on (before it, `replay` says them all anyway). */
   let wordsLive = false;
+  /**
+   * 2026-11-13: what the page's answers say of its filter chips; said again whole after every `fx.state`, else at most
+   * every FILTERS_EVERY_MS (the wake below ends a quiet burst).
+   */
+  const filters = createFilterFacts(stringify, (ms) =>
+    context.setTimer(() => {
+      if (!stopped && !disposed) end();
+    }, ms),
+  );
+  let filtersAgain = false;
 
-  // A gap of the stream: the isolated side lost events — every chat unknown until the next certificate (§5.12).
-  const emitter = createEmitter((t, payload) => context.post(t, payload), stringify, () => world().observation.lose(null, WHY_GAP));
+  // A gap of the stream: the isolated side lost events — every chat unknown until the next certificate (§5.12). A state
+  // no batch could carry is dropped and counted as a fault: it never stops the stream.
+  const emitter = createEmitter((t, payload) => context.post(t, payload), stringify, () => world().observation.lose(null, WHY_GAP), () => fault('stateTooLarge'));
   // eslint-disable-next-line prefer-const -- the queue's own drain needs the runtime's `end`, defined below it
   let queue: ReturnType<typeof createResponseQueue<XhrStamp>>;
   const memory = createMemory(() => 2 * queue.chars() + emitter.held());
@@ -357,6 +371,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         chatSent = text;
       }
       if (wordsLive) for (const change of world().lastWords.drain()) emitter.event(EVT_LAST_WORD, { groupId: change.groupId, word: change.word });
+      const facts = filters.take(now(), filtersAgain);
+      filtersAgain = false;
+      if (facts !== null) emitter.state(EVT_FILTERS, facts.payload, facts.bytes);
     }
     const current = contract();
     const text = stringify(current);
@@ -431,18 +448,22 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         seq += 1;
         if (item.k === 'session') confirmed ||= current;
         else if (item.k === 'message') {
+          filters.message(item.m.groupId, item.m.id, item.m.senderId, identity.creator, observation.focus === item.m.groupId);
           observation.live(item.m);
           incoming(item.m);
           word(item.m);
           // The echo of a send of the person's, in either order with its receipt (§5.9 п. 4).
           sends.echo(item.m);
         } else if (item.k === 'deleted') {
+          filters.deleted(item.id);
           observation.deleted(item.id, item.groupId, item.cascade);
           world().lastWords.deleted(item.id, item.groupId);
         } else if (item.k === 'members') {
           if (identity.member(item.groupId, item.userId, item.type === 6, seq)) observation.participants(item.groupId);
         } else if (item.k === 'follow') emitter.event(EVT_FOLLOW, { eventId: item.eventId, accountId: item.accountId, followerId: item.followerId });
-        // 'read': a receipt names no chat — nothing to add, nothing to lower; it never crosses the bridge (§5.3).
+        // 'read': a receipt names no chat — nothing to add, nothing to lower; it never crosses the bridge (§5.3). The
+        // creator's own read marks lower the unread of the filters (filters.ts).
+        else if (item.k === 'read') filters.read(item.userId, item.ids, item.type, identity.creator);
       }
       if (!read.whole) observation.lose(read.touched, WHY_FRAME);
       if (current && !unread && socketKnown === 0 && socketSeen >= FRAMES_UNREAD_SIGN) {
@@ -466,6 +487,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     const { identity, observation } = world();
     const id = identity.readGroup(value, seen);
     if (id === null) return;
+    filters.loaded(id, identity.fan(id));
     const last = isPlain(value) && isPlain(value['lastMessage']) ? idOf(value['lastMessage']['id']) : null;
     if (last !== null) observation.hint(id, last, stamp, { epoch, confirmed });
     const lastMessage = isPlain(value) ? frameMessage(value['lastMessage']) : null;
@@ -477,6 +499,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   const account = (value: unknown): void => {
     const { identity, observation } = world();
     identity.readAccount(value);
+    filters.account(value);
     const focus = observation.focus;
     if (focus !== null && isPlain(value) && idOf(value['id']) === identity.fan(focus)) observation.dirty = true;
   };
@@ -503,6 +526,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         const account = (r as { account: Plain }).account;
         identity.creator = idOf(account['id']);
         named = { username: nameOf(account['username']), displayName: nameOf(account['displayName']) };
+        filters.me(account);
         // Another account in the same document: nothing observed under the old one says anything of this one.
         if (was !== null && was !== identity.creator) {
           observation.reset(WHY_NOT_CERTIFIED);
@@ -515,14 +539,20 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'history': {
         const { messages, count } = messagesIn(read.groupId);
         observation.history(read.groupId as string, messages, count, stamp, { epoch, confirmed }, read.limit ?? null);
-        for (const m of messages) word(m);
+        for (const m of messages) {
+          word(m);
+          filters.held(m.groupId, m.id);
+        }
         return;
       }
       case 'older':
       case 'byIds': {
         const { messages } = messagesIn(read.groupId);
         observation.answer(messages, read.groupId, stamp, { epoch, confirmed });
-        for (const m of messages) word(m);
+        for (const m of messages) {
+          word(m);
+          filters.held(m.groupId, m.id);
+        }
         return;
       }
       case 'receipt': {
@@ -532,6 +562,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         if (m !== null) {
           observation.sent(m, stamp, { epoch, confirmed });
           word(m);
+          filters.held(m.groupId, m.id);
         }
         // Chat Memory week 1: any message the creator sent from this tab to a direct chat's fan — who sent it.
         const fanId = m === null ? null : identity.fan(m.groupId);
@@ -542,6 +573,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         return;
       }
       case 'unread':
+        filters.unread(r as Plain, read.first === true);
         for (const item of listOf((r as Plain)['messageInteractions'])) {
           if (!isPlain(item) || (item['deletedAt'] !== null && item['deletedAt'] !== undefined && item['deletedAt'] !== 0)) continue;
           const groupId = idOf(item['groupId']);
@@ -561,6 +593,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         for (const item of listOf(isPlain(aggregation) ? aggregation['accounts'] : null)) account(item);
         for (const item of listOf((r as Plain)['data'])) {
           const groupId = isPlain(item) ? idOf(item['groupId']) : null;
+          if (groupId !== null) filters.loaded(groupId, idOf((item as Plain)['partnerAccountId']));
           const last = isPlain(item) ? idOf(item['lastMessageId']) : null;
           if (groupId !== null && last !== null) observation.hint(groupId, last, stamp, { epoch, confirmed });
           // The fan's newest unread message (the page's own counter above zero): they wait, a mass send after it or not.
@@ -574,6 +607,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         return;
       case 'automated':
         automation.read(r as unknown[]);
+        return;
+      case 'settings':
+        filters.settings(r, parse);
         return;
       case 'vault':
         emitter.event(EVT_VAULT, { seq: stamp?.seq ?? seq });
@@ -721,6 +757,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         if (!stopped && !disposed) {
           wordsLive = true;
           world().lastWords.replay();
+          filtersAgain = true;
         }
         // The stream goes on after this answer, not before it: the next turn.
         context.setTimer(end, 0);
@@ -747,6 +784,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         const { observation } = world();
         observation.focus = focus.groupId;
         routeEpoch = focus.routeEpoch;
+        // The page marks the chat it opens read at once (main:28330): so does the filters' copy.
+        if (focus.groupId !== null) filters.opened(focus.groupId);
         if (focus.groupId !== null) observation.touch(focus.groupId);
         observation.dirty = true;
         // `fx.chat` of this group follows the answer, with the same route epoch.
@@ -759,6 +798,13 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         const asked = payload as { creatorId: string; fanId: string };
         const { identity } = world();
         return { groupId: identity.creator === asked.creatorId ? identity.groupForFan(asked.fanId) : null };
+      }
+      if (t === REQ_FILTERS_WANTED) {
+        // 2026-11-13: a strip of «Четыре группы» stands (or went): the unread goes into `fx.filters` only then.
+        if (!isPlain(payload) || Object.keys(payload).length !== 1 || typeof payload['unread'] !== 'boolean') return ERR_BAD_REQUEST;
+        filters.want(payload['unread']);
+        context.setTimer(end, 0);
+        return null;
       }
       if (t === REQ_WINDOW) {
         if (!isWindowRequest(payload)) return ERR_BAD_REQUEST;

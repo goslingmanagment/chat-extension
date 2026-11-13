@@ -36,7 +36,7 @@ import { openOptions, waitForOptions } from '../../support/pages';
 import { around, lap, scenario, type Box, type See } from '../kit';
 
 const LIST = '.messages-list-wrapper';
-const SLOT = '[data-host="inbox-slot"]';
+const SLOT = '[data-host="inbox-slot"][data-inbox-order="10"]';
 const HEADER_PIN = '[data-host="header-slot"][data-header-order="5"]';
 const rowOf = (group: string): string => `${LIST} a[href="/messages/${group}"]`;
 const buttonOf = (group: string): string => `${rowOf(group)} [data-cg-inbox="row"]`;
@@ -56,7 +56,7 @@ interface Geometry {
 async function geometry(): Promise<Geometry> {
   return browser.execute(() => {
     const list = document.querySelector('.messages-list-wrapper .message-list') as HTMLElement | null;
-    const host = document.querySelector('[data-host="inbox-slot"]');
+    const host = document.querySelector('[data-host="inbox-slot"][data-inbox-order="10"]');
     const box = (node: Element): { x: number; y: number; width: number; height: number } => {
       const { x, y, width, height } = node.getBoundingClientRect();
       return { x, y, width, height };
@@ -89,7 +89,7 @@ async function startFrames(ms: number): Promise<void> {
     const t0 = performance.now();
     const tick = (): void => {
       const list = document.querySelector('.messages-list-wrapper .message-list') as HTMLElement | null;
-      const host = document.querySelector('[data-host="inbox-slot"]');
+      const host = document.querySelector('[data-host="inbox-slot"][data-inbox-order="10"]');
       if (list !== null) {
         const r = list.getBoundingClientRect();
         const rows = [...list.querySelectorAll('a[href^="/messages/"]')].map((row) => row.getBoundingClientRect()).filter((rect) => rect.height > 0);
@@ -576,7 +576,7 @@ scenario(
     await browser.$(`${LIST} .search-input`).setValue('a');
     const spinner = await browser.execute(() => {
       const node = document.querySelector('.messages-list-wrapper > .flex-center.margin-top-2');
-      const host = document.querySelector('[data-host="inbox-slot"]');
+      const host = document.querySelector('[data-host="inbox-slot"][data-inbox-order="10"]');
       const order = [...(document.querySelector('.messages-list-wrapper')?.childNodes ?? [])].map((child) => (child.nodeType === 8 ? '<!>' : child.nodeType === 1 ? ((child as Element).getAttribute('data-host') === 'inbox-slot' ? 'OURS' : (child as Element).className.split(' ')[0]) : '#'));
       return { spinner: node === null ? null : node.getBoundingClientRect().top, stripBottom: host === null ? null : host.getBoundingClientRect().bottom, order: order.join(' | ') };
     });
@@ -727,6 +727,9 @@ scenario(
       await browser.switchToWindow(firstTab);
       const tomb = await waitPins((report) => !report.pins.includes(c1), 'the first tab did not hear the unpin', 5_000);
       const after7 = await geometry();
+      // A fresh lookup of the list's hosts after the window switch: without it WebDriver kept resolving the pins' host
+      // as in the closed window, and the chips stayed out of its reach (since two hosts stand there, 2026-11-13).
+      await $$('[data-host="inbox-slot"]').getElements();
       const xs7after = [(await chipBox(c2)).x, (await chipBox(c3)).x];
       await shootStrip(s, 'strip-placeholder-held', 60);
       await leaveList();
@@ -858,7 +861,7 @@ scenario(
     await browser.execute(() => {
       const state: { at: number | null } = { at: null };
       (window as unknown as Record<string, unknown>)['__cgOff'] = state;
-      const left = (): number => document.querySelectorAll('[data-host="inbox-slot"], .messages-list-wrapper [data-cg-inbox="pin"], .messages-list-wrapper [data-cg-inbox="row"]').length;
+      const left = (): number => document.querySelectorAll('[data-host="inbox-slot"][data-inbox-order="10"], .messages-list-wrapper [data-cg-inbox="pin"], .messages-list-wrapper [data-cg-inbox="row"]').length;
       const observer = new MutationObserver(() => {
         if (state.at === null && left() === 0) {
           state.at = Date.now();
@@ -874,7 +877,7 @@ scenario(
     await browser.pause(800);
     measures['A7-switched-off'] = {
       goneAfterWriteMs: goneAt === null ? null : goneAt - offAt,
-      slotHosts: await browser.execute(() => document.querySelectorAll('[data-host="inbox-slot"]').length),
+      slotHosts: await browser.execute(() => document.querySelectorAll('[data-host="inbox-slot"][data-inbox-order="10"]').length),
       pinMarks: await count('pin'),
       rowButtons: await count('row'),
       dots: await count('dot'),
@@ -898,7 +901,7 @@ scenario(
       const t0 = performance.now();
       const tick = (): void => {
         const list = document.querySelector('.messages-list-wrapper .message-list');
-        const host = document.querySelector('[data-host="inbox-slot"]');
+        const host = document.querySelector('[data-host="inbox-slot"][data-inbox-order="10"]');
         if (list !== null) frames.push({ t: Math.round(performance.now() - t0), scTop: list.getBoundingClientRect().top, rows: list.querySelectorAll('a[href^="/messages/"]').length, strip: host === null ? -1 : host.getBoundingClientRect().height });
         if (performance.now() - t0 < 2500) requestAnimationFrame(tick);
       };
@@ -938,7 +941,7 @@ scenario(
         const t0 = performance.now();
         const tick = () => {
           const list = document.querySelector('.messages-list-wrapper .message-list');
-          const host = document.querySelector('[data-host="inbox-slot"]');
+          const host = document.querySelector('[data-host="inbox-slot"][data-inbox-order="10"]');
           if (list) frames.push({ t: Math.round(performance.now() - t0), scTop: list.getBoundingClientRect().top, rows: list.querySelectorAll('a[href^="/messages/"]').length, strip: host ? host.getBoundingClientRect().height : -1 });
           if (performance.now() - t0 < 6000) requestAnimationFrame(tick);
         };

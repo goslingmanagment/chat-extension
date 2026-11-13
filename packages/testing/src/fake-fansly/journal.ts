@@ -58,7 +58,10 @@ export type FanslyRoute =
   | 'media.uploadComplete'
   | 'media.uploadStatus'
   | 'media.orderhistory'
-  | 'media.bundles';
+  | 'media.bundles'
+  | 'settings.read'
+  | 'settings.write'
+  | 'lists.account';
 
 /**
  * FS-NET-1 (spec.md §4): the only calls our background may make — the pass of «Новые» (`followersnew`, the start of

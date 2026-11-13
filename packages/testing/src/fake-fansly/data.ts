@@ -35,7 +35,10 @@ import {
   type WireVaultAlbums,
   type WireMediaUpload,
   type WireVaultMedia,
+  type WireList,
+  type WireSetting,
 } from '../../fixture-fansly/src/wire';
+import type { FilterFanSeed } from '../../fixture-fansly/src/server-protocol';
 
 /** A page of history as Fansly serves it (`limit=25`, main:28989-28995). */
 export const HISTORY_PAGE = 25;
@@ -140,6 +143,21 @@ export interface FakeGroup {
   /** The pass fixture's unpaid DM price (R20 P10d), in Fansly's mills. */
   dmPriceMills?: number;
 }
+
+/**
+ * 2026-11-13, the creator's filter chips (control `filters`): her tiers, her lists, the pinned ones in pin order, and
+ * each fan's place in them. None by default: Fansly then shows All, Subscribers, VIPs and Followers alone.
+ */
+export interface FakeFilters {
+  tiers: Array<{ readonly id: string; readonly name: string; readonly color: string; readonly active: boolean }>;
+  lists: Array<{ readonly id: string; label: string; itemCount: number }>;
+  pinned: string[];
+  readonly fans: Map<string, { readonly tier: string | null; readonly lists: readonly string[]; readonly vip: boolean; readonly staff: boolean }>;
+}
+
+const FILTER_ID_BASE = 830_000_000_000_000_000n;
+/** What a showcase fan writes when the control gives the chat unread messages (invented). */
+const FAN_LINES = ['hey, are you online tonight?', 'did you see my tip? 🙂', 'how much for the full video?', 'good morning beautiful', 'that last set was unreal 🔥', 'can i request something for next week?', 'missed you today', 'ok deal, send it over'];
 
 export interface FakeFollow {
   readonly id: string;
@@ -251,6 +269,17 @@ export class FanslyWorld {
   /** The creator's mass-send group: the parents of its mass sends live there. */
   readonly broadcastGroupId = BROADCAST_GROUP_ID;
   private readonly ids = new Snowflakes();
+  readonly filters: FakeFilters = { tiers: [], lists: [], pinned: [], fans: new Map() };
+  /** The filters' ids by name: a tier or a list keeps its id across the control's sets, as on Fansly. */
+  private readonly filterIds = new Map<string, string>();
+  private filterId(key: string): string {
+    let id = this.filterIds.get(key);
+    if (id === undefined) {
+      id = String(FILTER_ID_BASE + BigInt(this.filterIds.size + 1));
+      this.filterIds.set(key, id);
+    }
+    return id;
+  }
 
   constructor(readonly startedAt = Date.now(), creatorId?: string) {
     const seed = createWorld(creatorId, SHOWCASE ? SHOWCASE_AT : null);
@@ -662,6 +691,75 @@ export class FanslyWorld {
     return { id: note.id, accountId: this.creatorId, contentType: note.contentType, contentId: note.contentId, title: note.title, note: note.note, createdAt: seconds(note.createdAt), updatedAt: note.updatedAt === null ? null : seconds(note.updatedAt) };
   }
 
+  /** The creator's tiers as `/account/me` carries them; a fan's place in the filters (2026-11-13). */
+  private filterFacts(account: FakeAccount): Partial<WireAccount> {
+    if (account.id === this.creatorId) {
+      return { subscriptionTiers: this.filters.tiers.map((tier, index) => ({ id: tier.id, name: tier.name, color: tier.color, plans: [{ id: String(FILTER_ID_BASE + 500n + BigInt(index)), status: tier.active ? 1 : 2, billingCycle: 30, price: 9990 }] })) };
+    }
+    const fan = this.filters.fans.get(account.id);
+    if (fan === undefined) return { containingLists: [], subscriber: false, subscriberSubscription: null };
+    return { containingLists: [...fan.lists], subscriber: fan.tier !== null, subscriberSubscription: fan.tier === null ? null : { subscriptionTierId: fan.tier }, ...(fan.vip ? { vip: true } : {}), ...(fan.staff ? { staff: true } : {}) };
+  }
+
+  /** `GET /settings?categoryIds=4000`: the pinned lists (4000/100) as the page saved them. */
+  wireSettings(categories: readonly string[]): WireSetting[] {
+    if (!categories.includes('4000')) return [];
+    const pinnedLists = this.filters.pinned.flatMap((id) => this.filters.lists.find((list) => list.id === id) ?? []).map((list) => ({ id: list.id, label: list.label, itemCount: list.itemCount }));
+    return [{ categoryId: '4000', keyId: '100', value: 1, metadata: JSON.stringify({ pinnedLists }) }];
+  }
+
+  /** `POST /settings` of the pinned lists: the whole array, for the account (last writer wins, as on Fansly). */
+  savePinned(lists: ReadonlyArray<{ readonly id: string; readonly label?: string }>): void {
+    for (const list of lists) if (!this.filters.lists.some((known) => known.id === list.id)) this.filters.lists.push({ id: list.id, label: list.label ?? 'List', itemCount: 0 });
+    this.filters.pinned = lists.map((list) => list.id);
+  }
+
+  /** `GET /lists/account`. */
+  wireLists(): WireList[] {
+    return this.filters.lists.map((list) => ({ id: list.id, label: list.label, itemCount: list.itemCount }));
+  }
+
+  /** The control's `filters`: the tiers and lists given replace the old ones; the fans named get their places. */
+  setFilters(input: { readonly tiers?: ReadonlyArray<{ readonly name: string; readonly color?: string; readonly active?: boolean }>; readonly lists?: ReadonlyArray<{ readonly label: string; readonly pinned?: boolean; readonly itemCount?: number }>; readonly clearUnread?: boolean; readonly fans?: readonly FilterFanSeed[] }): { readonly tierIds: string[]; readonly listIds: string[] } {
+    if (input.tiers !== undefined) this.filters.tiers = input.tiers.map((tier) => ({ id: this.filterId(`tier:${tier.name}`), name: tier.name, color: tier.color ?? '#4781b4', active: tier.active !== false }));
+    if (input.lists !== undefined) {
+      this.filters.lists = input.lists.map((list) => ({ id: this.filterId(`list:${list.label}`), label: list.label, itemCount: list.itemCount ?? 0 }));
+      this.filters.pinned = this.filters.lists.filter((_, index) => input.lists?.[index]?.pinned !== false).map((list) => list.id);
+    }
+    const tierIds = this.filters.tiers.map((tier) => tier.id);
+    const listIds = this.filters.lists.map((list) => list.id);
+    if (input.clearUnread === true) for (const group of this.groups.values()) this.readAll(group);
+    const inbox = this.inbox();
+    for (const seed of input.fans ?? []) {
+      const fanId = seed.fanId ?? (seed.at === undefined ? null : (inbox[seed.at] === undefined ? null : this.fanOf(inbox[seed.at] as FakeGroup)));
+      if (fanId === null) continue;
+      const account = this.ensureAccount(fanId);
+      account.followsCreator = seed.follower === true;
+      this.filters.fans.set(fanId, {
+        tier: seed.tier === undefined || seed.tier === null ? null : (tierIds[seed.tier] ?? null),
+        lists: (seed.lists ?? []).flatMap((at) => listIds[at] ?? []),
+        vip: seed.vip === true,
+        staff: seed.staff === true,
+      });
+      const group = this.conversationWith(fanId);
+      if (seed.unread !== undefined && group !== null) {
+        this.readAll(group);
+        if (seed.old === true) for (const message of group.history.filter((item) => item.senderId === fanId).slice(-seed.unread)) this.markUnread(group, message);
+        else for (let n = 0; n < seed.unread; n += 1) this.addMessage({ groupId: group.id, senderId: fanId, content: SHOWCASE ? (FAN_LINES[(Number(BigInt(fanId) % 97n) + n) % FAN_LINES.length] as string) : `Stand line ${String(n + 1)} for the filters` });
+      }
+    }
+    return { tierIds, listIds };
+  }
+
+  /** Every unread message of a chat read by the creator. */
+  private readAll(group: FakeGroup): void {
+    for (const id of group.unread) {
+      const state = this.messages.get(id)?.interactions.get(this.creatorId);
+      if (state !== undefined) state.readAt ||= Date.now();
+    }
+    group.unread.clear();
+  }
+
   wireAccount(account: FakeAccount): WireAccount {
     return {
       id: account.id,
@@ -683,6 +781,7 @@ export class FanslyWorld {
       following: false,
       avatar: account.id === this.creatorId ? null : this.wireAvatar(account),
       notes: account.notes.map((note) => this.wireNote(note)),
+      ...this.filterFacts(account),
     };
   }
 

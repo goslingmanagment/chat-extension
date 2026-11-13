@@ -108,11 +108,40 @@ app-messages-route { flex: 1; display: flex; position: relative; min-height: 0; 
 .messages-top-header { display: flex; align-items: center; height: 56px; padding: 0 1em; border-bottom: 1px solid var(--border-color); }
 .message-search { display: flex; align-items: center; margin: 0 0.75em 1em 0.75em; padding-top: 0.5em; }
 .search-input { flex: 1; height: 38px; box-sizing: border-box; padding: 0 0.75em; border: 1px solid var(--border-color); border-radius: var(--border-radius-2); background: var(--input-bg); color: inherit; font: inherit; font-size: 0.95em; outline: none; }
-/* Fansly's filter chips (main:74582 route styles): rows of pills, 1em under them. */
-.messages-nav-wrapper { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; width: 100%; box-sizing: border-box; align-items: center; margin-bottom: 1em; padding: 0 0.75em; }
-.messages-nav-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; box-sizing: border-box; padding: 0 12px; border-radius: 16px; background: var(--dark-3); font-size: 0.8em; cursor: pointer; white-space: nowrap; }
-.messages-nav-chip.selected { box-shadow: inset 0 0 0 1px var(--blue-1); }
-.messages-nav-count { min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 5px; border-radius: 9px; background: var(--blue-1); color: #fff; font-size: 0.85em; font-weight: 700; line-height: 18px; text-align: center; }
+/* Fansly's filter chips (main:74582 route styles, the creator's branch): rows of pills, 1em under the block. */
+.messages-nav-wrapper { display: flex; width: 100%; box-sizing: border-box; align-items: center; line-height: normal; margin-bottom: 1em; }
+.message-list-header { display: flex; flex: 1; margin: 0 0.5em; align-items: center; min-width: 0; }
+.tab-nav-wrapper { flex: 1; min-width: 0; }
+.font-size-sm { font-size: 0.875em; }
+.bubble-wrap { flex: 1; display: flex; flex-wrap: wrap; align-items: center; min-width: 0; }
+.bubble-wrap-sm { font-size: 0.875em; }
+.bubble { display: flex; flex: 0 0 auto; align-items: center; padding: 0.35em 1em; margin: 0.25em 0.35em; border-radius: 1.5em; background: var(--dark-2); white-space: nowrap; cursor: pointer; }
+.bubble.active { background: rgba(38, 153, 247, 0.16); }
+.bubble .margin-right-text { margin-right: 0.3em; }
+.bubble i { display: inline-flex; color: var(--blue-1); }
+.bubble i svg { width: 1em; height: 1em; display: block; }
+.bubble i.fa-star { color: currentColor; }
+.bubble i.fa-spin svg { animation: inbox-spin 0.8s linear infinite; }
+.bubble .badge { width: 20px; min-width: 20px; height: 20px; padding: 0; margin-left: 0.5em; border-radius: 100%; font-size: 12px; line-height: 20px; display: flex; align-items: center; justify-content: center; }
+.bubble .badge span { line-height: 1; }
+/* Fansly's sort control after the search field; its list opens down over what follows the row (z-index 5). */
+.transparent-dropdown { position: relative; display: flex; align-items: center; color: var(--dark-blue-1); cursor: pointer; }
+.transparent-dropdown .dropdown-list { display: none; position: absolute; top: calc(100% + 4px); right: 0; width: 260px; box-sizing: border-box; padding: 6px 0; background: var(--dropdown-bg-color); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); color: var(--font-1); }
+.transparent-dropdown.dropdown-open > .dropdown-list { display: block; z-index: 5; }
+.transparent-dropdown .dropdown-item { padding: 10px 16px; }
+.transparent-dropdown .dropdown-item:hover { background: var(--dropdown-bg-color-hover); }
+.margin-left-1 { margin-left: 0.5em; }
+.margin-right-1 { margin-right: 0.5em; }
+.transparent-dropdown .fa-arrow-down-wide-short { display: inline-block; width: 21px; height: 21px; background: linear-gradient(currentColor, currentColor) 2px 3px / 2px 15px no-repeat, linear-gradient(currentColor, currentColor) 8px 4px / 12px 2px no-repeat, linear-gradient(currentColor, currentColor) 8px 10px / 9px 2px no-repeat, linear-gradient(currentColor, currentColor) 8px 16px / 5px 2px no-repeat; }
+/* «Select a List» (a stub of Fansly's window behind the pencil). */
+.list-select-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(5, 6, 8, 0.7); display: flex; align-items: flex-start; justify-content: center; padding-top: 90px; }
+.list-select-modal { display: block; width: 340px; background: var(--modal-bg); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6); font-size: 14px; }
+.list-select-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; font-weight: 700; font-size: 16px; border-bottom: 1px solid var(--border-color); }
+.list-select-close { cursor: pointer; padding: 0 6px; }
+.list-select-rows { max-height: 320px; overflow: auto; }
+.list-select-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border-color); cursor: pointer; }
+.list-select-row small { color: var(--dark-blue-1); }
+.list-select-row:hover { background: var(--dark-3); }
 /* Fansly's spinner on a search or a switch of filter: 32 px under the chips (live 2026-11-12). */
 .messages-list-wrapper > .flex-center.margin-top-2 { align-items: center; justify-content: center; height: 32px; flex: 0 0 auto; }
 .inbox-spinner { width: 18px; height: 18px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--dark-blue-1); border-top-color: transparent; animation: inbox-spin 0.8s linear infinite; }

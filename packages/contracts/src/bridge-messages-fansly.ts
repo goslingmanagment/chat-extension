@@ -22,6 +22,7 @@ import {
   type ToMainFanslyType,
 } from './bridge-fansly';
 import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotFeatureSchema, FanslySnapshotSchema, HI_FAN_ACCOUNT_LIMITS } from './fansly';
+import { FANSLY_FILTER_LIMITS } from './fansly-filters';
 import { ANCHOR_STATES, ConversationKindSchema, type FanScript } from './host';
 import { CountSchema, DigestSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText } from './primitives';
 
@@ -255,6 +256,8 @@ export const TO_MAIN_FANSLY = {
   'fx.windowMeta': { payload: z.strictObject({ groupId: NativeIdSchema }), data: z.nullable(FanslyChatWireSchema), write: false, timeout: 'call' },
   /** 2026-11-03: the order of a group's messages MAIN holds, for «кто написал» beside the page's bubbles; null — not observed. */
   'fx.order': { payload: z.strictObject({ groupId: NativeIdSchema }), data: z.nullable(FanslyOrderSchema), write: false, timeout: 'call' },
+  /** 2026-11-13: a strip of «Четыре группы» stands in the tab (true) or went (false): `fx.filters` carries the unread only then. */
+  'fx.filtersWanted': { payload: z.strictObject({ unread: z.boolean() }), data: z.null(), write: false, timeout: 'call' },
   /**
    * The isolated side took every batch up to `n`, parsed or not (a rejected one is a gap of its own): MAIN frees their
    * credits. Cumulative, so a late ack cannot hold credits forever.
@@ -355,6 +358,51 @@ export const FROM_MAIN_FANSLY = {
    * send nor a welcome text answers a fan. Said when it changes; after `fx.state` MAIN says every one it knows again.
    */
   'fx.lastWord': z.strictObject({ groupId: NativeIdSchema, word: z.nullable(z.enum(FANSLY_LAST_WORDS)) }),
+  /**
+   * 2026-11-13, the filters above the chats (contracts fansly-filters.ts): what the page's own answers say of its filter
+   * chips. `tiers` — the creator's tiers with an active plan (`/account/me`), in the page's order; `lists` — the pinned
+   * lists' setting (`/settings` 4000/100); `unread` — only while a strip asks for it (`fx.filtersWanted`): every unread
+   * message's count (`all`) and the loaded chats with unread whose fan is in a filter, each by its subscription, tier and
+   * pinned lists (indexes into `ids`). null — not read yet, not asked, or past MAIN's limits (the whole state stays
+   * within 16 KiB of UTF-8). The names are the creator's own (her tiers and lists), never a fan's; no message text.
+   */
+  'fx.filters': z.strictObject({
+    tiers: z.nullable(
+      z
+        .array(z.strictObject({ id: NativeIdSchema, name: boundedText(FANSLY_FILTER_LIMITS.nameMaxChars), color: z.nullable(boundedText(40)) }))
+        .check(z.maxLength(FANSLY_FILTER_LIMITS.tiers)),
+    ),
+    lists: z.nullable(
+      z.array(z.strictObject({ id: NativeIdSchema, label: boundedText(FANSLY_FILTER_LIMITS.nameMaxChars) })).check(z.maxLength(FANSLY_FILTER_LIMITS.lists)),
+    ),
+    unread: z.nullable(
+      z.strictObject({
+        /** Unread messages over every chat (loaded or not), as Fansly's All counts them. */
+        all: z.int().check(z.gte(0), z.lte(1_000_000)),
+        /** First pages of `/message/unread` read so far: a fresh full read. */
+        fresh: CountSchema,
+        /** The pinned lists the rows name. */
+        ids: z.array(NativeIdSchema).check(z.maxLength(FANSLY_FILTER_LIMITS.lists)),
+        /** The tiers the rows name. */
+        tiers: z.array(NativeIdSchema).check(z.maxLength(FANSLY_FILTER_LIMITS.tiers)),
+        /**
+         * Loaded chats with unread whose fan is a subscriber, of a tier or in a pinned list, each
+         * `[unread, subscriber 0/1, tier index or -1, ...pinned list indexes]` (a few bytes a chat).
+         */
+        rows: z
+          .array(
+            z
+              .array(z.int().check(z.gte(-1), z.lte(100_000)))
+              .check(
+                z.minLength(3),
+                z.maxLength(3 + FANSLY_FILTER_LIMITS.rowLists),
+                z.refine((row) => (row[0] ?? 0) >= 1 && (row[1] === 0 || row[1] === 1) && row.slice(3).every((at) => at >= 0 && at < FANSLY_FILTER_LIMITS.lists), { message: 'unread ≥ 1, a 0/1 subscriber, list indexes' }),
+              ),
+          )
+          .check(z.maxLength(FANSLY_FILTER_LIMITS.unreadRows)),
+      }),
+    ),
+  }),
 } as const satisfies Record<FromMainFanslyType, z.ZodMiniType>;
 
 export type FromMainFanslyPayload<T extends FromMainFanslyType> = z.infer<(typeof FROM_MAIN_FANSLY)[T]>;
@@ -378,6 +426,7 @@ export const FanslyBatchEventSchema = z.discriminatedUnion('t', [
   batchEvent('fx.vaultLoaded'),
   batchEvent('fx.vaultUpload'),
   batchEvent('fx.lastWord'),
+  batchEvent('fx.filters'),
 ]);
 
 const STATES: readonly string[] = FANSLY_BRIDGE_STATE_EVENTS;
@@ -445,6 +494,7 @@ export const FanslyBridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('fx.groupForFan'),
   requestFrame('fx.windowMeta'),
   requestFrame('fx.order'),
+  requestFrame('fx.filtersWanted'),
   requestFrame('fx.ack'),
   requestFrame('fx.health'),
 ]);
