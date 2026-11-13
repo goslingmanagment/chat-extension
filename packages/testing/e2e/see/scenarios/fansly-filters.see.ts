@@ -115,12 +115,15 @@ async function setStrip(s: See, strip: 'shelves' | 'groups' | 'native'): Promise
   }
 }
 
+/** Fansly's theme the world loads in: dark, then the light pass (the owner's theme). */
+let theme: 'dark' | 'bright' = 'dark';
+
 /** The world's chips and fans, then the list of chats loaded anew (no chat open: nothing is read by opening it). */
 async function world(command: Record<string, unknown>): Promise<void> {
   await fakeFansly().command({ op: 'filters', clearUnread: true, ...command } as never);
   await browser.url(fanslyStandUrl('/messages'));
   await waitForFanslyStandReady();
-  await callFansly('setTheme', 'dark');
+  await callFansly('setTheme', theme);
 }
 
 async function shootColumn(s: See, name: string, height = 420): Promise<void> {
@@ -276,6 +279,57 @@ scenario(
     await shootColumn(s, 'groups-400-lists', 600);
     await browser.keys('Escape');
     await browser.browsingContextSetViewport({ context, viewport: { width: 1440, height: 900 } });
+
+    // ── Fansly's light theme (the owner's): a hover, the picked filter, the tooltips and the popovers of both strips ──
+    theme = 'bright';
+    await setStrip(s, 'shelves');
+    await world({ tiers: TIERS, lists: SHOT_LISTS, fans: SHOT_FANS });
+    await waitFilters((report) => report.mode === 'shelves' && report.mounted && report.lists === 3, 'no «Две полки» in the light theme');
+    await browser.pause(500);
+    await shootColumn(s, 'light-shelves');
+    await hover('[data-cg-filter="tier:0"]');
+    await shootColumn(s, 'light-shelves-hover');
+    await away();
+    await hover('[data-cgf-key="more"]');
+    await shootColumn(s, 'light-shelves-more-tip');
+    await away();
+    await press('[data-cgf-key="more"]');
+    await shootColumn(s, 'light-shelves-menu');
+    await press('[data-cgf-focus="a:pick"]');
+    await shootColumn(s, 'light-shelves-unpin-pick');
+    await press('[data-cgf-focus="p:list:6"]');
+    await shootColumn(s, 'light-shelves-unpin-confirm');
+    await browser.keys('Escape');
+    await browser.pause(200);
+    await press('[data-cg-filter="list:2"]');
+    await waitFilters((report) => report.active === 'list:2', 'the step did not turn on in the light theme');
+    await hover('[data-cg-filter="list:3"]');
+    await shootColumn(s, 'light-shelves-selected-and-hover');
+    await away();
+    await setStrip(s, 'groups');
+    await world({ tiers: TIERS, lists: SHOT_LISTS, fans: SHOT_FANS });
+    await waitFilters((report) => report.mode === 'groups' && report.mounted && report.lists === 3, 'no «Четыре группы» in the light theme');
+    await waitFilters((report) => !report.fallback, 'the numbers of «Четыре группы» stayed dots', 8_000).catch(() => null);
+    await browser.pause(500);
+    await shootColumn(s, 'light-groups');
+    await hover('[data-fk="c-lists"]');
+    await shootColumn(s, 'light-groups-lists-tip');
+    await away();
+    await press('[data-fk="c-subs"]');
+    await shootColumn(s, 'light-groups-subs-menu', 520);
+    await press('[data-cg-filter="tier:2"]');
+    await waitFilters((report) => report.active === 'tier:2', 'the tier did not turn on in the light theme');
+    await hover('[data-cg-filter="followers"]');
+    await shootColumn(s, 'light-groups-selected-and-hover');
+    await away();
+    await press('[data-fk="c-lists"]');
+    await shootColumn(s, 'light-groups-lists-menu', 560);
+    await hover('[data-fk="m-list:6"]');
+    await press('[data-fk="t-list:6"]');
+    await shootColumn(s, 'light-groups-unpin-confirm', 600);
+    await browser.keys('Escape');
+    await browser.pause(200);
+    theme = 'dark';
 
     // ── Fansly's chips without FBuddy, and the settings row ──
     await setStrip(s, 'native');

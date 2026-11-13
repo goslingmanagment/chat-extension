@@ -5,7 +5,29 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 
 import type { FanslyFiltersClient, FanslyFiltersView, FanslyTextMeasure } from '@cg/contracts/fansly-filters';
 
-type IconName = 'star' | 'trash' | 'pencil' | 'refresh' | 'dots' | 'check' | 'chev' | 'search' | 'users' | 'list';
+/**
+ * The strips' colours (2026-11-13, the owner: «лайтовый минимализм»), all from Fansly's own variables (they reach into
+ * our closed root), so both of its themes read as the page: a hover is a faint wash of the text colour over the chip,
+ * the picked filter Fansly's own blue tint with a thin blue line, a popover or a tooltip Fansly's dropdown with a hairline
+ * and a soft shadow. No colour of one theme is written here: the dark fallbacks only stand in for a missing variable.
+ */
+export const STRIP_TOKENS = `
+  --cgf-ink: var(--font-1, #d6dce8);
+  --cgf-soft: var(--font-tint-3, #9da2ad);
+  --cgf-faint: color-mix(in srgb, var(--font-1, #d6dce8) 45%, transparent);
+  --cgf-chip: var(--dark-2, #191e26);
+  --cgf-hover: color-mix(in srgb, var(--font-1, #d6dce8) 6%, var(--dark-2, #191e26));
+  --cgf-on: color-mix(in srgb, var(--blue-1, #2699f7) 14%, var(--dark-2, #191e26));
+  --cgf-on-hover: color-mix(in srgb, var(--blue-1, #2699f7) 19%, var(--dark-2, #191e26));
+  --cgf-on-line: color-mix(in srgb, var(--blue-1, #2699f7) 42%, transparent);
+  --cgf-pop: var(--dropdown-bg-color, #16161a);
+  --cgf-pop-hover: color-mix(in srgb, var(--font-1, #d6dce8) 6%, transparent);
+  --cgf-line: color-mix(in srgb, var(--font-1, #d6dce8) 11%, transparent);
+  --cgf-shadow: 0 8px 24px rgba(0,0,0,.14);
+  --cgf-red: var(--red-1, #c35b5b);
+`;
+
+type IconName ='star' | 'trash' | 'pencil' | 'refresh' | 'dots' | 'check' | 'chev' | 'search' | 'users' | 'list';
 
 const PATHS: Readonly<Record<IconName, JSX.Element>> = {
   star: <path fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="m12 3.3 2.64 5.6 6.1.8-4.46 4.24 1.13 6.06L12 17.05 6.59 20l1.13-6.06L3.26 9.7l6.1-.8Z" />,
