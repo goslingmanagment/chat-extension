@@ -49,6 +49,11 @@ export const TEST_FRAME_ORIGIN_KEY = 'see.frameOrigin';
  * for a live check where no tab of the person can be bound to a page (no pulse is sent then). Never gates sightings.
  */
 export const TEST_REPORT_PULSE_KEY = 'see.reportPulse';
+/**
+ * Test builds only: a storage.local key naming a fan of the bound page the fan panel acts for in place of the open
+ * chat's fan — a live check against Hub's test realm, whose pages have no fans of the live site (R5 stage 3).
+ */
+export const TEST_FAN_STAND_IN_KEY = 'see.fanStandIn';
 
 /** Where Workboard draws a screen for the frame on the team origin: `/workboard/frame/<screen>`. */
 export const WORKBOARD_FRAME_PREFIX = '/workboard/frame/';

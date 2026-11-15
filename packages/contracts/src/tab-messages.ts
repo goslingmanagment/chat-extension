@@ -523,7 +523,7 @@ export const TAB_REQUESTS = {
    * The pulse's `report` as the background last heard it: null — the person has no board (the fifth row is not drawn).
    * `origin`: the team origin the frames come from (null — nobody signed in).
    */
-  'report.state': { req: Empty, res: z.strictObject({ report: z.nullable(ReportPulseSchema), origin: z.nullable(HubOriginSchema) }), from: TAB },
+  'report.state': { req: Empty, res: z.strictObject({ report: z.nullable(ReportPulseSchema), origin: z.nullable(HubOriginSchema), fanStandIn: z.optional(NativeIdSchema) }), from: TAB },
   /**
    * One API request of a frame screen, relayed by the background with the device token, only when the screen's
    * allow-list has it (core domain/report-board.ts); the token never leaves the background.

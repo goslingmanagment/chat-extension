@@ -180,7 +180,7 @@ import { createBackgroundNotes } from './background/notes';
 import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { createReportBoardBackground } from './background/report-board';
-import { TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, teamOriginOf } from '@cg/contracts/report-board';
+import { TEST_FAN_STAND_IN_KEY, TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, teamOriginOf } from '@cg/contracts/report-board';
 import { reportPulseOf } from '@cg/core/domain/report-board';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
@@ -245,6 +245,15 @@ const ALARMS = {
  * bootstrap of a hub without `client/bootstrap` (docs/hub-layer.md). Never guessed by name.
  */
 const DEV_COMPAT_PAGES_KEY = 'dev.compatPageAccounts';
+/** storage.local, test builds only: `pageLabel → switches read as on` (a live check on Hub's test realm, R5 stage 3). */
+const DEV_COMPAT_FEATURES_KEY = 'dev.compatFeaturesOn';
+
+/** Replaces the entries of the live map with the stored ones (arrays of strings only). */
+function readCompatFeatures(target: Record<string, readonly string[]>, stored: unknown): void {
+  for (const key of Object.keys(target)) delete target[key];
+  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return;
+  for (const [pageLabel, flags] of Object.entries(stored)) if (Array.isArray(flags)) target[pageLabel] = flags.filter((flag): flag is string => typeof flag === 'string');
+}
 
 /**
  * The platforms the sites of this build serve (the hosts' runtime table): the compat bootstrap's page of another
@@ -1655,12 +1664,13 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('report.state', async () => {
     const hubOrigin = hubInstance?.session()?.hubOrigin ?? null;
     // A test build on the stand may point the frames at Hub's demo board (`pnpm see report-* `, CG_SEE_FRAME_ORIGIN).
-    const stored: Readonly<Record<string, unknown>> = __CG_TEST_HOSTS__ ? await api.storage.local.get([TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY]).catch(() => ({})) : {};
+    const stored: Readonly<Record<string, unknown>> = __CG_TEST_HOSTS__ ? await api.storage.local.get([TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, TEST_FAN_STAND_IN_KEY]).catch(() => ({})) : {};
     const override = stored[TEST_FRAME_ORIGIN_KEY];
     const origin = typeof override === 'string' && /^https?:\/\/[^/]+$/.test(override) ? override : hubOrigin === null ? null : teamOriginOf(hubOrigin);
     // A test build's stand-in for the pulse (TEST_REPORT_PULSE_KEY): the row only, never the sightings' gate.
     const forced = stored[TEST_REPORT_PULSE_KEY] === undefined ? null : reportPulseOf(stored[TEST_REPORT_PULSE_KEY]);
-    return ok({ report: forced ?? reportBoard.current(), origin });
+    const standIn = stored[TEST_FAN_STAND_IN_KEY];
+    return ok({ report: forced ?? reportBoard.current(), origin, ...(typeof standIn === 'string' && /^[0-9]{1,30}$/.test(standIn) ? { fanStandIn: standIn } : {}) });
   });
   // Products package R5: a screen of Workboard asked by a tab (the order's card of the fan panel), in a new tab signed in
   // by the one-time link; a hub without the link — Workboard's plain address, where the person signs in.
@@ -2176,12 +2186,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // ── test builds only ───────────────────────────────────────────────────────
   // The dev map of the compat bootstrap (the facade keeps this very object and reads it at each synthesis).
   const compatPages: Record<string, string> = {};
+  const compatFeatures: Record<string, readonly string[]> = {};
   if (__CG_TEST_HOSTS__) {
     local.onChanged((changes) => {
       // The e2e's proof that the egress sink sees background requests.
       if (changes[EGRESS_PROBE_KEY]?.newValue !== undefined) fireEgressProbe();
       const compat = changes[DEV_COMPAT_PAGES_KEY];
       if (compat !== undefined) readCompatPages(compatPages, compat.newValue);
+      const features = changes[DEV_COMPAT_FEATURES_KEY];
+      if (features !== undefined) readCompatFeatures(compatFeatures, features.newValue);
     });
   }
 
@@ -2227,8 +2240,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       name: 'hub',
       async run() {
         if (__CG_TEST_HOSTS__) {
-          const compat = await local.get([DEV_COMPAT_PAGES_KEY]);
+          const compat = await local.get([DEV_COMPAT_PAGES_KEY, DEV_COMPAT_FEATURES_KEY]);
           if (compat.ok) readCompatPages(compatPages, compat.value[DEV_COMPAT_PAGES_KEY]);
+          if (compat.ok) readCompatFeatures(compatFeatures, compat.value[DEV_COMPAT_FEATURES_KEY]);
         }
         const stored = await local.get([INSTANCE_KEY]);
         const known = stored.ok ? stored.value[INSTANCE_KEY] : undefined;
@@ -2244,7 +2258,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
             () => logger.warn('bg.hub', 'request to the host platform refused', { code: 'CG-HUB-URL' }),
           ),
           log: hubLogOf(logger),
-          ...(__CG_TEST_HOSTS__ ? { compatPageAccounts: compatPages, compatPlatforms: compatPlatforms() } : {}),
+          ...(__CG_TEST_HOSTS__ ? { compatPageAccounts: compatPages, compatFeaturesOn: compatFeatures, compatPlatforms: compatPlatforms() } : {}),
         });
         wireHub(instance);
         hubInstance = instance;

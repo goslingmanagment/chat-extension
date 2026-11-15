@@ -198,6 +198,8 @@ export interface HubFacadeOptions {
    * bind (never by name). A release build has no compat mode and never reads it.
    */
   readonly compatPageAccounts?: Readonly<Record<string, string>>;
+  /** Test builds only: a page's switches read as on (pageLabel → flags), for a live check on Hub's test realm. */
+  readonly compatFeaturesOn?: Readonly<Record<string, readonly string[]>>;
   /**
    * DEV-ONLY compat mode: the platforms the build's sites serve (the composition root's word, R20 F9b) — a page of
    * the synthesized bootstrap on another is `platform_unsupported`. Absent — none: every page is.
@@ -334,7 +336,7 @@ export class ChatExtensionHub implements HubFacade {
     this.wire = new HubWire({ fetch: options.fetch, clock, headers });
     this.custody = new AuthCustody({ local: options.local, clock, log, configuredOrigin: () => options.env.hubOrigin(), onReadAgain: () => this.afterSignInRead() });
     this.ctx = new HubContext(options.env, this.custody, this.wire, clock, log, uuid);
-    this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
+    this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatFeaturesOn: options.compatFeaturesOn ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
     this.catalogService = new CatalogService(this.ctx, options.local);
     this.quota = new QuotaTracker(() => clock.now());
     this.aiLimitTracker = new AiLimitTracker(() => clock.now(), options.session ?? null);
