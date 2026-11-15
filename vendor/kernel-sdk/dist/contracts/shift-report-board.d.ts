@@ -28,6 +28,28 @@ export declare const SHIFT_REPORT_PHASE_CHIPS: Record<ShiftReportPhase, string>;
  * decides whether it joins a pot). A version's line in the ledger's feed keeps the three words: `give` and `pot` read
  * there as `not_mine` (the line counts nothing for the person), the feed's format does not change.
  */
+/**
+ * How each site's own list words a sale, by the sale's kind — Fansly's Wallet activity («Media Sale to», approved
+ * prototype `report-panel-mockups/columns.html`), OnlyFans' statement («Payment for message from»). The ONE dictionary:
+ * the board's rows take their words from it (`saleSiteWords`). A row's kind is the rule's (`ppv`, `post`, `tip`,
+ * `subscription`); a sale's stored kind (`message_purchase`, `post_purchase`, `stream_tip`) reads as the same.
+ */
+export declare const SALE_SITE_WORDS: {
+    readonly fansly: {
+        readonly ppv: "Media Sale to";
+        readonly post: "Media Sale to";
+        readonly subscription: "Subscription Sale to";
+        readonly tip: "Tip from";
+    };
+    readonly onlyfans: {
+        readonly ppv: "Payment for message from";
+        readonly post: "Payment for post from";
+        readonly subscription: "Subscription from";
+        readonly tip: "Tip from";
+    };
+};
+/** The site's words before the fan for a sale of a kind; a kind it does not know — the plain «Sale to» / «Payment from». Pure. */
+export declare function saleSiteWords(platform: "fansly" | "onlyfans", kind: string): string;
 export declare const SHIFT_REPORT_WORDS: readonly ["mine", "not_mine", "share", "give", "pot"];
 export declare const shiftReportWordEnum: z.ZodEnum<{
     mine: "mine";
@@ -258,6 +280,25 @@ export declare const shiftReportChoiceSchema: z.ZodObject<{
     }, z.core.$strip>>;
     hint: z.ZodString;
     current: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strip>;
+/** Who decides a dispute, and how the texts name them: «Спор решит владелец», «Спор решит Марта». */
+export declare const shiftReportDeciderSchema: z.ZodObject<{
+    kind: z.ZodEnum<{
+        owner: "owner";
+        team_lead: "team_lead";
+    }>;
+    user: z.ZodNullable<z.ZodObject<{
+        userId: z.ZodNumber;
+        name: z.ZodString;
+        forms: z.ZodObject<{
+            nom: z.ZodString;
+            gen: z.ZodString;
+            acc: z.ZodString;
+            ins: z.ZodString;
+            dat: z.ZodString;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+    words: z.ZodString;
 }, z.core.$strip>;
 /** One row of a column: two lines, never more; the question, the claim, the card and the comment go under it. */
 export declare const shiftReportRowSchema: z.ZodObject<{
@@ -511,6 +552,24 @@ export declare const shiftReportRowSchema: z.ZodObject<{
         current: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>>;
     foundByHub: z.ZodOptional<z.ZodBoolean>;
+    decider: z.ZodOptional<z.ZodObject<{
+        kind: z.ZodEnum<{
+            owner: "owner";
+            team_lead: "team_lead";
+        }>;
+        user: z.ZodNullable<z.ZodObject<{
+            userId: z.ZodNumber;
+            name: z.ZodString;
+            forms: z.ZodObject<{
+                nom: z.ZodString;
+                gen: z.ZodString;
+                acc: z.ZodString;
+                ins: z.ZodString;
+                dat: z.ZodString;
+            }, z.core.$strip>;
+        }, z.core.$strip>>;
+        words: z.ZodString;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export type ShiftReportRow = z.infer<typeof shiftReportRowSchema>;
 export declare const shiftReportColumnSchema: z.ZodObject<{
@@ -772,6 +831,24 @@ export declare const shiftReportColumnSchema: z.ZodObject<{
             current: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>>;
         foundByHub: z.ZodOptional<z.ZodBoolean>;
+        decider: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<{
+                owner: "owner";
+                team_lead: "team_lead";
+            }>;
+            user: z.ZodNullable<z.ZodObject<{
+                userId: z.ZodNumber;
+                name: z.ZodString;
+                forms: z.ZodObject<{
+                    nom: z.ZodString;
+                    gen: z.ZodString;
+                    acc: z.ZodString;
+                    ins: z.ZodString;
+                    dat: z.ZodString;
+                }, z.core.$strip>;
+            }, z.core.$strip>>;
+            words: z.ZodString;
+        }, z.core.$strip>>;
     }, z.core.$strip>>;
     before: z.ZodObject<{
         count: z.ZodNumber;
@@ -1038,6 +1115,24 @@ export declare const shiftReportColumnSchema: z.ZodObject<{
                 current: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>>;
             foundByHub: z.ZodOptional<z.ZodBoolean>;
+            decider: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<{
+                    owner: "owner";
+                    team_lead: "team_lead";
+                }>;
+                user: z.ZodNullable<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    name: z.ZodString;
+                    forms: z.ZodObject<{
+                        nom: z.ZodString;
+                        gen: z.ZodString;
+                        acc: z.ZodString;
+                        ins: z.ZodString;
+                        dat: z.ZodString;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
+                words: z.ZodString;
+            }, z.core.$strip>>;
         }, z.core.$strip>>;
     }, z.core.$strip>;
     marked: z.ZodNumber;
@@ -1386,6 +1481,24 @@ export declare const shiftReportBoardSchema: z.ZodObject<{
                 current: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>>>;
             foundByHub: z.ZodOptional<z.ZodBoolean>;
+            decider: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<{
+                    owner: "owner";
+                    team_lead: "team_lead";
+                }>;
+                user: z.ZodNullable<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    name: z.ZodString;
+                    forms: z.ZodObject<{
+                        nom: z.ZodString;
+                        gen: z.ZodString;
+                        acc: z.ZodString;
+                        ins: z.ZodString;
+                        dat: z.ZodString;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
+                words: z.ZodString;
+            }, z.core.$strip>>;
         }, z.core.$strip>>;
         before: z.ZodObject<{
             count: z.ZodNumber;
@@ -1652,6 +1765,24 @@ export declare const shiftReportBoardSchema: z.ZodObject<{
                     current: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>>;
                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                decider: z.ZodOptional<z.ZodObject<{
+                    kind: z.ZodEnum<{
+                        owner: "owner";
+                        team_lead: "team_lead";
+                    }>;
+                    user: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                        forms: z.ZodObject<{
+                            nom: z.ZodString;
+                            gen: z.ZodString;
+                            acc: z.ZodString;
+                            ins: z.ZodString;
+                            dat: z.ZodString;
+                        }, z.core.$strip>;
+                    }, z.core.$strip>>;
+                    words: z.ZodString;
+                }, z.core.$strip>>;
             }, z.core.$strip>>;
         }, z.core.$strip>;
         marked: z.ZodNumber;
@@ -1783,6 +1914,12 @@ export declare const shiftReportBoardSchema: z.ZodObject<{
         seen: z.ZodNullable<z.ZodBoolean>;
         changedSinceCopy: z.ZodBoolean;
         late: z.ZodBoolean;
+        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            modelSlug: z.ZodString;
+            modelName: z.ZodString;
+            copiedAt: z.ZodNullable<z.ZodString>;
+            changedSinceCopy: z.ZodBoolean;
+        }, z.core.$strip>>>;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
 export type ShiftReportBoard = z.infer<typeof shiftReportBoardSchema>;

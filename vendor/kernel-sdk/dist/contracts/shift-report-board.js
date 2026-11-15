@@ -28,6 +28,26 @@ export const SHIFT_REPORT_PHASE_CHIPS = {
  * decides whether it joins a pot). A version's line in the ledger's feed keeps the three words: `give` and `pot` read
  * there as `not_mine` (the line counts nothing for the person), the feed's format does not change.
  */
+/**
+ * How each site's own list words a sale, by the sale's kind — Fansly's Wallet activity («Media Sale to», approved
+ * prototype `report-panel-mockups/columns.html`), OnlyFans' statement («Payment for message from»). The ONE dictionary:
+ * the board's rows take their words from it (`saleSiteWords`). A row's kind is the rule's (`ppv`, `post`, `tip`,
+ * `subscription`); a sale's stored kind (`message_purchase`, `post_purchase`, `stream_tip`) reads as the same.
+ */
+export const SALE_SITE_WORDS = {
+    fansly: { ppv: "Media Sale to", post: "Media Sale to", subscription: "Subscription Sale to", tip: "Tip from" },
+    onlyfans: { ppv: "Payment for message from", post: "Payment for post from", subscription: "Subscription from", tip: "Tip from" },
+};
+const SALE_KIND_OF = {
+    ppv: "ppv", message_purchase: "ppv", post: "post", post_purchase: "post", subscription: "subscription", tip: "tip", stream_tip: "tip",
+};
+/** The site's words before the fan for a sale of a kind; a kind it does not know — the plain «Sale to» / «Payment from». Pure. */
+export function saleSiteWords(platform, kind) {
+    const one = SALE_KIND_OF[kind];
+    if (one === undefined)
+        return platform === "fansly" ? "Sale to" : "Payment from";
+    return SALE_SITE_WORDS[platform][one];
+}
 export const SHIFT_REPORT_WORDS = ["mine", "not_mine", "share", "give", "pot"];
 export const shiftReportWordEnum = z.enum(SHIFT_REPORT_WORDS);
 /** How long the check may hold the person: after this the server's timer moves `checking` to `confirm`. */
@@ -191,6 +211,13 @@ export const shiftReportChoiceSchema = z.object({
     /** The current word (absent from a reader that marks it itself). */
     current: z.boolean().optional(),
 });
+/** Who decides a dispute, and how the texts name them: «Спор решит владелец», «Спор решит Марта». */
+export const shiftReportDeciderSchema = z.object({
+    kind: z.enum(["owner", "team_lead"]),
+    user: personSchema.nullable(),
+    /** The decider in the texts: «владелец», «Марта». */
+    words: z.string(),
+});
 /** One row of a column: two lines, never more; the question, the claim, the card and the comment go under it. */
 export const shiftReportRowSchema = z.object({
     /** Stable within the board: `t<transactionId>`, or `s<sightingId>` for a row Hub does not hold. */
@@ -246,6 +273,11 @@ export const shiftReportRowSchema = z.object({
     choices: z.array(shiftReportChoiceSchema).optional(),
     /** Hub's re-read after the hand-in found it («Hub дочитал кошельки: ещё 2 продажи … Показать» lights it). */
     foundByHub: z.boolean().optional(),
+    /**
+     * Who decides THIS sale's dispute (`deciderOf` of its page's model; the pot's and «стык смен» — the owner); absent —
+     * the board's `decider`.
+     */
+    decider: shiftReportDeciderSchema.optional(),
 });
 export const shiftReportColumnSchema = z.object({
     pageLabel: z.string(),
@@ -346,13 +378,8 @@ export const shiftReportBoardSchema = z.object({
     })),
     /** The people a word may name: «пополам с …», «Олега», «Спросить …». */
     colleagues: z.array(personSchema),
-    /** Who decides a dispute of this shift's model, and how the texts name them: «Спор решит владелец». */
-    decider: z.object({
-        kind: z.enum(["owner", "team_lead"]),
-        user: personSchema.nullable(),
-        /** The decider in the texts: «владелец», «Марта». */
-        words: z.string(),
-    }),
+    /** Who decides a dispute of the shift's first model: a text that names no sale. A row names its own (`row.decider`). */
+    decider: shiftReportDeciderSchema,
     /** The reader may press «Подтверждаю» now (own, phase confirm, the candidate not superseded). */
     canConfirm: z.boolean(),
     /** The dot on «Отчёт»: confirm, a question to the person, a row «после сдачи», a late card of Gengar. */
@@ -379,6 +406,16 @@ export const shiftReportBoardSchema = z.object({
         seen: z.boolean().nullable(),
         changedSinceCopy: z.boolean(),
         late: z.boolean(),
+        /**
+         * Each model's post (a shift on pages of two models has two): whether it was copied and changed since. The board
+         * copies each by its own button («Скопировать пост: Лора») and marks each «скопирован».
+         */
+        models: z.array(z.object({
+            modelSlug: z.string(),
+            modelName: z.string(),
+            copiedAt: isoTimestamp.nullable(),
+            changedSinceCopy: z.boolean(),
+        })).default([]),
     }).nullable().optional(),
 });
 /** The pulse's `report` field (`clientActivity`): the fifth button and its dot. Null — a person without the board. */

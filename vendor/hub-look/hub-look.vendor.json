@@ -1,7 +1,7 @@
 {
   "lookVersion": "1.0.0",
   "sha256": "9a0da48e6a7a657793542c253b285e01c7f51bc3aa19331531e41ba11a8cc73c",
-  "sourceCommit": "83b3c9f26b0c871e141bf8cec0810e9ee3edb0ac",
+  "sourceCommit": "c8c50e470bbedb8f32a7295792f1f71ee6316a11",
   "source": "hub scripts/vendor-look.mjs",
   "files": {
     "css/ui-tokens.css": "f6c5e475cad0299f4e02847d49388ff449e4484a77d99bd98146f0e91ff5843a",

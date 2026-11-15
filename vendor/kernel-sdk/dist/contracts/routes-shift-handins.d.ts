@@ -457,6 +457,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
         mills: z.ZodNumber;
     }, z.core.$strip>>;
     posts: z.ZodArray<z.ZodObject<{
+        modelSlug: z.ZodString;
         modelName: z.ZodString;
         text: z.ZodString;
     }, z.core.$strip>>;
@@ -816,6 +817,24 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
                     current: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>>;
                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                decider: z.ZodOptional<z.ZodObject<{
+                    kind: z.ZodEnum<{
+                        owner: "owner";
+                        team_lead: "team_lead";
+                    }>;
+                    user: z.ZodNullable<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                        forms: z.ZodObject<{
+                            nom: z.ZodString;
+                            gen: z.ZodString;
+                            acc: z.ZodString;
+                            ins: z.ZodString;
+                            dat: z.ZodString;
+                        }, z.core.$strip>;
+                    }, z.core.$strip>>;
+                    words: z.ZodString;
+                }, z.core.$strip>>;
             }, z.core.$strip>>;
             before: z.ZodObject<{
                 count: z.ZodNumber;
@@ -1082,6 +1101,24 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
                         current: z.ZodOptional<z.ZodBoolean>;
                     }, z.core.$strip>>>;
                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                    decider: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            owner: "owner";
+                            team_lead: "team_lead";
+                        }>;
+                        user: z.ZodNullable<z.ZodObject<{
+                            userId: z.ZodNumber;
+                            name: z.ZodString;
+                            forms: z.ZodObject<{
+                                nom: z.ZodString;
+                                gen: z.ZodString;
+                                acc: z.ZodString;
+                                ins: z.ZodString;
+                                dat: z.ZodString;
+                            }, z.core.$strip>;
+                        }, z.core.$strip>>;
+                        words: z.ZodString;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
             marked: z.ZodNumber;
@@ -1213,6 +1250,12 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
             seen: z.ZodNullable<z.ZodBoolean>;
             changedSinceCopy: z.ZodBoolean;
             late: z.ZodBoolean;
+            models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                modelSlug: z.ZodString;
+                modelName: z.ZodString;
+                copiedAt: z.ZodNullable<z.ZodString>;
+                changedSinceCopy: z.ZodBoolean;
+            }, z.core.$strip>>>;
         }, z.core.$strip>>>;
     }, z.core.$strip>>>;
     boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -1384,6 +1427,7 @@ export declare const shiftReportPhaseConflictSchema: z.ZodObject<{
             mills: z.ZodNumber;
         }, z.core.$strip>>;
         posts: z.ZodArray<z.ZodObject<{
+            modelSlug: z.ZodString;
             modelName: z.ZodString;
             text: z.ZodString;
         }, z.core.$strip>>;
@@ -1743,6 +1787,24 @@ export declare const shiftReportPhaseConflictSchema: z.ZodObject<{
                         current: z.ZodOptional<z.ZodBoolean>;
                     }, z.core.$strip>>>;
                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                    decider: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            owner: "owner";
+                            team_lead: "team_lead";
+                        }>;
+                        user: z.ZodNullable<z.ZodObject<{
+                            userId: z.ZodNumber;
+                            name: z.ZodString;
+                            forms: z.ZodObject<{
+                                nom: z.ZodString;
+                                gen: z.ZodString;
+                                acc: z.ZodString;
+                                ins: z.ZodString;
+                                dat: z.ZodString;
+                            }, z.core.$strip>;
+                        }, z.core.$strip>>;
+                        words: z.ZodString;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>;
                 before: z.ZodObject<{
                     count: z.ZodNumber;
@@ -2009,6 +2071,24 @@ export declare const shiftReportPhaseConflictSchema: z.ZodObject<{
                             current: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>>;
                         foundByHub: z.ZodOptional<z.ZodBoolean>;
+                        decider: z.ZodOptional<z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                owner: "owner";
+                                team_lead: "team_lead";
+                            }>;
+                            user: z.ZodNullable<z.ZodObject<{
+                                userId: z.ZodNumber;
+                                name: z.ZodString;
+                                forms: z.ZodObject<{
+                                    nom: z.ZodString;
+                                    gen: z.ZodString;
+                                    acc: z.ZodString;
+                                    ins: z.ZodString;
+                                    dat: z.ZodString;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
+                            words: z.ZodString;
+                        }, z.core.$strip>>;
                     }, z.core.$strip>>;
                 }, z.core.$strip>;
                 marked: z.ZodNumber;
@@ -2140,6 +2220,12 @@ export declare const shiftReportPhaseConflictSchema: z.ZodObject<{
                 seen: z.ZodNullable<z.ZodBoolean>;
                 changedSinceCopy: z.ZodBoolean;
                 late: z.ZodBoolean;
+                models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
+                    modelName: z.ZodString;
+                    copiedAt: z.ZodNullable<z.ZodString>;
+                    changedSinceCopy: z.ZodBoolean;
+                }, z.core.$strip>>>;
             }, z.core.$strip>>>;
         }, z.core.$strip>>>;
         boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -2444,6 +2530,7 @@ export declare const shiftReportConfirmResponseSchema: z.ZodObject<{
             mills: z.ZodNumber;
         }, z.core.$strip>>;
         posts: z.ZodArray<z.ZodObject<{
+            modelSlug: z.ZodString;
             modelName: z.ZodString;
             text: z.ZodString;
         }, z.core.$strip>>;
@@ -2803,6 +2890,24 @@ export declare const shiftReportConfirmResponseSchema: z.ZodObject<{
                         current: z.ZodOptional<z.ZodBoolean>;
                     }, z.core.$strip>>>;
                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                    decider: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            owner: "owner";
+                            team_lead: "team_lead";
+                        }>;
+                        user: z.ZodNullable<z.ZodObject<{
+                            userId: z.ZodNumber;
+                            name: z.ZodString;
+                            forms: z.ZodObject<{
+                                nom: z.ZodString;
+                                gen: z.ZodString;
+                                acc: z.ZodString;
+                                ins: z.ZodString;
+                                dat: z.ZodString;
+                            }, z.core.$strip>;
+                        }, z.core.$strip>>;
+                        words: z.ZodString;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>;
                 before: z.ZodObject<{
                     count: z.ZodNumber;
@@ -3069,6 +3174,24 @@ export declare const shiftReportConfirmResponseSchema: z.ZodObject<{
                             current: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>>;
                         foundByHub: z.ZodOptional<z.ZodBoolean>;
+                        decider: z.ZodOptional<z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                owner: "owner";
+                                team_lead: "team_lead";
+                            }>;
+                            user: z.ZodNullable<z.ZodObject<{
+                                userId: z.ZodNumber;
+                                name: z.ZodString;
+                                forms: z.ZodObject<{
+                                    nom: z.ZodString;
+                                    gen: z.ZodString;
+                                    acc: z.ZodString;
+                                    ins: z.ZodString;
+                                    dat: z.ZodString;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
+                            words: z.ZodString;
+                        }, z.core.$strip>>;
                     }, z.core.$strip>>;
                 }, z.core.$strip>;
                 marked: z.ZodNumber;
@@ -3200,6 +3323,12 @@ export declare const shiftReportConfirmResponseSchema: z.ZodObject<{
                 seen: z.ZodNullable<z.ZodBoolean>;
                 changedSinceCopy: z.ZodBoolean;
                 late: z.ZodBoolean;
+                models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
+                    modelName: z.ZodString;
+                    copiedAt: z.ZodNullable<z.ZodString>;
+                    changedSinceCopy: z.ZodBoolean;
+                }, z.core.$strip>>>;
             }, z.core.$strip>>>;
         }, z.core.$strip>>>;
         boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -3221,12 +3350,16 @@ export declare const shiftReportAskBodySchema: z.ZodObject<{
     note: z.ZodString;
 }, z.core.$strip>;
 /** A card of Gengar: decline it («Не согласен»), restore it («Вернуть правку»), or accept a late one («Принять»). */
+export declare const shiftReportPostCopiedQuerySchema: z.ZodObject<{
+    model: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
 export declare const shiftReportProposalAnswerBodySchema: z.ZodObject<{
     answer: z.ZodEnum<{
         accept: "accept";
         decline: "decline";
         restore: "restore";
     }>;
+    note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
 }, z.core.$strip>;
 export declare const shiftReportCurrentResponseSchema: z.ZodObject<{
     report: z.ZodNullable<z.ZodObject<{
@@ -3388,6 +3521,7 @@ export declare const shiftReportCurrentResponseSchema: z.ZodObject<{
             mills: z.ZodNumber;
         }, z.core.$strip>>;
         posts: z.ZodArray<z.ZodObject<{
+            modelSlug: z.ZodString;
             modelName: z.ZodString;
             text: z.ZodString;
         }, z.core.$strip>>;
@@ -3747,6 +3881,24 @@ export declare const shiftReportCurrentResponseSchema: z.ZodObject<{
                         current: z.ZodOptional<z.ZodBoolean>;
                     }, z.core.$strip>>>;
                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                    decider: z.ZodOptional<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            owner: "owner";
+                            team_lead: "team_lead";
+                        }>;
+                        user: z.ZodNullable<z.ZodObject<{
+                            userId: z.ZodNumber;
+                            name: z.ZodString;
+                            forms: z.ZodObject<{
+                                nom: z.ZodString;
+                                gen: z.ZodString;
+                                acc: z.ZodString;
+                                ins: z.ZodString;
+                                dat: z.ZodString;
+                            }, z.core.$strip>;
+                        }, z.core.$strip>>;
+                        words: z.ZodString;
+                    }, z.core.$strip>>;
                 }, z.core.$strip>>;
                 before: z.ZodObject<{
                     count: z.ZodNumber;
@@ -4013,6 +4165,24 @@ export declare const shiftReportCurrentResponseSchema: z.ZodObject<{
                             current: z.ZodOptional<z.ZodBoolean>;
                         }, z.core.$strip>>>;
                         foundByHub: z.ZodOptional<z.ZodBoolean>;
+                        decider: z.ZodOptional<z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                owner: "owner";
+                                team_lead: "team_lead";
+                            }>;
+                            user: z.ZodNullable<z.ZodObject<{
+                                userId: z.ZodNumber;
+                                name: z.ZodString;
+                                forms: z.ZodObject<{
+                                    nom: z.ZodString;
+                                    gen: z.ZodString;
+                                    acc: z.ZodString;
+                                    ins: z.ZodString;
+                                    dat: z.ZodString;
+                                }, z.core.$strip>;
+                            }, z.core.$strip>>;
+                            words: z.ZodString;
+                        }, z.core.$strip>>;
                     }, z.core.$strip>>;
                 }, z.core.$strip>;
                 marked: z.ZodNumber;
@@ -4144,6 +4314,12 @@ export declare const shiftReportCurrentResponseSchema: z.ZodObject<{
                 seen: z.ZodNullable<z.ZodBoolean>;
                 changedSinceCopy: z.ZodBoolean;
                 late: z.ZodBoolean;
+                models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
+                    modelName: z.ZodString;
+                    copiedAt: z.ZodNullable<z.ZodString>;
+                    changedSinceCopy: z.ZodBoolean;
+                }, z.core.$strip>>>;
             }, z.core.$strip>>>;
         }, z.core.$strip>>>;
         boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -4744,6 +4920,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -5103,6 +5280,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -5369,6 +5564,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -5500,6 +5713,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -5833,6 +6052,7 @@ export declare const shiftHandinRouteSchemas: {
                         mills: z.ZodNumber;
                     }, z.core.$strip>>;
                     posts: z.ZodArray<z.ZodObject<{
+                        modelSlug: z.ZodString;
                         modelName: z.ZodString;
                         text: z.ZodString;
                     }, z.core.$strip>>;
@@ -6192,6 +6412,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                             before: z.ZodObject<{
                                 count: z.ZodNumber;
@@ -6458,6 +6696,24 @@ export declare const shiftHandinRouteSchemas: {
                                         current: z.ZodOptional<z.ZodBoolean>;
                                     }, z.core.$strip>>>;
                                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                    decider: z.ZodOptional<z.ZodObject<{
+                                        kind: z.ZodEnum<{
+                                            owner: "owner";
+                                            team_lead: "team_lead";
+                                        }>;
+                                        user: z.ZodNullable<z.ZodObject<{
+                                            userId: z.ZodNumber;
+                                            name: z.ZodString;
+                                            forms: z.ZodObject<{
+                                                nom: z.ZodString;
+                                                gen: z.ZodString;
+                                                acc: z.ZodString;
+                                                ins: z.ZodString;
+                                                dat: z.ZodString;
+                                            }, z.core.$strip>;
+                                        }, z.core.$strip>>;
+                                        words: z.ZodString;
+                                    }, z.core.$strip>>;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>;
                             marked: z.ZodNumber;
@@ -6589,6 +6845,12 @@ export declare const shiftHandinRouteSchemas: {
                             seen: z.ZodNullable<z.ZodBoolean>;
                             changedSinceCopy: z.ZodBoolean;
                             late: z.ZodBoolean;
+                            models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                                modelSlug: z.ZodString;
+                                modelName: z.ZodString;
+                                copiedAt: z.ZodNullable<z.ZodString>;
+                                changedSinceCopy: z.ZodBoolean;
+                            }, z.core.$strip>>>;
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                     boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -7007,6 +7269,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -7366,6 +7629,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -7632,6 +7913,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -7763,6 +8062,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -7984,6 +8289,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -8343,6 +8649,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -8609,6 +8933,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -8740,6 +9082,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -9240,6 +9588,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -9599,6 +9948,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -9865,6 +10232,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -9996,6 +10381,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -10206,6 +10597,7 @@ export declare const shiftHandinRouteSchemas: {
                         mills: z.ZodNumber;
                     }, z.core.$strip>>;
                     posts: z.ZodArray<z.ZodObject<{
+                        modelSlug: z.ZodString;
                         modelName: z.ZodString;
                         text: z.ZodString;
                     }, z.core.$strip>>;
@@ -10565,6 +10957,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                             before: z.ZodObject<{
                                 count: z.ZodNumber;
@@ -10831,6 +11241,24 @@ export declare const shiftHandinRouteSchemas: {
                                         current: z.ZodOptional<z.ZodBoolean>;
                                     }, z.core.$strip>>>;
                                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                    decider: z.ZodOptional<z.ZodObject<{
+                                        kind: z.ZodEnum<{
+                                            owner: "owner";
+                                            team_lead: "team_lead";
+                                        }>;
+                                        user: z.ZodNullable<z.ZodObject<{
+                                            userId: z.ZodNumber;
+                                            name: z.ZodString;
+                                            forms: z.ZodObject<{
+                                                nom: z.ZodString;
+                                                gen: z.ZodString;
+                                                acc: z.ZodString;
+                                                ins: z.ZodString;
+                                                dat: z.ZodString;
+                                            }, z.core.$strip>;
+                                        }, z.core.$strip>>;
+                                        words: z.ZodString;
+                                    }, z.core.$strip>>;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>;
                             marked: z.ZodNumber;
@@ -10962,6 +11390,12 @@ export declare const shiftHandinRouteSchemas: {
                             seen: z.ZodNullable<z.ZodBoolean>;
                             changedSinceCopy: z.ZodBoolean;
                             late: z.ZodBoolean;
+                            models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                                modelSlug: z.ZodString;
+                                modelName: z.ZodString;
+                                copiedAt: z.ZodNullable<z.ZodString>;
+                                changedSinceCopy: z.ZodBoolean;
+                            }, z.core.$strip>>>;
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                     boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -11195,6 +11629,7 @@ export declare const shiftHandinRouteSchemas: {
                         mills: z.ZodNumber;
                     }, z.core.$strip>>;
                     posts: z.ZodArray<z.ZodObject<{
+                        modelSlug: z.ZodString;
                         modelName: z.ZodString;
                         text: z.ZodString;
                     }, z.core.$strip>>;
@@ -11554,6 +11989,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                             before: z.ZodObject<{
                                 count: z.ZodNumber;
@@ -11820,6 +12273,24 @@ export declare const shiftHandinRouteSchemas: {
                                         current: z.ZodOptional<z.ZodBoolean>;
                                     }, z.core.$strip>>>;
                                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                    decider: z.ZodOptional<z.ZodObject<{
+                                        kind: z.ZodEnum<{
+                                            owner: "owner";
+                                            team_lead: "team_lead";
+                                        }>;
+                                        user: z.ZodNullable<z.ZodObject<{
+                                            userId: z.ZodNumber;
+                                            name: z.ZodString;
+                                            forms: z.ZodObject<{
+                                                nom: z.ZodString;
+                                                gen: z.ZodString;
+                                                acc: z.ZodString;
+                                                ins: z.ZodString;
+                                                dat: z.ZodString;
+                                            }, z.core.$strip>;
+                                        }, z.core.$strip>>;
+                                        words: z.ZodString;
+                                    }, z.core.$strip>>;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>;
                             marked: z.ZodNumber;
@@ -11951,6 +12422,12 @@ export declare const shiftHandinRouteSchemas: {
                             seen: z.ZodNullable<z.ZodBoolean>;
                             changedSinceCopy: z.ZodBoolean;
                             late: z.ZodBoolean;
+                            models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                                modelSlug: z.ZodString;
+                                modelName: z.ZodString;
+                                copiedAt: z.ZodNullable<z.ZodString>;
+                                changedSinceCopy: z.ZodBoolean;
+                            }, z.core.$strip>>>;
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                     boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -11964,10 +12441,13 @@ export declare const shiftHandinRouteSchemas: {
             readonly kind: "any";
         };
         readonly tags: readonly ["client"];
-        readonly summary: "«Скопировать пост»: remember the copy, so a later version that changes a page sum says «Пост изменился»";
-        readonly description: "Any session (the narrow one the extension opens included) or the chat extension's device token: the person's own report to write; a reader's to read. Database only. Own counted report.";
+        readonly summary: "«Скопировать пост»: remember the copy of one model's post, so a later version that changes its page sums says «Пост изменился»";
+        readonly description: "Any session (the narrow one the extension opens included) or the chat extension's device token: the person's own report to write; a reader's to read. Database only. Own counted report. `model` — the model whose post was copied (one of the report's posts); absent — every post (a client before the per-model copy).";
         readonly params: z.ZodObject<{
             shiftId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            model: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>;
         readonly response: {
             readonly 400: z.ZodObject<{
@@ -12164,6 +12644,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -12523,6 +13004,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -12789,6 +13288,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -12920,6 +13437,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -13132,6 +13655,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -13491,6 +14015,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -13757,6 +14299,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -13888,6 +14448,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -14100,6 +14666,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -14459,6 +15026,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -14725,6 +15310,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -14856,6 +15459,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -15071,6 +15680,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -15430,6 +16040,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -15696,6 +16324,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -15827,6 +16473,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -16019,6 +16671,7 @@ export declare const shiftHandinRouteSchemas: {
                         mills: z.ZodNumber;
                     }, z.core.$strip>>;
                     posts: z.ZodArray<z.ZodObject<{
+                        modelSlug: z.ZodString;
                         modelName: z.ZodString;
                         text: z.ZodString;
                     }, z.core.$strip>>;
@@ -16378,6 +17031,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                             before: z.ZodObject<{
                                 count: z.ZodNumber;
@@ -16644,6 +17315,24 @@ export declare const shiftHandinRouteSchemas: {
                                         current: z.ZodOptional<z.ZodBoolean>;
                                     }, z.core.$strip>>>;
                                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                    decider: z.ZodOptional<z.ZodObject<{
+                                        kind: z.ZodEnum<{
+                                            owner: "owner";
+                                            team_lead: "team_lead";
+                                        }>;
+                                        user: z.ZodNullable<z.ZodObject<{
+                                            userId: z.ZodNumber;
+                                            name: z.ZodString;
+                                            forms: z.ZodObject<{
+                                                nom: z.ZodString;
+                                                gen: z.ZodString;
+                                                acc: z.ZodString;
+                                                ins: z.ZodString;
+                                                dat: z.ZodString;
+                                            }, z.core.$strip>;
+                                        }, z.core.$strip>>;
+                                        words: z.ZodString;
+                                    }, z.core.$strip>>;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>;
                             marked: z.ZodNumber;
@@ -16775,6 +17464,12 @@ export declare const shiftHandinRouteSchemas: {
                             seen: z.ZodNullable<z.ZodBoolean>;
                             changedSinceCopy: z.ZodBoolean;
                             late: z.ZodBoolean;
+                            models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                                modelSlug: z.ZodString;
+                                modelName: z.ZodString;
+                                copiedAt: z.ZodNullable<z.ZodString>;
+                                changedSinceCopy: z.ZodBoolean;
+                            }, z.core.$strip>>>;
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                     boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -16968,6 +17663,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -17327,6 +18023,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -17593,6 +18307,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -17724,6 +18456,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -17908,6 +18646,7 @@ export declare const shiftHandinRouteSchemas: {
                         mills: z.ZodNumber;
                     }, z.core.$strip>>;
                     posts: z.ZodArray<z.ZodObject<{
+                        modelSlug: z.ZodString;
                         modelName: z.ZodString;
                         text: z.ZodString;
                     }, z.core.$strip>>;
@@ -18267,6 +19006,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                             before: z.ZodObject<{
                                 count: z.ZodNumber;
@@ -18533,6 +19290,24 @@ export declare const shiftHandinRouteSchemas: {
                                         current: z.ZodOptional<z.ZodBoolean>;
                                     }, z.core.$strip>>>;
                                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                    decider: z.ZodOptional<z.ZodObject<{
+                                        kind: z.ZodEnum<{
+                                            owner: "owner";
+                                            team_lead: "team_lead";
+                                        }>;
+                                        user: z.ZodNullable<z.ZodObject<{
+                                            userId: z.ZodNumber;
+                                            name: z.ZodString;
+                                            forms: z.ZodObject<{
+                                                nom: z.ZodString;
+                                                gen: z.ZodString;
+                                                acc: z.ZodString;
+                                                ins: z.ZodString;
+                                                dat: z.ZodString;
+                                            }, z.core.$strip>;
+                                        }, z.core.$strip>>;
+                                        words: z.ZodString;
+                                    }, z.core.$strip>>;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>;
                             marked: z.ZodNumber;
@@ -18664,6 +19439,12 @@ export declare const shiftHandinRouteSchemas: {
                             seen: z.ZodNullable<z.ZodBoolean>;
                             changedSinceCopy: z.ZodBoolean;
                             late: z.ZodBoolean;
+                            models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                                modelSlug: z.ZodString;
+                                modelName: z.ZodString;
+                                copiedAt: z.ZodNullable<z.ZodString>;
+                                changedSinceCopy: z.ZodBoolean;
+                            }, z.core.$strip>>>;
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                     boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -18857,6 +19638,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -19216,6 +19998,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -19482,6 +20282,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -19613,6 +20431,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -19637,6 +20461,7 @@ export declare const shiftHandinRouteSchemas: {
                 decline: "decline";
                 restore: "restore";
             }>;
+            note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 400: z.ZodObject<{
@@ -19833,6 +20658,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -20192,6 +21018,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -20458,6 +21302,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -20589,6 +21451,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -20773,6 +21641,7 @@ export declare const shiftHandinRouteSchemas: {
                         mills: z.ZodNumber;
                     }, z.core.$strip>>;
                     posts: z.ZodArray<z.ZodObject<{
+                        modelSlug: z.ZodString;
                         modelName: z.ZodString;
                         text: z.ZodString;
                     }, z.core.$strip>>;
@@ -21132,6 +22001,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                             before: z.ZodObject<{
                                 count: z.ZodNumber;
@@ -21398,6 +22285,24 @@ export declare const shiftHandinRouteSchemas: {
                                         current: z.ZodOptional<z.ZodBoolean>;
                                     }, z.core.$strip>>>;
                                     foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                    decider: z.ZodOptional<z.ZodObject<{
+                                        kind: z.ZodEnum<{
+                                            owner: "owner";
+                                            team_lead: "team_lead";
+                                        }>;
+                                        user: z.ZodNullable<z.ZodObject<{
+                                            userId: z.ZodNumber;
+                                            name: z.ZodString;
+                                            forms: z.ZodObject<{
+                                                nom: z.ZodString;
+                                                gen: z.ZodString;
+                                                acc: z.ZodString;
+                                                ins: z.ZodString;
+                                                dat: z.ZodString;
+                                            }, z.core.$strip>;
+                                        }, z.core.$strip>>;
+                                        words: z.ZodString;
+                                    }, z.core.$strip>>;
                                 }, z.core.$strip>>;
                             }, z.core.$strip>;
                             marked: z.ZodNumber;
@@ -21529,6 +22434,12 @@ export declare const shiftHandinRouteSchemas: {
                             seen: z.ZodNullable<z.ZodBoolean>;
                             changedSinceCopy: z.ZodBoolean;
                             late: z.ZodBoolean;
+                            models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                                modelSlug: z.ZodString;
+                                modelName: z.ZodString;
+                                copiedAt: z.ZodNullable<z.ZodString>;
+                                changedSinceCopy: z.ZodBoolean;
+                            }, z.core.$strip>>>;
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                     boardShift: z.ZodOptional<z.ZodBoolean>;
@@ -21722,6 +22633,7 @@ export declare const shiftHandinRouteSchemas: {
                     mills: z.ZodNumber;
                 }, z.core.$strip>>;
                 posts: z.ZodArray<z.ZodObject<{
+                    modelSlug: z.ZodString;
                     modelName: z.ZodString;
                     text: z.ZodString;
                 }, z.core.$strip>>;
@@ -22081,6 +22993,24 @@ export declare const shiftHandinRouteSchemas: {
                                 current: z.ZodOptional<z.ZodBoolean>;
                             }, z.core.$strip>>>;
                             foundByHub: z.ZodOptional<z.ZodBoolean>;
+                            decider: z.ZodOptional<z.ZodObject<{
+                                kind: z.ZodEnum<{
+                                    owner: "owner";
+                                    team_lead: "team_lead";
+                                }>;
+                                user: z.ZodNullable<z.ZodObject<{
+                                    userId: z.ZodNumber;
+                                    name: z.ZodString;
+                                    forms: z.ZodObject<{
+                                        nom: z.ZodString;
+                                        gen: z.ZodString;
+                                        acc: z.ZodString;
+                                        ins: z.ZodString;
+                                        dat: z.ZodString;
+                                    }, z.core.$strip>;
+                                }, z.core.$strip>>;
+                                words: z.ZodString;
+                            }, z.core.$strip>>;
                         }, z.core.$strip>>;
                         before: z.ZodObject<{
                             count: z.ZodNumber;
@@ -22347,6 +23277,24 @@ export declare const shiftHandinRouteSchemas: {
                                     current: z.ZodOptional<z.ZodBoolean>;
                                 }, z.core.$strip>>>;
                                 foundByHub: z.ZodOptional<z.ZodBoolean>;
+                                decider: z.ZodOptional<z.ZodObject<{
+                                    kind: z.ZodEnum<{
+                                        owner: "owner";
+                                        team_lead: "team_lead";
+                                    }>;
+                                    user: z.ZodNullable<z.ZodObject<{
+                                        userId: z.ZodNumber;
+                                        name: z.ZodString;
+                                        forms: z.ZodObject<{
+                                            nom: z.ZodString;
+                                            gen: z.ZodString;
+                                            acc: z.ZodString;
+                                            ins: z.ZodString;
+                                            dat: z.ZodString;
+                                        }, z.core.$strip>;
+                                    }, z.core.$strip>>;
+                                    words: z.ZodString;
+                                }, z.core.$strip>>;
                             }, z.core.$strip>>;
                         }, z.core.$strip>;
                         marked: z.ZodNumber;
@@ -22478,6 +23426,12 @@ export declare const shiftHandinRouteSchemas: {
                         seen: z.ZodNullable<z.ZodBoolean>;
                         changedSinceCopy: z.ZodBoolean;
                         late: z.ZodBoolean;
+                        models: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                            modelSlug: z.ZodString;
+                            modelName: z.ZodString;
+                            copiedAt: z.ZodNullable<z.ZodString>;
+                            changedSinceCopy: z.ZodBoolean;
+                        }, z.core.$strip>>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>>;
                 boardShift: z.ZodOptional<z.ZodBoolean>;
