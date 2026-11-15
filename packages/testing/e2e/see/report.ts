@@ -141,6 +141,51 @@ export async function markBox(): Promise<{ x: number; y: number; width: number; 
   return { x, y, width, height };
 }
 
+/**
+ * Whether anything of ours that is shown overlaps the site's message field, our dock or our launcher: the bar, the
+ * highlight, the board's layer. Each name → the boxes it crosses; {} — nothing covers anything.
+ */
+export async function overlaps(composer: string, launcher: string): Promise<Record<string, string[]>> {
+  return browser.execute(
+    (field: string, launch: string, ours: readonly string[]) => {
+      const box = (node: Element | null): DOMRect | null => {
+        if (node === null) return null;
+        const style = node instanceof HTMLElement ? node.style : null;
+        if (style !== null && style.display === 'none') return null;
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 ? rect : null;
+      };
+      const cross = (a: DOMRect, b: DOMRect): boolean => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      const targets: Record<string, DOMRect | null> = { composer: box(document.querySelector(field)), dock: box(document.querySelector('div[data-host="dock"]')), launcher: box(document.querySelector(launch)) };
+      const out: Record<string, string[]> = {};
+      for (const selector of ours) {
+        const mine = box(document.querySelector(selector));
+        if (mine === null) continue;
+        const hit = Object.entries(targets).filter(([, target]) => target !== null && cross(mine, target)).map(([name]) => name);
+        if (hit.length > 0) out[selector] = hit;
+      }
+      return out;
+    },
+    composer,
+    launcher,
+    [FRAME_BAR, FRAME_MARK, FRAME_LAYER],
+  );
+}
+
+/** What the site's page itself can see of the frame (closed root): the number of iframes in its DOM. */
+export async function pageSeesFrames(): Promise<number> {
+  return browser.execute(() => document.querySelectorAll('iframe').length);
+}
+
+/** A page script imitating the frame: a hello of v1 and a `ready` of v2 posted to the site's window (ignored). */
+export async function forgeHello(): Promise<void> {
+  await browser.execute(() => {
+    window.postMessage({ cg: 'report-board/hello', v: 1 }, '*');
+    window.postMessage({ cg: 'report-board/hello', v: 2 }, '*');
+    window.postMessage({ t: 'ready', v: 2 }, '*');
+  });
+}
+
 /** The run's facts in `report.json` beside its pictures. */
 export function writeFacts(s: See, facts: Record<string, unknown>): void {
   writeFileSync(join(s.out, 'report-facts.json'), `${JSON.stringify(facts, null, 2)}\n`);

@@ -332,3 +332,34 @@ declare global {
     __stand?: StandControl;
   }
 }
+
+// ── The account's OnlyFans transactions (hub package R, 2026-11-15; ui/transactions.ts) ──
+// Invented rows at fixed moments: the stand's transactions window shows them and the fake hub's board stub names the
+// same sales (src/fake-hub/report-board.ts). Here, so the fake hub — part of the AMO sources archive — reads them from
+// a file the archive keeps.
+
+export interface StandTransaction {
+  readonly id: string;
+  readonly at: number;
+  readonly grossMills: number;
+  readonly netMills: number;
+  readonly description: string;
+}
+
+const NEWEST = Date.UTC(2026, 10, 12, 22, 12);
+const ROWS: readonly (readonly [string, number])[] = [
+  ['Payment for message from Mason', 18000],
+  ['Tip from Lucas', 25000],
+  ['Subscription from Theo', 9990],
+  ['Payment for message from Noah', 40000],
+  ['Tip from Mason', 10000],
+  ['Payment for message from Ezra', 15000],
+  ['Tip from Theo', 5000],
+  ['Payment for message from Lucas', 30000],
+];
+
+/** 24 rows, newest first. */
+export const STAND_TRANSACTIONS: readonly StandTransaction[] = Array.from({ length: 24 }, (_, index) => {
+  const [description, grossMills] = ROWS[index % ROWS.length] ?? ['Tip from Mason', 10000];
+  return { id: String(6_100_000_000 - index * 977), at: NEWEST - index * 17 * 60_000, grossMills, netMills: Math.round(grossMills * 0.8), description };
+});

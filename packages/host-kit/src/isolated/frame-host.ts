@@ -22,9 +22,18 @@ import type { ShadowRootRegistry } from './shadow-registry';
 /** Above every site layer we know: Fansly's modals (≤ 1000) and notices (9999), FBuddy (1 000 000), ChatSpace's dialogs. */
 export const FRAME_Z = 2_147_483_000;
 /** The handshake's words (contracts report-board.ts; repeated here: the host kit carries no schemas). */
-export const FRAME_HELLO = 'report-board/hello';
 export const FRAME_PORT = 'report-board/port';
-export const FRAME_PROTOCOL = 1;
+export const FRAME_PROTOCOL = 2;
+/** The port is offered this often after the frame's `load`, at most this many times (R-protocol, handshake v2). */
+export const FRAME_PORT_EVERY_MS = 500;
+export const FRAME_PORT_TRIES = 20;
+
+/** A random 128-bit key, hex. */
+function randomKey(win: Window): string {
+  const bytes = new Uint8Array(16);
+  win.crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 /** The bar's view: the extension's composition makes the words. */
 export interface FrameBarView {
@@ -174,20 +183,48 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
   let barHost: ReturnType<typeof hostOf> | null = null;
   let left = 0;
 
-  const onHello = (event: MessageEvent): void => {
-    if (iframe === null || port !== null) return;
-    if (event.source !== iframe.contentWindow || event.origin !== env.origin) return;
-    const data = event.data as { cg?: unknown; v?: unknown } | null;
-    if (typeof data !== 'object' || data === null || data.cg !== FRAME_HELLO || data.v !== FRAME_PROTOCOL) return;
-    const channel = new MessageChannel();
-    port = channel.port1;
-    port.onmessage = (message: MessageEvent) => env.onMessage(message.data);
-    port.start();
-    iframe.contentWindow?.postMessage({ cg: FRAME_PORT, v: FRAME_PROTOCOL }, env.origin, [channel.port2]);
-    for (const message of queue.splice(0)) port.postMessage(message);
-    env.onConnected?.();
+  /**
+   * The handshake (version 2): the key is ours alone — in the frame's address fragment, which no page script reads
+   * (a closed root, another origin). On every `load` of the frame the port goes with the key, a fresh channel each
+   * 500 ms, until the frame answers `ready` on one of them (at most FRAME_PORT_TRIES); that one is the port. Nothing
+   * the frame or the page posts to this window is listened to.
+   */
+  const key = randomKey(win);
+  let offers: MessagePort[] = [];
+  let offerTimer: ReturnType<typeof setTimeout> | undefined;
+  const stopOffers = (keep: MessagePort | null): void => {
+    clearTimeout(offerTimer);
+    for (const offer of offers) if (offer !== keep) offer.close();
+    offers = [];
   };
-  win.addEventListener('message', onHello);
+  const offer = (tries: number): void => {
+    if (iframe === null || port !== null || tries >= FRAME_PORT_TRIES) return;
+    const channel = new MessageChannel();
+    const mine = channel.port1;
+    offers.push(mine);
+    mine.onmessage = (message: MessageEvent) => {
+      const data = message.data as { t?: unknown; v?: unknown } | null;
+      if (port === null) {
+        if (typeof data !== 'object' || data === null || data.t !== 'ready' || data.v !== FRAME_PROTOCOL) return;
+        port = mine;
+        stopOffers(mine);
+        for (const queued of queue.splice(0)) mine.postMessage(queued);
+        env.onConnected?.();
+        return;
+      }
+      if (port === mine) env.onMessage(data);
+    };
+    mine.start();
+    iframe.contentWindow?.postMessage({ cg: FRAME_PORT, v: FRAME_PROTOCOL, key }, env.origin, [channel.port2]);
+    offerTimer = setTimeout(() => offer(tries + 1), FRAME_PORT_EVERY_MS);
+  };
+  /** The frame (re)loaded: its old port is gone with its document; the handshake starts over. */
+  const onLoad = (): void => {
+    port?.close();
+    port = null;
+    stopOffers(null);
+    offer(0);
+  };
 
   /** While the layer shows, the site's page hears no key: Esc collapses, the rest stops here. */
   const onKey = (event: KeyboardEvent): void => {
@@ -211,7 +248,8 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
     iframe.setAttribute('allow', 'clipboard-write');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
     iframe.setAttribute('title', 'Workboard');
-    iframe.src = env.url;
+    iframe.addEventListener('load', onLoad);
+    iframe.src = `${env.url}#k=${key}&v=${String(FRAME_PROTOCOL)}`;
     box.append(iframe);
     layer.root.append(box);
   };
@@ -310,7 +348,7 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
       barHost?.host.setAttribute('data-scheme', env.scheme());
     },
     dispose() {
-      win.removeEventListener('message', onHello);
+      stopOffers(null);
       for (const type of KEY_EVENTS) win.removeEventListener(type, onKey, true);
       port?.close();
       layer?.remove();

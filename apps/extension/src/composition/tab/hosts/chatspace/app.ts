@@ -23,7 +23,7 @@ import { createChatSpaceOnlineSource } from '@cg/core/application/hosts/chatspac
 import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
-import { ONLYFANS_SALE_LOOK, findTransactionRow } from '@cg/host-chatspace/isolated/transactions-finder';
+import { ONLYFANS_SALE_LOOK, findTransactionRow, transactionsWindow } from '@cg/host-chatspace/isolated/transactions-finder';
 import { startChatSpaceFeedPoll } from '@cg/core/application/hosts/chatspace/feed-poll';
 
 import type { MountSurfaceKind } from '@cg/contracts/vm';
@@ -152,6 +152,7 @@ export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfi
   // isolated/transactions-finder.ts, built from the documents: ChatSpace live is closed to agents).
   findSale: (win, sale) => findTransactionRow(win, sale),
   saleLook: ONLYFANS_SALE_LOOK,
+  saleScreen: (win) => transactionsWindow(win.document) !== null,
   // «Онлайн» (2026-10-31, hub #952): OnlyFansAPI's feed stops, so ChatSpace's own word of who is online goes to the hub —
   // its online poll from the page's memory and, where the owner's `onlineProbe` is on, the page's probe.
   online: ({ rpc, host, win, clock }) =>

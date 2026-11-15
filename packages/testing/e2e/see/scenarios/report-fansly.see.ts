@@ -1,16 +1,47 @@
-// report-fansly: the board «Отчёт» over the Fansly stand (hub package R, 2026-11-15). The stub board of the fake hub in
-// the frame (or Hub's demo board with CG_SEE_FRAME_ORIGIN): the corner card's fifth row with its dot, the board over the
-// site, the port and a request through it, a request off the allow-list refused, the clipboard, Esc and the bar,
-// «show on the site» — Wallet history opened without a reload, a row on page 1, a row on page 2, a sale the site does
-// not show — «К отчёту» back to the same frame, the sightings the site's own wallet list gave Hub, and a reload that
-// makes the frame again. `report-facts.json` holds what each step saw.
+// report-fansly: the board «Отчёт» over the Fansly stand (hub package R, 2026-11-15; handshake v2). The stub board of the
+// fake hub in the frame (or Hub's demo board with CG_SEE_FRAME_ORIGIN): the corner card's fifth row with its dot; a page
+// script imitating the frame (ignored); the board over an open chat; keys that never reach the site; the clipboard; a
+// request off the allow-list refused; Esc in the chat — no bar, nothing of ours over the message field, the dock or the
+// launcher, the fifth row brings the board back; «show on the site» — Wallet history without a reload, a row on page 1,
+// on page 2, a sale the site does not show — with the bar there; the board collapsed on Wallet history keeps the bar,
+// back to the chat takes it away; the sightings; a reload. `report-facts.json` holds what each step saw.
 
 import { $, browser } from '@wdio/globals';
 
+import { FANSLY_MAIN } from '../../support/fansly-stand';
 import { scenario } from '../kit';
-import { REPORT_PULSE, barText, escapeInFrame, findInFrame, frameLog, inFrame, launcherButton, layerShown, markBox, pointFrames, pressInFrame, reportRow, waitBar, waitFrameLog, writeFacts } from '../report';
+import {
+  FRAME_BAR,
+  REPORT_PULSE,
+  barText,
+  escapeInFrame,
+  findInFrame,
+  forgeHello,
+  frameLog,
+  inFrame,
+  launcherButton,
+  layerShown,
+  markBox,
+  overlaps,
+  pageSeesFrames,
+  pointFrames,
+  pressInFrame,
+  reportRow,
+  waitBar,
+  waitFrameLog,
+  writeFacts,
+} from '../report';
 
 const LAUNCHER = 'div[data-host="overlay"][data-layer="launcher"]';
+const barButton = () => $(FRAME_BAR).shadow$('button');
+
+/** Back to the open chat the way the site's own router goes (no reload). */
+async function toChat(path: string): Promise<void> {
+  await browser.execute((to: string) => {
+    history.pushState(null, '', to);
+    dispatchEvent(new PopStateEvent('popstate', { state: null }));
+  }, path);
+}
 
 scenario(
   'report-fansly',
@@ -19,19 +50,22 @@ scenario(
     await s.ready();
     await pointFrames(s);
     await s.ready();
+    const chatPath = await browser.execute(() => location.pathname);
     // The beat answers the board right away for the first bound tab; the row comes with it.
     await browser.waitUntil(async () => (await reportRow(LAUNCHER)).shown, { timeout: 30_000, interval: 300, timeoutMsg: 'no fifth row «Отчёт»' });
     facts['launcher'] = await reportRow(LAUNCHER);
     const card = await s.rect('page', LAUNCHER);
     if (card !== null) await s.shot('launcher', { clip: { x: 0, y: Math.max(0, card.y - 40), width: 360, height: card.height + 56 } });
 
-    // A mark on the page's window: a reload would take it away.
+    // A page script posting what a frame would: nothing of it is listened to.
+    await forgeHello();
     await browser.execute(() => {
       (window as unknown as { __cgSeeMark?: number }).__cgSeeMark = 1;
     });
     await launcherButton(LAUNCHER, 'report').click();
     await browser.waitUntil(layerShown, { timeout: 30_000, interval: 200, timeoutMsg: 'the board did not show' });
     facts['port'] = await waitFrameLog(/доска загружена/);
+    facts['pageSeesFrames'] = await pageSeesFrames();
     await s.wait(400);
     await s.shot('board');
 
@@ -64,15 +98,16 @@ scenario(
     facts['comment'] = await waitFrameLog(/комментарий:/);
     await s.shot('board-requests');
 
-    // Esc in the board collapses it into the bar; «Отчёт» on the bar brings it back.
+    // Esc in the open chat: the board folds into the launcher's fifth row — no bar, nothing over the field.
     facts['escape'] = await escapeInFrame();
-    facts['bar'] = await waitBar(/Отчёт смены/);
-    facts['layerAfterEsc'] = await layerShown();
-    await s.shot('bar');
-    await $('div[data-host="overlay"][data-layer="frame-bar"]').shadow$('button').click();
-    await browser.waitUntil(layerShown, { timeout: 10_000, timeoutMsg: 'the bar did not bring the board back' });
+    await browser.waitUntil(async () => !(await layerShown()), { timeout: 10_000, timeoutMsg: 'Esc did not collapse the board' });
+    await s.wait(700);
+    facts['chatCollapsed'] = { bar: await barText(), overlaps: await overlaps(FANSLY_MAIN.field, LAUNCHER) };
+    await s.shot('chat-collapsed');
+    await launcherButton(LAUNCHER, 'report').click();
+    await browser.waitUntil(layerShown, { timeout: 10_000, timeoutMsg: 'the fifth row did not bring the board back' });
 
-    // «Show on the site»: a row on the first page of Wallet history.
+    // «Show on the site»: a row on the first page of Wallet history; the bar stands there.
     await findInFrame('#…5305');
     facts['compare'] = await waitBar(/Сверка/);
     await browser.waitUntil(async () => (await markBox()) !== null, { timeout: 30_000, interval: 300, timeoutMsg: 'no row framed' });
@@ -82,8 +117,8 @@ scenario(
     facts['mark1'] = await markBox();
     await s.shot('find-page1');
 
-    // «К отчёту»: the same frame (its line still says what it heard), the row lit.
-    await $('div[data-host="overlay"][data-layer="frame-bar"]').shadow$('button').click();
+    // «К отчёту»: the same frame, the row lit.
+    await barButton().click();
     await browser.waitUntil(layerShown, { timeout: 10_000 });
     facts['frameKept'] = await frameLog();
     await s.shot('back-to-board');
@@ -97,13 +132,25 @@ scenario(
     await s.shot('find-page2');
 
     // A sale the site does not show: said, never a similar row.
-    await $('div[data-host="overlay"][data-layer="frame-bar"]').shadow$('button').click();
+    await barButton().click();
     await browser.waitUntil(layerShown, { timeout: 10_000 });
     const ghost = await inFrame(async () => (await browser.$$('.r2 a').map((a) => a.getText()))[3] ?? '');
     await findInFrame(ghost);
     facts['notFound'] = await waitBar(/не найдена/, 60_000);
     facts['markAfterNotFound'] = await markBox();
     await s.shot('not-found');
+
+    // The board collapsed while on Wallet history keeps the bar; back to the chat takes it away.
+    await barButton().click();
+    await browser.waitUntil(layerShown, { timeout: 10_000 });
+    await escapeInFrame();
+    facts['walletCollapsed'] = await waitBar(/Отчёт смены/);
+    await toChat(chatPath);
+    await browser.waitUntil(async () => (await barText()) === '', { timeout: 10_000, interval: 300, timeoutMsg: 'the bar stayed after leaving Wallet history' });
+    await s.ready();
+    await s.wait(700);
+    facts['backInChat'] = { bar: await barText(), overlaps: await overlaps(FANSLY_MAIN.field, LAUNCHER) };
+    await s.shot('back-in-chat');
 
     // The sightings: the wallet list the site itself loaded, told to Hub (the stub keeps them).
     const calls = await s.hub.journal();

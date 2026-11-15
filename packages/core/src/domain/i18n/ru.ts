@@ -1902,6 +1902,8 @@ export const RU: I18nCatalog<'ru'> = {
   'popup.refreshStatus': 'Обновить статус',
   'popup.myShifts': 'Мои смены',
   'popup.myShiftsHint': 'Ваши смены и продажи в Workboard. Откроются в новой вкладке.',
+  'popup.workboard': 'Workboard',
+  'popup.workboardHint': 'Ваш день в Workboard. Откроется в новой вкладке.',
   'popup.waiting': 'Ждут вас: {n}',
   'popup.waitingHint': 'Что ждёт вас в Workboard, самое давнее первым. Откроется в новой вкладке.',
   'popup.handIn': 'Сдать смену',

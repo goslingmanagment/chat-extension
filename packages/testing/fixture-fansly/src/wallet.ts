@@ -8,46 +8,7 @@
 // The rows are invented, at fixed moments: the fake hub's board stub names the same sales (fake-hub/report-board.ts).
 
 import { el, host, scope, type Scope } from './ng';
-
-/** One row of the stand's wallet, as the API answers it. */
-export interface StandWalletRow {
-  readonly transactionId: string;
-  readonly type: number;
-  /** Mills after the fee, as Fansly prints them. */
-  readonly amount: number;
-  readonly createdAt: number;
-  readonly fanId: string;
-  readonly fanName: string;
-  readonly fanHandle: string;
-}
-
-const FANS: readonly (readonly [string, string, string])[] = [
-  ['930000000000000101', 'Viggo', 'viggo_nord'],
-  ['930000000000000102', 'Harlan/Texas', 'harlan_tx'],
-  ['930000000000000103', 'mossrain', 'mossrain'],
-  ['930000000000000104', 'Juno/Oslo', 'juno_oslo'],
-  ['930000000000000105', 'Rowan/Canada', 'rowan_k'],
-  ['930000000000000106', 'Felix B.', 'felix_b'],
-  ['930000000000000107', 'Dario/Milan', 'dario_mi'],
-];
-const TYPES = [2110, 7101, 15001, 2110, 7101] as const;
-const AMOUNTS = [48000, 24000, 8000, 30000, 16000, 12000, 4000] as const;
-/** The newest row: 12 Nov 2026, 22:30 UTC; then one every 23 minutes back. */
-const NEWEST = Date.UTC(2026, 10, 12, 22, 30);
-
-/** 25 rows, newest first (three pages of the site's pager). */
-export const STAND_WALLET: readonly StandWalletRow[] = Array.from({ length: 25 }, (_, index) => {
-  const fan = FANS[index % FANS.length] ?? FANS[0];
-  return {
-    transactionId: String(981337562090745305n - BigInt(index) * 131_072n),
-    type: TYPES[index % TYPES.length] ?? 7101,
-    amount: AMOUNTS[index % AMOUNTS.length] ?? 8000,
-    createdAt: NEWEST - index * 23 * 60_000,
-    fanId: fan?.[0] ?? '',
-    fanName: fan?.[1] ?? '',
-    fanHandle: fan?.[2] ?? '',
-  };
-});
+import { STAND_WALLET, STAND_WALLET_FANS, type StandWalletRow } from './protocol';
 
 /** The API's answer for a page of the list, in Fansly's form (the parts the page and the extension read). */
 export function standWalletAnswer(offset: number, limit: number): unknown {
@@ -71,7 +32,7 @@ export function standWalletAnswer(offset: number, limit: number): unknown {
       senderId: null,
       receiverId: '940000000000000002',
     })),
-    aggregationData: { accounts: FANS.map(([id, displayName, username]) => ({ id, displayName, username })) },
+    aggregationData: { accounts: STAND_WALLET_FANS.map(([id, displayName, username]) => ({ id, displayName, username })) },
   };
 }
 

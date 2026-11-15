@@ -13,6 +13,7 @@ import { type JSX } from 'preact';
 import { useState } from 'preact/hooks';
 
 import { type CgCode, type CgErrorTone } from '@cg/contracts/errors';
+import { WORKBOARD_TODAY_PATH } from '@cg/contracts/hub';
 import { type AiLimitVM, type PopupVerdictVM, type PopupVM } from '@cg/contracts/vm';
 
 import { Button, Dot, ErrorCard, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
@@ -370,10 +371,10 @@ function Windows({ vm }: { readonly vm: PopupVM }): JSX.Element | null {
 function MyShifts({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
   const act = useAct();
-  const [busy, setBusy] = useState<'waiting' | 'shifts' | null>(null);
+  const [busy, setBusy] = useState<'waiting' | 'shifts' | 'workboard' | null>(null);
   const waiting = vm.waiting ?? null;
   const handIn = vm.handIn ?? null;
-  const open = (which: 'waiting' | 'shifts', next: string | null): void => {
+  const open = (which: 'waiting' | 'shifts' | 'workboard', next: string | null): void => {
     setBusy(which);
     void act({ type: 'Navigate', to: next === null ? { kind: 'workboard' } : { kind: 'workboard', next } }).finally(() => setBusy(null));
   };
@@ -415,6 +416,10 @@ function MyShifts({ vm }: { readonly vm: PopupVM }): JSX.Element {
           trailing={out()}
           onClick={() => open('shifts', handIn)}
         />
+      </div>
+      {/* 2026-11-15: Workboard itself, the person's day, by the same one-time link. */}
+      <div class="pg-popup__btns" data-pg-workboard="">
+        <Button label={i18n.t('popup.workboard')} variant="line" busy={busy === 'workboard'} tooltip={i18n.t('popup.workboardHint')} trailing={out()} onClick={() => open('workboard', WORKBOARD_TODAY_PATH)} />
       </div>
     </>
   );

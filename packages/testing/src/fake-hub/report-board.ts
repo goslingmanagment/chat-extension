@@ -1,6 +1,6 @@
 // The board «Отчёт» on the stand (hub package R, 2026-11-15): until Hub's Workboard serves its frame page, the fake hub
-// serves a small stub at `/workboard/frame/report` that speaks the extension's protocol (R-protocol.md) — the hello,
-// the port, `state`, `collapse`, `find`, `fetch` through the port to this fake hub, `copy`, `statement` — so every part
+// serves a small stub at `/workboard/frame/report` that speaks the extension's protocol (R-protocol.md, handshake v2) —
+// the key in the address fragment, the port with the key, `ready`, `state`, `collapse`, `find`, `fetch` through the port to this fake hub, `copy`, `statement` — so every part
 // of the extension's side is seen working in `pnpm see report-*`. It is NOT the board: Hub's R2 draws that, and the same
 // scenarios run against Hub's demo board when `CG_SEE_FRAME_ORIGIN` points the frames there.
 //
@@ -8,8 +8,8 @@
 // shape (the real routes are Hub's, package R1): the board of the shift with sales on the stand's pages, a comment that
 // saves, and the sightings the extension reports (kept for the run's `hub-calls.json` and `reportSightings()`).
 
-import { STAND_WALLET } from '../../fixture-fansly/src/wallet';
-import { STAND_TRANSACTIONS } from '../../fixture-chatspace/src/transactions-data';
+import { STAND_WALLET } from '../../fixture-fansly/src/protocol';
+import { STAND_TRANSACTIONS } from '../../fixture-chatspace/src/protocol';
 import { WORLD } from '../scenarios/hub';
 
 export const REPORT_FRAME_PATH = '/workboard/frame/report';
@@ -84,8 +84,8 @@ export function stubBoard(): { readonly shiftId: number; readonly sales: readonl
 }
 
 /**
- * The stub frame page: plain HTML and a script, no app. Accepts the first port from its parent (any origin: the
- * stand's sites run on loopback ports of their own), asks the board through it, draws the sales by page, and says
+ * The stub frame page: plain HTML and a script, no app. Accepts the first port from its parent that carries the key of
+ * its own address (any origin: the stand's sites run on loopback ports of their own), asks the board through it, draws the sales by page, and says
  * every protocol message it gets in a line at the top, for the pictures.
  */
 export function reportFrameHtml(): string {
@@ -165,22 +165,28 @@ button:hover { border-color: var(--clay); color: var(--clay); }
     if (message.t === 'found') { log('found ' + message.transactionId + ': ' + (message.ok ? 'да' : message.words)); return; }
     if (message.t === 'copy:result') { log('copy: ' + (message.ok ? 'скопировано' : 'не вышло')); return; }
   };
+  // Handshake v2 (R-protocol): the key from the address fragment, read once and taken out of the address; the first
+  // port from the parent with that key wins; «ready» on it. Nothing is ever posted to the parent.
+  const params = new URLSearchParams(location.hash.slice(1));
+  const key = params.get('k');
+  history.replaceState(null, '', location.pathname + location.search);
+  const nobody = () => { document.body.innerHTML = '<div id="nobody">Откройте отчёт из ChatGoose</div>'; };
+  if (window.parent === window || !key) nobody();
   window.addEventListener('message', (event) => {
     if (port !== null || event.source !== window.parent) return;
     const data = event.data;
-    if (!data || data.cg !== 'report-board/port' || data.v !== 1 || !event.ports[0]) return;
+    if (!data || data.cg !== 'report-board/port' || data.key !== key || !event.ports[0]) return;
+    if (data.v !== 2) { log('Обновите ChatGoose: версия ' + data.v); return; }
     port = event.ports[0];
     port.onmessage = (e) => take(e.data);
+    port.postMessage({ t: 'ready', v: 2 });
     log('порт пришёл от ' + event.origin);
     api('GET', '/api/v1/shift-reports/current').then((answer) => {
       if (answer.error) { log('fetch: ' + answer.error); return; }
-      board = JSON.parse(answer.body); draw(); state(); log('порт пришёл, доска загружена через порт (' + answer.status + ')');
+      board = JSON.parse(answer.body); draw(); state(); log('порт пришёл (v2, ключ), доска загружена через порт (' + answer.status + ')');
     });
   });
-  let hellos = 0;
-  const hello = () => { if (port !== null) return; if (window.parent === window) { document.body.innerHTML = '<div id="nobody">Откройте отчёт из ChatGoose</div>'; return; } window.parent.postMessage({ cg: 'report-board/hello', v: 1 }, '*'); if (++hellos < 20) setTimeout(hello, 500); };
-  hello();
-  setTimeout(() => { if (port === null) document.body.innerHTML = '<div id="nobody">Откройте отчёт из ChatGoose</div>'; }, 10000);
+  setTimeout(() => { if (port === null) nobody(); }, 10000);
   document.getElementById('collapse').onclick = () => send({ t: 'collapse' });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') send({ t: 'collapse' }); });
   document.getElementById('copy').onclick = () => send({ t: 'copy', text: 'Смена 12 нояб.: ' + (board ? mine().length : 0) + ' продаж' });

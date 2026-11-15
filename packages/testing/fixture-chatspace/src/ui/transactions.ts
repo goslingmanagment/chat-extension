@@ -7,7 +7,7 @@
 // The rows are invented, at fixed moments; the fake hub's board stub names the same sales (fake-hub/report-board.ts).
 
 import { defineComponent, h, ref, type VNode } from 'vue';
-import { STAND_TRANSACTIONS } from '../transactions-data';
+import { STAND_TRANSACTIONS } from '../protocol';
 
 const PAGE = 10;
 const usd = (mills: number): string => `$${(mills / 1000).toFixed(2)}`;

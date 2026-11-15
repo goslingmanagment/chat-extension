@@ -309,4 +309,6 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
   readonly findSale?: (win: Window, sale: ReportSale) => Promise<Element | null>;
   /** How the site's own list shows a sale (its words of each kind, the number printed or not): the bar's compare line. */
   readonly saleLook?: { readonly words: Readonly<Record<string, string>>; readonly number: boolean };
+  /** Whether the page shows the site's own list of sales now: the only place the board's bar stands. Absent — nowhere. */
+  readonly saleScreen?: (win: Window) => boolean;
 }

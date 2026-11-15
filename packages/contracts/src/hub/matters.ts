@@ -21,6 +21,8 @@ export const WORKBOARD_PATH_PREFIX = '/workboard/';
  * instead of the matter's own link; Workboard redirects the old shift screens to it.
  */
 export const WORKBOARD_REPORT_PATH = '/workboard/report';
+/** The popup's «Workboard» (2026-11-15): the person's day in Workboard; until Hub has it, its app's home answers. */
+export const WORKBOARD_TODAY_PATH = '/workboard/today';
 
 export const ClientMattersSchema = z.object({
   count: CountSchema,

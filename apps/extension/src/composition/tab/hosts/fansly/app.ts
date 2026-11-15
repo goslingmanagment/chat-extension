@@ -27,7 +27,7 @@
 
 import { showProxyNotice } from '@cg/host-fansly/isolated/proxy-notice';
 import { isMessagesPath } from '@cg/host-fansly/isolated/route';
-import { FANSLY_SALE_LOOK, findWalletRow } from '@cg/host-fansly/isolated/wallet-finder';
+import { FANSLY_SALE_LOOK, WALLET_HISTORY_PATH, findWalletRow } from '@cg/host-fansly/isolated/wallet-finder';
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
@@ -267,6 +267,7 @@ export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
     // «Show on the site» (hub package R): the sale's row in Wallet history (host-fansly isolated/wallet-finder.ts).
     findSale: (win, sale) => findWalletRow(win, sale),
     saleLook: FANSLY_SALE_LOOK,
+    saleScreen: (win) => win.location.pathname === WALLET_HISTORY_PATH,
     registrationOf: (fanId, i18n) => {
       const at = fanslyRegistrationDate(fanId);
       return at === null ? undefined : { label: REGISTRATION_TEXTS[i18n.language].label, at };

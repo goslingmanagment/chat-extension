@@ -13,17 +13,22 @@ import * as z from 'zod/mini';
 import { CountSchema, HubIntIdSchema, NativeIdSchema, boundedText, displayText } from './primitives';
 import { PageLabelSchema } from './hub/wire';
 
-/** The protocol's version: the first message of each side names it. */
-export const REPORT_BOARD_PROTOCOL = 1;
-/** The frame's hello, posted to `window.parent` until it holds a port (R-protocol «Handshake»). */
-export const REPORT_FRAME_HELLO = 'report-board/hello';
-/** The extension's answer to a hello: the port, transferred, to the team origin only. */
+/**
+ * The protocol's version (R-protocol «Handshake (version 2)», after the arena's round 3: a page script of the site could
+ * answer a broadcast of the frame first). The extension makes a random key, puts it into the frame's address fragment
+ * (`#k=<key>&v=2`, unreadable to the site: a closed root, another origin) and posts the port with the key on the
+ * frame's `load`, again with a fresh channel every 500 ms until the frame says `ready` on the port. The frame sends
+ * nothing to its parent; a window message that claims to be a frame's hello is ignored.
+ */
+export const REPORT_BOARD_PROTOCOL = 2;
+/** The extension's port, transferred with the key, to the team origin only. */
 export const REPORT_FRAME_PORT = 'report-board/port';
 
 /**
  * Workboard's screens the extension shows in its frame over the site (the coordinator, 2026-11-15: one host, one
- * handshake, one fetch relay; the background's allow-list is a table per screen). `report` — the board «Отчёт», the
- * first; «Записать кастом» (`custom`) and «Мои деньги» come later through the same seam.
+ * handshake, one fetch relay; the background's allow-list is a table per screen). ONE row ships: `report`, the board
+ * «Отчёт», at exactly `/workboard/frame/report` (Hub lifts its no-framing headers for that one path only). Another
+ * screen («Записать кастом», «Мои деньги») is added here explicitly, with its own Hub path, never by a wildcard.
  */
 export const WORKBOARD_FRAME_SCREENS = ['report'] as const;
 export type WorkboardFrameScreen = (typeof WORKBOARD_FRAME_SCREENS)[number];

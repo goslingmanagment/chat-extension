@@ -5,59 +5,65 @@
 import { formatMills, formatTimeOfDay } from '@hub/look';
 import { ReportPulseSchema, type ReportPulse, type ReportSale, type ReportFetchMethod, type WorkboardFrameScreen } from '@cg/contracts/report-board';
 
-/** One allowed operation: a method and a path pattern; `:name` is a path parameter of digits only. */
+/**
+ * One allowed family of operations: a path prefix (`/api/v1/shift-reports` — itself and everything under it), or an
+ * exact pattern (`:name` a path parameter of digits only), and the methods it takes.
+ */
 export interface FrameOperation {
-  readonly method: ReportFetchMethod;
-  readonly path: string;
+  readonly methods: readonly ReportFetchMethod[];
+  /** The path itself and everything under `<prefix>/`. */
+  readonly prefix?: string;
+  /** Exactly this path. */
+  readonly path?: string;
 }
 
+const ALL: readonly ReportFetchMethod[] = ['GET', 'PUT', 'POST', 'DELETE'];
+
 /**
- * The allow-list of each frame screen (R-protocol «The background's allow-list»): nothing else passes, whatever the
- * frame asks. A screen added to WORKBOARD_FRAME_SCREENS needs its table here (the compiler says so). When Hub renames or
- * adds an operation of the board, R-protocol.md is updated in the same change and this table follows it.
+ * The allow-list of each frame screen (R-protocol, the allow-list section, version 2): by path PREFIX, so a new board
+ * operation in Hub does not wait for an extension release — the real boundary is the device token's own profile on the
+ * server, which lists every operation. One row a screen; a screen added to WORKBOARD_FRAME_SCREENS needs its row (the
+ * compiler says so). Nothing else passes, whatever the frame asks.
  */
 export const FRAME_ALLOW_LISTS: Readonly<Record<WorkboardFrameScreen, readonly FrameOperation[]>> = {
   report: [
-    { method: 'GET', path: '/api/v1/shift-reports' },
-    { method: 'GET', path: '/api/v1/shift-reports/current' },
-    { method: 'GET', path: '/api/v1/shift-reports/:shiftId' },
-    { method: 'GET', path: '/api/v1/shift-reports/:shiftId/claimable' },
-    { method: 'PUT', path: '/api/v1/shift-reports/:shiftId/lines/:transactionId' },
-    { method: 'PUT', path: '/api/v1/shift-reports/:shiftId/comment' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/off-platform' },
-    { method: 'DELETE', path: '/api/v1/shift-reports/:shiftId/off-platform/:offPlatformId' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/submit' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/confirm' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/reopen' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/reopen/cancel' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/resend' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/asks' },
-    { method: 'DELETE', path: '/api/v1/shift-reports/:shiftId/asks/:transactionId' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/proposals/:proposalId/answer' },
-    { method: 'POST', path: '/api/v1/shift-reports/:shiftId/sightings/:sightingId/add' },
-    { method: 'POST', path: '/api/v1/sale-claims/:claimId/answer' },
-    { method: 'GET', path: '/api/v1/auth/me' },
+    { methods: ALL, prefix: '/api/v1/shift-reports' },
+    { methods: ALL, path: '/api/v1/sale-claims/:claimId/answer' },
+    { methods: ['GET'], path: '/api/v1/auth/me' },
   ],
 };
 
 /** A query string of plain characters only (no `#`, no second `?`, no spaces or quotes). */
 const QUERY = /^[A-Za-z0-9_.,~=&%:-]{0,400}$/;
+/** A path segment of plain characters: no dot segments, nothing encoded (an encoded slash or dot would hide one). */
+const SEGMENT = /^[A-Za-z0-9_-]{1,80}$/;
 const DIGITS = /^[1-9][0-9]{0,18}$/;
 
 /**
- * Whether a frame's request may go to Hub: its method and path are an operation of the screen's table, path
- * parameters digits only, an optional query of plain characters. Never another origin, never `..`. Pure.
+ * The path a frame asks, normalised before any check: only `/api/v1/…` of the sign-in's own hub — no scheme or host,
+ * no `//`, no `.` or `..`, no encoded characters in the path, a query of plain characters. null — refused as it is.
  */
-export function frameRequestAllowed(screen: WorkboardFrameScreen, method: string, target: string): boolean {
-  const table = FRAME_ALLOW_LISTS[screen] as readonly FrameOperation[] | undefined;
-  if (table === undefined || !target.startsWith('/api/v1/')) return false;
+export function normalFramePath(target: string): { readonly path: string; readonly query: string } | null {
   const cut = target.indexOf('?');
   const path = cut < 0 ? target : target.slice(0, cut);
-  if (cut >= 0 && !QUERY.test(target.slice(cut + 1))) return false;
-  const parts = path.split('/');
+  const query = cut < 0 ? '' : target.slice(cut + 1);
+  if (cut >= 0 && !QUERY.test(query)) return null;
+  if (!path.startsWith('/api/v1/') || path.endsWith('/')) return null;
+  const segments = path.slice(1).split('/');
+  if (!segments.every((segment) => SEGMENT.test(segment))) return null;
+  return { path, query };
+}
+
+/** Whether a frame's request may go to Hub: its normalised path under the screen's prefixes or one of its exact paths. Pure. */
+export function frameRequestAllowed(screen: WorkboardFrameScreen, method: string, target: string): boolean {
+  const table = FRAME_ALLOW_LISTS[screen] as readonly FrameOperation[] | undefined;
+  const normal = normalFramePath(target);
+  if (table === undefined || normal === null) return false;
+  const parts = normal.path.split('/');
   return table.some((operation) => {
-    if (operation.method !== method) return false;
-    const pattern = operation.path.split('/');
+    if (!(operation.methods as readonly string[]).includes(method)) return false;
+    if (operation.prefix !== undefined) return normal.path === operation.prefix || normal.path.startsWith(`${operation.prefix}/`);
+    const pattern = (operation.path ?? '').split('/');
     if (pattern.length !== parts.length) return false;
     return pattern.every((piece, index) => {
       const part = parts[index] ?? '';
