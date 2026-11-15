@@ -2065,6 +2065,37 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
     expect(forms.length).toBe(opened);
   });
 
+  it('a second click while Workboard\'s window is on its way opens nothing (round 2, N9)', async () => {
+    let close: (outcome: { readonly done: boolean }) => void = () => undefined;
+    const opens: string[] = [];
+    const workboard: WorkboardFormsPort = {
+      open: (screen) => {
+        opens.push(screen);
+        return new Promise((resolve) => {
+          close = resolve;
+        });
+      },
+    };
+    const h = await harness({ workboard });
+    const page = h.bootstrap.pages.find((candidate) => candidate.platformAccountId === hostAccount.platformAccountId)!;
+    h.hub.control({ op: 'fanCard', pageLabel: page.pageLabel, fanRef: '5000', card: { pageLabel: page.pageLabel, fanRef: '5000', known: true, accounts: [], pages: [], suggestions: [], facts: [], customs: [], customPayments: [], serverNow: iso(NOW_MS) } });
+    h.hostEvent({ type: 'route', route: { epoch: 6, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } } });
+    await h.dispatch(open('fan-panel'));
+    await h.dispatch({ type: 'SetFanPanelTab', tab: 'memory' });
+    await h.flush();
+    const first = h.dispatch({ type: 'RecordFanCustom', fanRef: '5000' });
+    await h.flush();
+    expect(await h.dispatch({ type: 'AskAboutFan', fanRef: '5000' })).toMatchObject({ outcome: 'noop' });
+    expect(opens).toEqual(['custom']);
+    close({ done: false });
+    expect(await first).toMatchObject({ outcome: 'noop' });
+    // Closed: the next click opens again.
+    void h.dispatch({ type: 'AskAboutFan', fanRef: '5000' });
+    await h.flush();
+    expect(opens).toEqual(['custom', 'ask']);
+    close({ done: false });
+  });
+
   it('«Записать кастом» and «Спросить» are not offered in a tab without Workboard\'s frame', async () => {
     const h = await harness();
     const page = h.bootstrap.pages.find((candidate) => candidate.platformAccountId === hostAccount.platformAccountId)!;

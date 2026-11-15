@@ -280,17 +280,28 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     return answer.ok ? done(type) : refused(type, errorOf(answer.error, i18n));
   }
 
+  /** Workboard's window of this panel is up or on its way (`openForm`). */
+  let formOpen = false;
+
   /**
    * Workboard's form or question window for the open chat's fan (package R5): its page and the fan filled in; what the
    * form records shows in «Кастомы» at once (the card is read again when the window says it is done).
    */
   async function openForm(type: 'RecordFanCustom' | 'AskAboutFan', fanRef: string): Promise<ActionReceipt> {
+    // A window is up or on its way: a second click opens nothing (round 2, N9).
+    if (formOpen) return done(type, 'noop');
     const chat = openChat();
     const card = chat === null ? null : cardOf(chat).memory.card;
     if (deps.workboard === undefined || chat === null || card === null || chat.platformFanId !== fanRef || card.fanRef !== fanRef || !customsServed()) return done(type, 'noop');
     const account = card.accounts.find((one) => one.fanRef === fanRef) ?? null;
     const fanName = account?.displayName ?? (account?.username === null || account?.username === undefined ? null : `@${account.username}`);
-    const outcome = await deps.workboard.open(type === 'RecordFanCustom' ? 'custom' : 'ask', { pageLabel: card.pageLabel, fanRef, fanName });
+    formOpen = true;
+    let outcome: { readonly done: boolean };
+    try {
+      outcome = await deps.workboard.open(type === 'RecordFanCustom' ? 'custom' : 'ask', { pageLabel: card.pageLabel, fanRef, fanName });
+    } finally {
+      formOpen = false;
+    }
     if (disposed || !outcome.done) return done(type, 'noop');
     const now = openChat();
     if (type === 'RecordFanCustom' && now !== null && now.platformFanId === fanRef) await loadMemory(now);

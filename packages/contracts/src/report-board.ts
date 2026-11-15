@@ -41,7 +41,12 @@ export type WorkboardFrameScreen = (typeof WORKBOARD_FRAME_SCREENS)[number];
  */
 export const PRODUCTION_HUB_ORIGIN = 'https://gosling-agency.ru';
 export const PRODUCTION_TEAM_ORIGIN = 'https://chatgoose.gosling-agency.ru';
-export const teamOriginOf = (hubOrigin: string): string => (hubOrigin === PRODUCTION_HUB_ORIGIN ? PRODUCTION_TEAM_ORIGIN : hubOrigin);
+/**
+ * Production Hub's API names, the root and `hub.` (round 2, N8): both are one Hub, whose Workboard frames answer only on
+ * the team's name (`hub.` refuses framing since hub#1368). One table: a new name of the same Hub goes here.
+ */
+export const PRODUCTION_HUB_ORIGINS: readonly string[] = [PRODUCTION_HUB_ORIGIN, 'https://hub.gosling-agency.ru'];
+export const teamOriginOf = (hubOrigin: string): string => (PRODUCTION_HUB_ORIGINS.includes(hubOrigin) ? PRODUCTION_TEAM_ORIGIN : hubOrigin);
 /** Test builds only: a storage.local key that points the frames at another team origin (Hub's demo board on the stand). */
 export const TEST_FRAME_ORIGIN_KEY = 'see.frameOrigin';
 /**
