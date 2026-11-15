@@ -300,6 +300,10 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
       onMessage: (message) => onMessage(screen, message),
       onConnected: () => env.log('frame port', { screen }),
       onEscape: () => collapse(screen),
+      onNoPort: () => {
+        env.log('frame no port', { screen });
+        collapse(screen);
+      },
       onBarButton: () => open(screen),
     });
     frame.inset(barLeft);

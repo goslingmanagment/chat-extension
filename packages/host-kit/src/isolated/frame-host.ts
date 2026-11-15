@@ -27,6 +27,8 @@ export const FRAME_PROTOCOL = 2;
 /** The port is offered this often after the frame's `load`, at most this many times (R-protocol, handshake v2). */
 export const FRAME_PORT_EVERY_MS = 500;
 export const FRAME_PORT_TRIES = 20;
+/** No port this long after the frame was made: the layer folds back (the offers' span and a little more). */
+export const FRAME_NO_PORT_MS = FRAME_PORT_EVERY_MS * FRAME_PORT_TRIES + 2_000;
 
 /** A random 128-bit key, hex. */
 function randomKey(win: Window): string {
@@ -65,6 +67,11 @@ export interface FrameHostEnv {
   readonly onConnected?: () => void;
   /** Esc on the site's page while the layer shows. */
   readonly onEscape: () => void;
+  /**
+   * The frame never answered the handshake (a page that is not the board, a refusal to be framed, no network): the
+   * layer must not stay over the site with nothing to close it — Esc goes to the frame's own error page.
+   */
+  readonly onNoPort?: () => void;
   /** «Отчёт» / «К отчёту» on the bar. */
   readonly onBarButton: () => void;
 }
@@ -197,8 +204,21 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
     for (const offer of offers) if (offer !== keep) offer.close();
     offers = [];
   };
+  let failed = false;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  const fail = (): void => {
+    clearTimeout(deadline);
+    if (port !== null || failed) return;
+    stopOffers(null);
+    failed = true;
+    env.onNoPort?.();
+  };
   const offer = (tries: number): void => {
-    if (iframe === null || port !== null || tries >= FRAME_PORT_TRIES) return;
+    if (iframe === null || port !== null) return;
+    if (tries >= FRAME_PORT_TRIES) {
+      fail();
+      return;
+    }
     const channel = new MessageChannel();
     const mine = channel.port1;
     offers.push(mine);
@@ -207,6 +227,7 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
       if (port === null) {
         if (typeof data !== 'object' || data === null || data.t !== 'ready' || data.v !== FRAME_PROTOCOL) return;
         port = mine;
+        clearTimeout(deadline);
         stopOffers(mine);
         for (const queued of queue.splice(0)) mine.postMessage(queued);
         env.onConnected?.();
@@ -222,6 +243,7 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
   const onLoad = (): void => {
     port?.close();
     port = null;
+    failed = false;
     stopOffers(null);
     offer(0);
   };
@@ -242,16 +264,24 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
     layer = hostOf(doc, env.registry, `${env.tokens}\n${LAYER_CSS}`, FRAME_Z, 'frame');
     layer.host.style.setProperty('inset', '0');
     layer.host.setAttribute('data-scheme', env.scheme());
-    const box = doc.createElement('div');
+    box = doc.createElement('div');
     box.className = 'layer';
-    iframe = doc.createElement('iframe');
-    iframe.setAttribute('allow', 'clipboard-write');
-    iframe.setAttribute('referrerpolicy', 'no-referrer');
-    iframe.setAttribute('title', 'Workboard');
-    iframe.addEventListener('load', onLoad);
-    iframe.src = `${env.url}#k=${key}&v=${String(FRAME_PROTOCOL)}`;
-    box.append(iframe);
+    box.append(frameOf());
     layer.root.append(box);
+  };
+  let box: HTMLElement | null = null;
+  const frameOf = (): HTMLIFrameElement => {
+    const made = doc.createElement('iframe');
+    made.setAttribute('allow', 'clipboard-write');
+    made.setAttribute('referrerpolicy', 'no-referrer');
+    made.setAttribute('title', 'Workboard');
+    made.addEventListener('load', onLoad);
+    made.src = `${env.url}#k=${key}&v=${String(FRAME_PROTOCOL)}`;
+    iframe = made;
+    // A frame that never loads (no answer, a refused address) says no `load` at all: the same end, by the clock.
+    clearTimeout(deadline);
+    deadline = setTimeout(fail, FRAME_NO_PORT_MS);
+    return made;
   };
 
   const bar = (view: FrameBarView | null): void => {
@@ -319,6 +349,13 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
 
   return {
     show() {
+      // A frame that never answered is made again: the next press is a fresh try.
+      if (failed && box !== null) {
+        failed = false;
+        iframe?.removeEventListener('load', onLoad);
+        iframe?.remove();
+        box.append(frameOf());
+      }
       create();
       visible = true;
       layer?.host.style.setProperty('display', 'block');
@@ -349,6 +386,7 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
     },
     dispose() {
       stopOffers(null);
+      clearTimeout(deadline);
       for (const type of KEY_EVENTS) win.removeEventListener(type, onKey, true);
       port?.close();
       layer?.remove();

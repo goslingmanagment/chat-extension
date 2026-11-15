@@ -270,6 +270,11 @@ export interface LiveShiftOptions {
   readonly group?: string;
   /** The site alone: signed in, no extension, no fake hub page (`--bare`). */
   readonly bare?: boolean;
+  /**
+   * The page the tab lands on instead of the chats (`CG_SEE_LIVE_PATH=/creator/wallet/history`): a live check that must
+   * not open or touch any chat (hub package R, the board's frame over Wallet history). Ignored with `group`.
+   */
+  readonly path?: string;
   readonly generation?: Partial<SettingsV1['generation']>;
 }
 
@@ -295,8 +300,9 @@ export async function startLiveShift(hub: FakeHubControlClient, options: LiveShi
   const account = await signInToFansly();
   console.log(`cg-see fansly: signed in as @${account.username}`);
   await clickText('Maybe Later');
+  const landing = options.group === undefined && options.path !== undefined && /^\/[\w/-]*$/.test(options.path) ? `${SITE}${options.path}` : `${SITE}/messages${options.group === undefined ? '' : `/${options.group}`}`;
   if (options.bare === true) {
-    await browser.url(`${SITE}/messages${options.group === undefined ? '' : `/${options.group}`}`);
+    await browser.url(landing);
     const none = (): never => {
       throw new Error('--bare: no extension in this browser');
     };
@@ -333,7 +339,7 @@ export async function startLiveShift(hub: FakeHubControlClient, options: LiveShi
   const toPages = (): Promise<void> => browser.switchToWindow(pagesTab);
   await toFansly();
   // A new document: the registered scripts run from its start.
-  await browser.url(`${SITE}/messages${options.group === undefined ? '' : `/${options.group}`}`);
+  await browser.url(landing);
   return {
     account,
     toFansly,

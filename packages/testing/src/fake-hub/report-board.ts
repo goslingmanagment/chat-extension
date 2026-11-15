@@ -187,6 +187,8 @@ button:hover { border-color: var(--clay); color: var(--clay); }
     });
   });
   setTimeout(() => { if (port === null) nobody(); }, 10000);
+  // The stand's own hook: a «show on the site» of any sale, as the board would send it (a live check of a real row).
+  window.__stubFind = (sale) => send({ t: 'find', sale });
   document.getElementById('collapse').onclick = () => send({ t: 'collapse' });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') send({ t: 'collapse' }); });
   document.getElementById('copy').onclick = () => send({ t: 'copy', text: 'Смена 12 нояб.: ' + (board ? mine().length : 0) + ' продаж' });

@@ -92,7 +92,9 @@ window and card as ChatSpace's `newcomers`), `report-fansly` (the board «Отч
 row, the board, keys that never reach the site, the clipboard, a request off the allow-list refused, Esc and the bar,
 «show on the site» in Wallet history on page 1, page 2 and a sale the site does not show, the sightings, a reload;
 `report-facts.json`; the frame is the fake hub's stub board, `src/fake-hub/report-board.ts`, and
-`CG_SEE_FRAME_ORIGIN=https://…` points both `report-*` scenarios at Hub's demo board instead), `fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
+`CG_SEE_FRAME_ORIGIN=https://…` points both `report-*` scenarios at Hub's demo board instead), `report-demo` (Hub's own
+board in the frame on either site: `CG_SEE_FRAME_ORIGIN` and `CG_SEE_BOARD_API` both the demo Workboard, e.g.
+`http://127.0.0.1:5391`; the fake hub forwards the board's routes to the demo's API as its chatter), `fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
 фоловеров в фоне», then «Новые фоловеры проверены» and its «Открыть» back on the same pass). `launch` (the showcase world's pictures of 3.0's launch, below).
 On Telegram (`--site telegram`: the Web A stand, `http://telegram.localhost:<port>/a/#<peer id>`, Lora's account bound
 to the fake hub's page `lora-tg`; its page API is `s.h.callTelegram(…)`, `client-context.json` holds the chat each AI
@@ -168,6 +170,8 @@ production hub). A scenario takes ~15 s.
 
 - **The route**: where the machine's own route to fansly.com is reset, `CG_SEE_LIVE_SOCKS=127.0.0.1:<port>` sends this
   browser alone through a SOCKS5 tunnel (`ssh -N -D 127.0.0.1:<port> <server>`); the machine's network stays as it is.
+- **The landing page**: `CG_SEE_LIVE_PATH=/creator/wallet/history` opens that page instead of the chats — a check that
+  must not open or touch any chat.
 - **The model's sign-in** stays in a durable profile, one per worktree,
   `~/.cache/chatgoose/fansly-live/<worktree folder>` (`CG_SEE_LIVE_PROFILE`
   names another): two agents in two worktrees do not lock each other out. A signed-out run signs in with `FANSLY_TEST_MODEL_EMAIL` /
