@@ -510,6 +510,8 @@ export const TAB_REQUESTS = {
    * `title`: the longest waiting matter's; `handIn`: the shift's screen in Workboard when the person's last shift is
    * not handed in (a `shift.report.missing` matter), null otherwise.
    */
+  /** Products package R5: «Мои деньги» of the popup shows only when `me` says the person sees their own money; null — not said. */
+  'session.ownMoney': { req: Empty, res: z.strictObject({ ownMoney: z.nullable(z.boolean()) }), from: PAGE, pages: ['popup'] },
   'matters.get': {
     req: Empty,
     res: z.strictObject({

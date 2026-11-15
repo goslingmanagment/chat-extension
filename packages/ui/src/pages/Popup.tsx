@@ -416,9 +416,11 @@ function MyShifts({ vm }: { readonly vm: PopupVM }): JSX.Element {
       <div class="pg-popup__btns" data-pg-my-shifts="">
         <Button label={i18n.t('popup.myShifts')} variant="line" busy={busy === 'shifts'} tooltip={i18n.t('popup.myShiftsHint')} trailing={out()} onClick={() => open('shifts', WORKBOARD_MY_SHIFTS_PATH)} />
       </div>
-      <div class="pg-popup__btns" data-pg-my-money="">
-        <Button label={i18n.t('popup.myMoney')} variant="line" busy={busy === 'money'} tooltip={i18n.t('popup.myMoneyHint')} trailing={out()} onClick={() => open('money', WORKBOARD_MY_MONEY_PATH)} />
-      </div>
+      {vm.ownMoney !== true ? null : (
+        <div class="pg-popup__btns" data-pg-my-money="">
+          <Button label={i18n.t('popup.myMoney')} variant="line" busy={busy === 'money'} tooltip={i18n.t('popup.myMoneyHint')} trailing={out()} onClick={() => open('money', WORKBOARD_MY_MONEY_PATH)} />
+        </div>
+      )}
       {/* 2026-11-15: Workboard itself, the person's day, by the same one-time link. */}
       <div class="pg-popup__btns" data-pg-workboard="">
         <Button label={i18n.t('popup.workboard')} variant="line" busy={busy === 'workboard'} tooltip={i18n.t('popup.workboardHint')} trailing={out()} onClick={() => open('workboard', WORKBOARD_TODAY_PATH)} />

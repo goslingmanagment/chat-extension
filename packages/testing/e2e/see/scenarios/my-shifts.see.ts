@@ -1,4 +1,5 @@
-// my-shifts: the popup's «Мои смены» and «Мои деньги» (products package R5) open Workboard's `/workboard/shifts/mine` and
+// my-shifts: the popup's «Мои смены» (everyone) and «Мои деньги» (only a person whose money Hub shows, `me`'s
+// `ownMoney`; then a person without it: no line) (products package R5) open Workboard's `/workboard/shifts/mine` and
 // `/workboard/money/mine` in a new tab, signed in by the hub's one-time link (`web-link-v1`, hub #1213); then the same
 // click against a hub without it opens Workboard's plain address. The stand
 // lets nothing out: each new tab's address is printed (the code hidden), `egress.json` holds the hosts it tried,
@@ -37,6 +38,14 @@ scenario('my-shifts', async (s) => {
   await openPopup();
   await waitForPopup((state) => state.view === 'ready', 'the popup for «Мои деньги»');
   console.log(`cg-see opened «Мои деньги» (web-link-v1): ${await myShifts(s, 'Мои деньги')}`);
+  // A person whose money Hub does not show (`me`'s `ownMoney` false, products package R5): no «Мои деньги».
+  await s.hub.command({ op: 'config', patch: { ownMoney: false } });
+  await openPopup();
+  await waitForPopup((state) => state.view === 'ready', 'the popup without «Мои деньги»');
+  const noMoney = await s.rect('page', '.pg-popup');
+  if (noMoney !== null) await s.shot('popup-no-money', { clip: noMoney });
+  console.log(`cg-see «Мои деньги» shown without the right: ${String(await s.browser.execute(() => document.querySelector('[data-pg-my-money]') !== null))}`);
+  await s.hub.command({ op: 'config', patch: { ownMoney: true } });
   // A hub without the one-time link: the bootstrap read again says so, and the same click opens the plain address.
   await s.hub.command({ op: 'config', patch: { capabilities: PILOT_CAPABILITIES.filter((capability) => capability !== 'web-link-v1') } });
   await s.rpc('bootstrap.get', { force: true });

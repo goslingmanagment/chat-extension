@@ -1731,6 +1731,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // «Мои смены» of the popup (hub #1213): the one-time link goes to the page that opens it, and nowhere else.
   rpc.handle('session.webLink', ({ next }) => hubCall(async () => ({ url: (await hub().webLink(next === undefined ? {} : { next })).url })));
   // «Ждут вас» of the popup (hub #1210): asked as it opens; the icon's number follows the same answer. No answer — no line.
+  // Products package R5: whether «Мои деньги» shows, asked as the popup opens (`me`'s `ownMoney`). No answer — not said.
+  rpc.handle('session.ownMoney', async () => {
+    try {
+      return ok({ ownMoney: await hub().ownMoney() });
+    } catch {
+      return ok({ ownMoney: null });
+    }
+  });
   rpc.handle('matters.get', async () => {
     try {
       const line = waitingLineOf(await hub().matters());

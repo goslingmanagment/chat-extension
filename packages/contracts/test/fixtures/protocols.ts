@@ -282,6 +282,10 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
     res: { valid: [{ recorded: true }], invalid: [{}] },
   },
+  'session.ownMoney': {
+    req: { valid: [{}], invalid: [{ extra: true }] },
+    res: { valid: [{ ownMoney: true }, { ownMoney: false }, { ownMoney: null }], invalid: [{}, { ownMoney: 'yes' }] },
+  },
   'session.webLink': {
     // The hub takes only a path of the team's place.
     req: { valid: [{}, { next: '/workboard/my/shifts' }], invalid: [{ next: 'https://example.test/workboard/' }, { next: '' }, { next: `/${'w'.repeat(2048)}` }, { next: '/x', extra: true }] },

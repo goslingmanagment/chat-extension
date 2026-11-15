@@ -224,6 +224,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'quotaRequestsToday',
   'personalAiLimit',
   'matters',
+  'ownMoney',
   'report',
   'fanslyProxies',
   'generationVisibleAfterMs',
@@ -281,6 +282,8 @@ export function checkCommand(value: unknown): FakeHubCommand {
     const day = patch['voiceDay'];
     if (day !== undefined && !isVoiceDay(day)) throw new Error('fake hub control: config.patch.voiceDay takes pageChars, globalChars, scriptMaxChars (whole, ≥ 1) and spentToday (page → whole chars ≥ 0)');
     if (patch['onlineStand'] !== undefined && !isBoolean(patch['onlineStand'])) throw new Error('fake hub control: config.patch.onlineStand is true or false');
+    const ownMoney = patch['ownMoney'];
+    if (ownMoney !== undefined && ownMoney !== null && !isBoolean(ownMoney)) throw new Error('fake hub control: config.patch.ownMoney is true, false or null');
     const matters = patch['matters'];
     const isMatter = (one: unknown): boolean => {
       const row = one as Record<string, unknown>;

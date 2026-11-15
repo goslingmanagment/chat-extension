@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS, type OptionsVM, type SettingsSection } from '@cg/contracts';
 
-import { PAGES_NOW, pagesWorld, settle, signedOutState, type PagesWorld, type PagesWorldOptions } from './world';
+import { PAGES_NOW, pagesWorld, settle, signedOutState, workingState, type PagesWorld, type PagesWorldOptions } from './world';
 
 let world: PagesWorld | null = null;
 let clock = PAGES_NOW;
@@ -93,5 +93,23 @@ describe('options: what the mockup does not draw (parity rows)', () => {
     // The page never asks for more than the identity: the session answer has no credential in it.
     expect(JSON.stringify(w.background.calls.filter((call) => call.type === 'session.get'))).not.toMatch(/secret|credential|password/i);
     expect(Object.keys(w.state.session ?? {}).sort()).toEqual(['epoch', 'hubOrigin', 'login', 'role', 'userId']);
+  });
+});
+
+describe('popup: «Мои деньги» only for a person whose money Hub shows (products package R5)', () => {
+  const ownMoney = (w: PagesWorld): unknown => (w.client.getSnapshot({ of: 'popup' }) as { ownMoney?: unknown }).ownMoney;
+
+  it('shows the line when Hub says the person sees their own money', async () => {
+    const w = await open({ page: 'popup', state: { ...workingState(clock), ownMoney: true } });
+    expect(ownMoney(w)).toBe(true);
+    expect(w.background.requests('session.ownMoney')).toHaveLength(1);
+  });
+
+  it('hides it when Hub says no, and when Hub does not say (an older Hub)', async () => {
+    const off = await open({ page: 'popup', state: { ...workingState(clock), ownMoney: false } });
+    expect(ownMoney(off)).toBe(false);
+    off.client.dispose();
+    const silent = await open({ page: 'popup', state: { ...workingState(clock), ownMoney: null } });
+    expect(ownMoney(silent)).toBe(false);
   });
 });

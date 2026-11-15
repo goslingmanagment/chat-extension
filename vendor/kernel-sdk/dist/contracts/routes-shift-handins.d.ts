@@ -760,6 +760,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
                         declined: "declined";
                         late: "late";
                     }>;
+                    superseded: z.ZodOptional<z.ZodBoolean>;
                     afterCounted: z.ZodBoolean;
                     by: z.ZodString;
                 }, z.core.$strip>>;
@@ -1044,6 +1045,7 @@ export declare const shiftReportResponseSchema: z.ZodObject<{
                             declined: "declined";
                             late: "late";
                         }>;
+                        superseded: z.ZodOptional<z.ZodBoolean>;
                         afterCounted: z.ZodBoolean;
                         by: z.ZodString;
                     }, z.core.$strip>>;
@@ -1730,6 +1732,7 @@ export declare const shiftReportPhaseConflictSchema: z.ZodObject<{
                             declined: "declined";
                             late: "late";
                         }>;
+                        superseded: z.ZodOptional<z.ZodBoolean>;
                         afterCounted: z.ZodBoolean;
                         by: z.ZodString;
                     }, z.core.$strip>>;
@@ -2014,6 +2017,7 @@ export declare const shiftReportPhaseConflictSchema: z.ZodObject<{
                                 declined: "declined";
                                 late: "late";
                             }>;
+                            superseded: z.ZodOptional<z.ZodBoolean>;
                             afterCounted: z.ZodBoolean;
                             by: z.ZodString;
                         }, z.core.$strip>>;
@@ -2833,6 +2837,7 @@ export declare const shiftReportConfirmResponseSchema: z.ZodObject<{
                             declined: "declined";
                             late: "late";
                         }>;
+                        superseded: z.ZodOptional<z.ZodBoolean>;
                         afterCounted: z.ZodBoolean;
                         by: z.ZodString;
                     }, z.core.$strip>>;
@@ -3117,6 +3122,7 @@ export declare const shiftReportConfirmResponseSchema: z.ZodObject<{
                                 declined: "declined";
                                 late: "late";
                             }>;
+                            superseded: z.ZodOptional<z.ZodBoolean>;
                             afterCounted: z.ZodBoolean;
                             by: z.ZodString;
                         }, z.core.$strip>>;
@@ -3824,6 +3830,7 @@ export declare const shiftReportCurrentResponseSchema: z.ZodObject<{
                             declined: "declined";
                             late: "late";
                         }>;
+                        superseded: z.ZodOptional<z.ZodBoolean>;
                         afterCounted: z.ZodBoolean;
                         by: z.ZodString;
                     }, z.core.$strip>>;
@@ -4108,6 +4115,7 @@ export declare const shiftReportCurrentResponseSchema: z.ZodObject<{
                                 declined: "declined";
                                 late: "late";
                             }>;
+                            superseded: z.ZodOptional<z.ZodBoolean>;
                             afterCounted: z.ZodBoolean;
                             by: z.ZodString;
                         }, z.core.$strip>>;
@@ -5223,6 +5231,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -5507,6 +5516,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -6355,6 +6365,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -6639,6 +6650,7 @@ export declare const shiftHandinRouteSchemas: {
                                             declined: "declined";
                                             late: "late";
                                         }>;
+                                        superseded: z.ZodOptional<z.ZodBoolean>;
                                         afterCounted: z.ZodBoolean;
                                         by: z.ZodString;
                                     }, z.core.$strip>>;
@@ -7572,6 +7584,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -7856,6 +7869,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -8592,6 +8606,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -8876,6 +8891,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -9891,6 +9907,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -10175,6 +10192,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -10900,6 +10918,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -11184,6 +11203,7 @@ export declare const shiftHandinRouteSchemas: {
                                             declined: "declined";
                                             late: "late";
                                         }>;
+                                        superseded: z.ZodOptional<z.ZodBoolean>;
                                         afterCounted: z.ZodBoolean;
                                         by: z.ZodString;
                                     }, z.core.$strip>>;
@@ -11932,6 +11952,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -12216,6 +12237,7 @@ export declare const shiftHandinRouteSchemas: {
                                             declined: "declined";
                                             late: "late";
                                         }>;
+                                        superseded: z.ZodOptional<z.ZodBoolean>;
                                         afterCounted: z.ZodBoolean;
                                         by: z.ZodString;
                                     }, z.core.$strip>>;
@@ -12947,6 +12969,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -13231,6 +13254,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -13958,6 +13982,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -14242,6 +14267,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -14969,6 +14995,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -15253,6 +15280,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -15983,6 +16011,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -16267,6 +16296,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -16974,6 +17004,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -17258,6 +17289,7 @@ export declare const shiftHandinRouteSchemas: {
                                             declined: "declined";
                                             late: "late";
                                         }>;
+                                        superseded: z.ZodOptional<z.ZodBoolean>;
                                         afterCounted: z.ZodBoolean;
                                         by: z.ZodString;
                                     }, z.core.$strip>>;
@@ -17966,6 +17998,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -18250,6 +18283,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -18949,6 +18983,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -19233,6 +19268,7 @@ export declare const shiftHandinRouteSchemas: {
                                             declined: "declined";
                                             late: "late";
                                         }>;
+                                        superseded: z.ZodOptional<z.ZodBoolean>;
                                         afterCounted: z.ZodBoolean;
                                         by: z.ZodString;
                                     }, z.core.$strip>>;
@@ -19941,6 +19977,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -20225,6 +20262,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -20961,6 +20999,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -21245,6 +21284,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -21944,6 +21984,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;
@@ -22228,6 +22269,7 @@ export declare const shiftHandinRouteSchemas: {
                                             declined: "declined";
                                             late: "late";
                                         }>;
+                                        superseded: z.ZodOptional<z.ZodBoolean>;
                                         afterCounted: z.ZodBoolean;
                                         by: z.ZodString;
                                     }, z.core.$strip>>;
@@ -22936,6 +22978,7 @@ export declare const shiftHandinRouteSchemas: {
                                     declined: "declined";
                                     late: "late";
                                 }>;
+                                superseded: z.ZodOptional<z.ZodBoolean>;
                                 afterCounted: z.ZodBoolean;
                                 by: z.ZodString;
                             }, z.core.$strip>>;
@@ -23220,6 +23263,7 @@ export declare const shiftHandinRouteSchemas: {
                                         declined: "declined";
                                         late: "late";
                                     }>;
+                                    superseded: z.ZodOptional<z.ZodBoolean>;
                                     afterCounted: z.ZodBoolean;
                                     by: z.ZodString;
                                 }, z.core.$strip>>;

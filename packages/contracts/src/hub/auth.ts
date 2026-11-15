@@ -113,6 +113,11 @@ export const HubAuthStateSchema = z.object({
     mustChangePassword: z.boolean(),
     assignedPages: z.array(HubPageRefSchema),
   }),
+  /**
+   * Whether the person sees their own money (Hub's person right «Видит свои деньги»): the popup's «Мои деньги» shows
+   * only then (products package R5). Absent from an older Hub: not said, no line.
+   */
+  ownMoney: z.optional(z.boolean()),
 });
 export type HubAuthState = z.infer<typeof HubAuthStateSchema>;
 

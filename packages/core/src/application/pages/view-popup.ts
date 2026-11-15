@@ -202,6 +202,7 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
     // «Ждут вас» (hub #1232): the line only when something waits; «Сдать смену» only for a shift the hub says is not handed in.
     waiting: session === null || model.waiting === undefined || model.waiting === null || model.waiting.count === 0 ? null : { count: model.waiting.count, title: model.waiting.title },
     handIn: session === null ? null : (model.waiting?.handIn ?? null),
+    ownMoney: session !== null && model.ownMoney === true,
     buttons: [
       button('popup.btn.spenders', surface('spenders'), { reason: noTab, hotkey: hotkeyOf('spenders', platform, ports.catalog) }),
       button('popup.btn.newcomers', surface('newcomers'), { reason: noTab }),
