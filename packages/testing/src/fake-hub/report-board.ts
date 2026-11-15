@@ -214,3 +214,26 @@ export function reportBoardAnswer(method: string, path: string, body: string): {
   if (/^\/api\/v1\/(shift-reports|sale-claims)(\/|$)/.test(path)) return { status: 200, body: {}, what: 'other' };
   return null;
 }
+
+/** The board's own routes (R-protocol's allow-list of `report`), as the stand forwards them to Hub's demo. */
+const BOARD_ROUTES = /^\/api\/v1\/(shift-reports(\/|\?|$)|sale-claims\/\d+\/answer$|auth\/me$)/;
+
+/**
+ * Hub's demo Workboard as the board's API (`CG_SEE_BOARD_API=http://127.0.0.1:5391`, stand only): the request goes
+ * there as the demo's chatter (`hub-demo-role=chatter`) and its answer comes back as it is. null — not forwarded (no
+ * demo named, or not a board route).
+ */
+export async function forwardBoard(method: string, target: string, body: string): Promise<Response | null> {
+  const api = process.env['CG_SEE_BOARD_API'] ?? '';
+  if (api === '' || !BOARD_ROUTES.test(target)) return null;
+  try {
+    const answer = await fetch(`${api}${target}`, {
+      method,
+      headers: { cookie: 'hub-demo-role=chatter', accept: 'application/json', ...(body === '' ? {} : { 'content-type': 'application/json' }) },
+      ...(body === '' ? {} : { body }),
+    });
+    return new Response(await answer.text(), { status: answer.status, headers: { 'content-type': answer.headers.get('content-type') ?? 'application/json' } });
+  } catch {
+    return new Response(JSON.stringify({ error: 'bad_gateway' }), { status: 502, headers: { 'content-type': 'application/json' } });
+  }
+}

@@ -73,7 +73,9 @@ export async function inFrame<T>(fn: () => Promise<T>): Promise<T> {
 /** Esc pressed in the board (a click on its title first: the keys go where the focus is). */
 export async function escapeInFrame(): Promise<'keys' | 'event'> {
   return inFrame(async () => {
-    await browser.$('header b').click();
+    const title = browser.$('header b');
+    if (await title.isExisting()) await title.click();
+    else await browser.execute(() => (document.activeElement as HTMLElement | null)?.blur?.());
     try {
       await browser.keys('Escape');
       return 'keys';

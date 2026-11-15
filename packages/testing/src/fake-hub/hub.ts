@@ -99,7 +99,7 @@ import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureNeedsOn, fea
 import { fakeFanMarks } from './fan-marks';
 import { CursorSigner, DataModel, type FakeActivityBeat, type FakeNoteAttribution, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
-import { REPORT_FRAME_PATH, reportBoardAnswer, reportFrameHtml } from './report-board';
+import { REPORT_FRAME_PATH, forwardBoard, reportBoardAnswer, reportFrameHtml } from './report-board';
 import { type OnlineSeed } from './online';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
 import { Gates, sseBody } from './sse';
@@ -718,6 +718,14 @@ export class FakeHub {
     if (method === 'GET' && url.pathname === REPORT_FRAME_PATH) {
       this.journal.record({ ...base, kind: 'legacy', operation: 'report-board:frame', status: 200, servedBy: 'model' });
       return new Response(reportFrameHtml(), { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    }
+    // `CG_SEE_BOARD_API` (the stand with Hub's demo Workboard): the board's own routes go to the demo's API as its
+    // chatter, so Hub's real board reads Hub's own demo shift; the sightings stay the stub's.
+    const upstream = match.kind === 'route' ? null : await forwardBoard(method, url.pathname + url.search, bodyText);
+    if (upstream !== null) {
+      if (!verdict.ok) return refuse({ kind: 'legacy', operation: 'report-board:demo', servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
+      this.journal.record({ ...base, kind: 'legacy', operation: 'report-board:demo', status: upstream.status, servedBy: 'model', token: tokenOf({ token: verdict.token, user: verdict.user }) });
+      return upstream;
     }
     const board = match.kind === 'route' ? null : reportBoardAnswer(method, url.pathname, bodyText);
     if (board !== null) {
