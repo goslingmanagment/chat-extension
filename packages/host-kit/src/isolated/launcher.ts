@@ -22,9 +22,19 @@ import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
  * «Очереди»): the shared surfaces of the boards. The one list of both sites: a board added here is a button on Fansly's
  * card and on ChatSpace's rail, and its face (launcher-view.ts `LAUNCHER_FACES`) is then required by the compiler.
  */
-export const LAUNCHER_TARGETS = ['online', 'queues', 'spenders', 'newcomers'] as const;
+export const LAUNCHER_TARGETS = ['online', 'queues', 'spenders', 'newcomers', 'report'] as const;
 
 export type LauncherTarget = (typeof LAUNCHER_TARGETS)[number];
+/** The boards that are windows of ours (`Navigate` to the surface); `report` is Workboard's board in the frame. */
+export type LauncherBoard = Exclude<LauncherTarget, 'report'>;
+
+/**
+ * The fifth row, «Отчёт» (hub package R, 2026-11-15): drawn only for a person whose pulse has a board (`report` not
+ * null), with a dot while the report waits for them. null — no row at all: everyone else sees the four rows unchanged.
+ */
+export interface LauncherReport {
+  readonly needsMe: boolean;
+}
 
 export interface SiteLauncher {
   /** The person clicked one of the launcher's buttons. */
@@ -48,6 +58,16 @@ export interface SiteLauncher {
   onScheme(listener: () => void): () => void;
   /** The application hands its scheme; the answer stops following it. */
   follow(scheme: ValueSignal<ColorScheme>): () => void;
+  /** The fifth row as the pulse says it (the tab's runtime hands it in); null — not drawn. */
+  report(): LauncherReport | null;
+  setReport(report: LauncherReport | null): void;
+  onReport(listener: () => void): () => void;
+  /**
+   * How far the card stands above its place (px): the bar of the board «Отчёт» takes the bottom 44 px of the site, and
+   * Fansly's corner card rises over it (the prototype's `.ln` at 58 px). 0 — its own place.
+   */
+  lift(): number;
+  setLift(px: number): void;
 }
 
 /** The page's theme as the site's early bundle reads it. */
@@ -61,6 +81,9 @@ export function createSiteLauncher(page: LauncherPageTheme): SiteLauncher {
   let asked = false;
   let runner: ((target: LauncherTarget) => void) | null = null;
   const wantedListeners = new Set<() => void>();
+  let report: LauncherReport | null = null;
+  let lift = 0;
+  const reportListeners = new Set<() => void>();
   const pendingListeners = new Set<() => void>();
   const say = (listeners: ReadonlySet<() => void>): void => {
     for (const listener of [...listeners]) listener();
@@ -108,6 +131,19 @@ export function createSiteLauncher(page: LauncherPageTheme): SiteLauncher {
       };
       take(signal.value);
       return signal.subscribe(take);
+    },
+    report: () => report,
+    setReport(next) {
+      if (next === report || (next !== null && report !== null && next.needsMe === report.needsMe)) return;
+      report = next === null ? null : { needsMe: next.needsMe };
+      say(reportListeners);
+    },
+    onReport: (listener) => listen(reportListeners, listener),
+    lift: () => lift,
+    setLift(px) {
+      if (px === lift) return;
+      lift = px;
+      say(reportListeners);
     },
     serve(run) {
       runner = run;

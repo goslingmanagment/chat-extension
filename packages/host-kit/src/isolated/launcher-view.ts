@@ -84,6 +84,19 @@ export const LAUNCHER_FACES: Readonly<Record<LauncherTarget, LauncherFace>> = {
       ['path', { class: 'fill', d: 'M12.6 1.4l.78 2.02 2.02.78-2.02.78-.78 2.02-.78-2.02-2.02-.78 2.02-.78z' }],
     ],
   },
+  // 2026-11-15 (hub package R): the board «Отчёт», the prototype's document with a tick (8-docs 2026-11-13-products
+  // report-panel-mockups/columns.html, icon `report`). Drawn only for a person with the board (`SiteLauncher.report`).
+  report: {
+    label: 'Отчёт',
+    title: 'Отчёт смены',
+    aria: 'Открыть «Отчёт»',
+    key: null,
+    glyph: [
+      ['path', { d: 'M4 2.4h5.4l2.8 2.8v8.4H4z' }],
+      ['path', { d: 'M9.2 2.6v2.8H12' }],
+      ['path', { d: 'M6 9.7l1.4 1.4 2.6-2.9' }],
+    ],
+  },
 };
 
 const isMac = (platform: string): boolean => /mac|darwin|iphone|ipad|ipod/i.test(platform);
@@ -100,6 +113,7 @@ export type LauncherLook = 'rows' | 'icons';
 const HOST_CSS = `:host { all: initial; display: block; font-family: var(--cg-font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }`;
 const CARD_CSS = `
 .card {
+  transition: transform 160ms ease;
   display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: 14px;
   background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-rule-2), var(--cg-shadow);
 }`;
@@ -110,6 +124,8 @@ svg .fill { fill: var(--cg-clay); stroke: none; }
 svg .dot { fill: var(--cg-money); stroke: none; }
 button[aria-busy="true"] svg { animation: l-wait 900ms ease-in-out infinite alternate; }
 @keyframes l-wait { to { opacity: 0.35; } }
+button[hidden] { display: none; }
+.mark { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--cg-clay-ink); }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } button[aria-busy="true"] svg { animation: none; } }
 `;
 
@@ -122,14 +138,17 @@ button {
   color: var(--cg-ink); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
-button:hover, button[aria-busy="true"] { background: var(--cg-clay-bg); color: var(--cg-clay-ink); }${GLYPH_CSS}`,
+button:hover, button[aria-busy="true"] { background: var(--cg-clay-bg); color: var(--cg-clay-ink); }
+.mark { margin-left: auto; }${GLYPH_CSS}`,
   icons: `
 ${HOST_CSS}${CARD_CSS}
 button {
   all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px;
   cursor: pointer; transition: background-color 120ms ease;
 }
-button:hover, button[aria-busy="true"] { background: var(--cg-clay-bg); }${GLYPH_CSS}`,
+button:hover, button[aria-busy="true"] { background: var(--cg-clay-bg); }
+button { position: relative; }
+.mark { position: absolute; top: 4px; right: 4px; box-shadow: 0 0 0 2px var(--cg-raised); }${GLYPH_CSS}`,
 };
 
 /** The launcher's sheet in its closed root, after the kit's tokens: adopted, or — where the content script's world refuses — a <style> of its own. */
@@ -193,6 +212,26 @@ export function drawLauncher(env: LauncherViewEnv): () => void {
   });
   card.append(...buttons);
   root.append(card);
+  /** The fifth row: drawn only while the pulse has a board; its dot while the report waits for the person. */
+  const reportButton = buttons.find((button) => button.getAttribute('data-launcher') === 'report') ?? null;
+  const drawReport = (): void => {
+    // Fansly's card rises over the board's bar (ChatSpace's rail keeps its place: the bar starts right of the rail).
+    card.style.transform = look === 'rows' && launcher.lift() > 0 ? `translateY(-${String(launcher.lift())}px)` : '';
+    if (reportButton === null) return;
+    const report = launcher.report();
+    reportButton.hidden = report === null;
+    const mark = reportButton.querySelector('.mark');
+    if (report?.needsMe === true && mark === null) {
+      const dot = doc.createElement('i');
+      dot.className = 'mark';
+      dot.setAttribute('aria-hidden', 'true');
+      reportButton.append(dot);
+    } else if (report?.needsMe !== true) mark?.remove();
+    const face = LAUNCHER_FACES.report;
+    reportButton.title = report?.needsMe === true ? `${face.title}: ждёт вас` : face.title;
+  };
+  drawReport();
+  const offReport = launcher.onReport(drawReport);
   /**
    * The kept click shows on its button until the application takes it — at most BUSY_MS: an application that did not
    * load says nothing here, and the next click asks for it again.
@@ -216,6 +255,7 @@ export function drawLauncher(env: LauncherViewEnv): () => void {
     clearTimeout(timer);
     offTheme();
     offPending();
+    offReport();
     card.remove();
   };
 }

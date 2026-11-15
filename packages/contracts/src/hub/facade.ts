@@ -11,6 +11,7 @@
 // fixed window; `aiUsage` takes `days` 1–7 and a zone on the page path (H-15).
 
 import { type CgCode } from '../errors';
+import { type ReportFetchAnswer, type SaleSightingRow } from '../report-board';
 import { type AcceptanceEvent, type ClientHealthV1 } from '../telemetry';
 import { type SessionIdentity } from '../ids';
 import { type HubFrame, type HubStreamRequest, type PersonaCatalog } from './ai';
@@ -149,6 +150,14 @@ export interface HubFacade {
   signOut(): Promise<SignOutOutcome>;
   /** A one-time link into the team's place for this sign-in (hub #1213); refused without `web-link-v1`, never repeated by itself. */
   webLink(request: WebLinkRequest): Promise<WebLink>;
+  /**
+   * 2026-11-15 (hub package R): one request of a Workboard screen in the extension's frame, already checked against the
+   * screen's allow-list by the caller: the device token added here, the answer's status and text handed back whatever
+   * they are; `signed_out` without a sign-in, `network` when no answer came. Never repeated by itself.
+   */
+  frameRelay(request: { readonly method: string; readonly path: string; readonly body: string | null }): Promise<ReportFetchAnswer>;
+  /** 2026-11-15: rows of Fansly's wallet the site itself loaded (`POST /api/v1/client/sale-sightings`); never repeated. */
+  saleSightings(request: { readonly pageLabel: string; readonly rows: readonly SaleSightingRow[] }): Promise<boolean>;
   session(): SessionIdentity | null;
   /** `contractHash`, `compatibleClientSdks` (H-1). */
   health(): Promise<HubHealth>;

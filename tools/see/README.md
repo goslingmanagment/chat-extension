@@ -60,7 +60,10 @@ fake hub and its card on hover, the fan, three chatters with «(вы)», «Бе�
 has seen; a chat the hub holds nothing of, no badge; both themes), `chatspace-launcher` (the launcher at the bottom of
 ChatSpace's account rail, right above its version: the rail in both themes, a button under the pointer, a short window
 where the tiles scroll above it, then Spenders opened by the first click on a page without a chat; `rail.json` where each
-part stood). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
+part stood), `report-chatspace` (the board «Отчёт» over ChatSpace, hub package R: the rail's fifth icon with its dot, the
+board in its frame, Esc and the bar, «show on the site» in the transactions window and behind its «Load more», a Fansly
+sale with no Fansly tab, the statement asked again, a second tab of another page handing the find to the first;
+`report-facts.json`). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
 the hub's rows of Spenders: a found row and a row of «Ждут ответа» each open their fan's chat),
 `review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-notes` («Заметки» on one screen: a field edited in
 place, «+ Метка», «✨ Дополнить из чата» with the Goose's suggestions in their rows, the fan's words on hover, one ✓
@@ -85,7 +88,13 @@ no-direct-connection hint, the old extension's notice, its personas carried over
 PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Reply: its `draftMedia` in
 `hub-calls.json`; both sites, `--live` takes a photo and a video of the vault), `fansly-seen` (a Spenders preview: «не прочитано», then «прочитано в …»),
 `fansly-newcomers` («Новые фоловеры»: a fresh follower checked by the pass, the card, «Сгенерировать» — the same
-window and card as ChatSpace's `newcomers`), `fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
+window and card as ChatSpace's `newcomers`), `report-fansly` (the board «Отчёт» over Fansly: the corner card's fifth
+row, the board, keys that never reach the site, the clipboard, a request off the allow-list refused, Esc and the bar,
+«show on the site» in Wallet history on page 1, page 2 and a sale the site does not show, the sightings, a reload;
+`report-facts.json`; the frame is the fake hub's stub board, `src/fake-hub/report-board.ts`, and
+`CG_SEE_FRAME_ORIGIN=https://…` points both `report-*` scenarios at Hub's demo board instead), `report-demo` (Hub's own
+board in the frame on either site: `CG_SEE_FRAME_ORIGIN` and `CG_SEE_BOARD_API` both the demo Workboard, e.g.
+`http://127.0.0.1:5391`; the fake hub forwards the board's routes to the demo's API as its chatter), `fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
 фоловеров в фоне», then «Новые фоловеры проверены» and its «Открыть» back on the same pass). `launch` (the showcase world's pictures of 3.0's launch, below).
 On Telegram (`--site telegram`: the Web A stand, `http://telegram.localhost:<port>/a/#<peer id>`, Lora's account bound
 to the fake hub's page `lora-tg`; its page API is `s.h.callTelegram(…)`, `client-context.json` holds the chat each AI
@@ -159,6 +168,10 @@ run the same verbs on the real fansly.com: the test build in a headless Firefox
 signed in as the agency's test model, against the fake hub (no money, no
 production hub). A scenario takes ~15 s.
 
+- **The route**: where the machine's own route to fansly.com is reset, `CG_SEE_LIVE_SOCKS=127.0.0.1:<port>` sends this
+  browser alone through a SOCKS5 tunnel (`ssh -N -D 127.0.0.1:<port> <server>`); the machine's network stays as it is.
+- **The landing page**: `CG_SEE_LIVE_PATH=/creator/wallet/history` opens that page instead of the chats — a check that
+  must not open or touch any chat.
 - **The model's sign-in** stays in a durable profile, one per worktree,
   `~/.cache/chatgoose/fansly-live/<worktree folder>` (`CG_SEE_LIVE_PROFILE`
   names another): two agents in two worktrees do not lock each other out. A signed-out run signs in with `FANSLY_TEST_MODEL_EMAIL` /

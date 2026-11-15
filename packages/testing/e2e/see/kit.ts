@@ -401,7 +401,14 @@ export function useSee<S extends SeeSite = Site>(options: SeeOptions<S> = {}): {
     if (LIVE) {
       const generation = options.settings?.generation as Partial<SettingsV1['generation']> | undefined;
       const group = process.env['CG_SEE_LIVE_GROUP'];
-      const shift = await startLiveShift(hub, { viewport, bare: process.env['CG_SEE_LIVE_BARE'] === '1', ...(group === undefined || group === '' ? {} : { group }), ...(generation === undefined ? {} : { generation }) });
+      const livePath = process.env['CG_SEE_LIVE_PATH'];
+      const shift = await startLiveShift(hub, {
+        viewport,
+        bare: process.env['CG_SEE_LIVE_BARE'] === '1',
+        ...(group === undefined || group === '' ? {} : { group }),
+        ...(livePath === undefined || livePath === '' ? {} : { path: livePath }),
+        ...(generation === undefined ? {} : { generation }),
+      });
       toChat = () => shift.toFansly();
       toPages = () => shift.toPages();
       rpc = (type, payload) => shift.rpc(type, payload);

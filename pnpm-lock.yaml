@@ -74,6 +74,9 @@ importers:
       '@cg/host-fansly':
         specifier: workspace:*
         version: link:../../packages/host-fansly
+      '@cg/host-kit':
+        specifier: workspace:*
+        version: link:../../packages/host-kit
       '@cg/host-telegram':
         specifier: workspace:*
         version: link:../../packages/host-telegram

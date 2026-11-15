@@ -149,3 +149,12 @@ button { font: inherit; color: inherit; }
 .templates-panel__item:hover { background: var(--stand-incoming); }
 
 .overview { padding: 24px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+/* Hub package R: the account's transactions window (ui/transactions.ts). */
+.transactions { margin-left: auto; }
+.transactions__window { position: fixed; z-index: 1100; left: 50%; top: 80px; transform: translateX(-50%); width: 760px; max-height: 70vh; overflow: auto; padding: 16px; border-radius: 10px; background: #fff; color: #1f2026; box-shadow: 0 20px 60px rgb(0 0 0 / .35); }
+.dark .transactions__window { background: #1f2026; color: #e5e7eb; }
+.transactions__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: 600; }
+.transactions__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.transactions__table th, .transactions__table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid rgb(127 127 127 / .2); }
+.transactions__more { margin-top: 10px; }

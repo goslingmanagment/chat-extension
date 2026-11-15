@@ -23,6 +23,7 @@ import { createChatSpaceOnlineSource } from '@cg/core/application/hosts/chatspac
 import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
+import { ONLYFANS_SALE_LOOK, findTransactionRow, transactionsWindow } from '@cg/host-chatspace/isolated/transactions-finder';
 import { startChatSpaceFeedPoll } from '@cg/core/application/hosts/chatspace/feed-poll';
 
 import type { MountSurfaceKind } from '@cg/contracts/vm';
@@ -76,6 +77,14 @@ export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () =
     random: Math.random,
     setTimer: (ms, fn) => env.win.setTimeout(fn, ms),
     clearTimer: (handle) => env.win.clearTimeout(handle as number),
+    // The board «Отчёт» asks its OnlyFans pages' statements now (hub package R): the accounts of this tab bound to them.
+    onSoon: (listener) =>
+      env.rpc.onEvent('report.statement', ({ pages }) => {
+        const accounts = env.host.current().accounts;
+        void Promise.all(
+          accounts.map((account) => env.rpc.request('binding.resolve', { account }).then((answer) => (answer.ok && pages.includes(answer.payload.binding.pageLabel) ? account.hostAccountId : null), () => null)),
+        ).then((ids) => listener(ids.filter((id): id is string => id !== null)));
+      }),
   });
   env.life.addEventListener('abort', stopPoll, { once: true });
   let notes: Promise<(() => void) | null> | null = null;
@@ -106,9 +115,15 @@ export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () =
   // The rail's launcher (ui-design §3.13) opens its window as the popup's command does (`Navigate` to the surface): the
   // click kept while the application loaded at once, every next one in its own click — the gate sees it through our root.
   // A refusal speaks for itself where the router says it (a toast, the window's own state), as for the popup's command.
+  // 2026-11-15 (hub package R): the fifth icon «Отчёт» opens Workboard's board over the site (tab/frames.ts). Nothing
+  // of it in ChatSpace's dock (the owner): only the icon at the bottom of the account rail.
   const offLauncher = env.host.launcher.serve((surface) => {
-    void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
+    if (surface === 'report') env.frames?.open('report');
+    else void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
   });
+  // The board's bar starts right of the account rail: the rail and its icons stay whole (ChatSpace's own width).
+  const railWidth = Number.parseFloat(env.win.getComputedStyle(env.win.document.documentElement).getPropertyValue('--account-sidebar-width'));
+  env.frames?.inset(Number.isFinite(railWidth) && railWidth > 0 && railWidth < 200 ? railWidth : 0);
   // The buttons wear the scheme of our surfaces, so they stay the dock's chips under «Тема».
   const offScheme = env.host.launcher.follow(env.deps.scheme);
   return () => {
@@ -133,6 +148,11 @@ export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfi
   // only what it lacks (decision X47).
   fanPanelBesideHost: true,
   start: (env) => startChatSpaceSurfaces(env),
+  // «Show on the site» (hub package R): the sale's row in ChatSpace's transactions window (host-chatspace
+  // isolated/transactions-finder.ts, built from the documents: ChatSpace live is closed to agents).
+  findSale: (win, sale) => findTransactionRow(win, sale),
+  saleLook: ONLYFANS_SALE_LOOK,
+  saleScreen: (win) => transactionsWindow(win.document) !== null,
   // «Онлайн» (2026-10-31, hub #952): OnlyFansAPI's feed stops, so ChatSpace's own word of who is online goes to the hub —
   // its online poll from the page's memory and, where the owner's `onlineProbe` is on, the page's probe.
   online: ({ rpc, host, win, clock }) =>

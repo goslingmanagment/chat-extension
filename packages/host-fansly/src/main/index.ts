@@ -80,6 +80,8 @@ import {
   EVT_VAULT,
   EVT_VAULT_LOADED,
   EVT_VAULT_UPLOAD,
+  EVT_WALLET,
+  WALLET_ROWS_MAX,
   FRAMES_UNREAD_SIGN,
   GAP_MEMORY,
   PARSE_BOUNDS,
@@ -611,6 +613,31 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'settings':
         filters.settings(r, parse);
         return;
+      case 'wallet': {
+        // 2026-11-15 (hub package R): the creator's Wallet history as the page loaded it — the board's sightings. Only
+        // what the row says: its own id, type, amount after the fee (mills, as printed), time and the other account.
+        const answer = r as Plain;
+        const aggregation = isPlain(answer['aggregationData']) ? answer['aggregationData'] : null;
+        const names = new Map<string, string>();
+        for (const item of listOf(aggregation === null ? null : aggregation['accounts'])) {
+          const id = isPlain(item) ? idOf(item['id']) : null;
+          const name = id === null ? null : ((item as Plain)['displayName'] ?? (item as Plain)['username']);
+          if (id !== null && typeof name === 'string' && name.trim() !== '') names.set(id, name.trim().slice(0, 256));
+        }
+        const rows: { platformRef: string; kind: string; occurredAt: string; netMills: number; grossMills: null; fanRef: string | null; fanName: string | null }[] = [];
+        for (const item of listOf(answer['data'])) {
+          if (!isPlain(item) || rows.length >= WALLET_ROWS_MAX) continue;
+          const id = idOf(item['transactionId']);
+          const type = item['type'];
+          const amount = item['amount'];
+          const at = item['createdAt'];
+          if (id === null || typeof type !== 'number' || !Number.isSafeInteger(type) || typeof amount !== 'number' || !Number.isSafeInteger(amount) || typeof at !== 'number' || !Number.isFinite(at)) continue;
+          const fanRef = idOf(item['correlationAccountId']) ?? idOf(item['senderId']);
+          rows.push({ platformRef: id, kind: String(type), occurredAt: new Date(at).toISOString(), netMills: amount, grossMills: null, fanRef, fanName: fanRef === null ? null : (names.get(fanRef) ?? null) });
+        }
+        if (rows.length > 0) emitter.event(EVT_WALLET, { rows });
+        return;
+      }
       case 'vault':
         emitter.event(EVT_VAULT, { seq: stamp?.seq ?? seq });
         return;

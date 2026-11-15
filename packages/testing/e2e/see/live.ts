@@ -270,6 +270,11 @@ export interface LiveShiftOptions {
   readonly group?: string;
   /** The site alone: signed in, no extension, no fake hub page (`--bare`). */
   readonly bare?: boolean;
+  /**
+   * The page the tab lands on instead of the chats (`CG_SEE_LIVE_PATH=/creator/wallet/history`): a live check that must
+   * not open or touch any chat (hub package R, the board's frame over Wallet history). Ignored with `group`.
+   */
+  readonly path?: string;
   readonly generation?: Partial<SettingsV1['generation']>;
 }
 
@@ -295,32 +300,40 @@ export async function startLiveShift(hub: FakeHubControlClient, options: LiveShi
   const account = await signInToFansly();
   console.log(`cg-see fansly: signed in as @${account.username}`);
   await clickText('Maybe Later');
+  const landing = options.group === undefined && options.path !== undefined && /^\/[\w/-]*$/.test(options.path) ? `${SITE}${options.path}` : `${SITE}/messages${options.group === undefined ? '' : `/${options.group}`}`;
   if (options.bare === true) {
-    await browser.url(`${SITE}/messages${options.group === undefined ? '' : `/${options.group}`}`);
+    await browser.url(landing);
     const none = (): never => {
       throw new Error('--bare: no extension in this browser');
     };
     return { account, toFansly: async () => browser.switchToWindow(fanslyTab), toPages: async () => none(), rpc: async () => none() };
   }
 
+  // A live check against a real Hub (`CG_SEE_LIVE_HUB`, its person `CG_SEE_LIVE_LOGIN` / `CG_SEE_LIVE_PASSWORD` from the
+  // environment, never printed): the test build signs in there instead of the fake hub. Only for Hub's test realm.
+  const realHub = /^https:\/\/[\w.-]+$/.test(process.env['CG_SEE_LIVE_HUB'] ?? '') ? (process.env['CG_SEE_LIVE_HUB'] as string) : null;
+  const hubOrigin = realHub ?? fakeHubOrigin();
   await hub.command({ op: 'config', patch: fanslyPageFlags() });
   await hub.command({ op: 'pageAccount', pageLabel: WORLD.pages.fansly.pageLabel, platformAccountId: account.id });
   await browser.switchToWindow(pagesTab);
   await installTestBuild();
   await browser.url(testBuildPage(QUIET_PAGE));
-  const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: fakeHubOrigin() }, generation: { ...DEFAULT_SETTINGS.generation, ...options.generation } };
+  const settings: SettingsV1 = { ...DEFAULT_SETTINGS, hub: { baseUrl: hubOrigin }, generation: { ...DEFAULT_SETTINGS.generation, ...options.generation } };
   await writeLocalStorage({ [STORAGE_KEYS.settings]: settings });
   await browser.waitUntil(
     async () => {
       const state = await pageRpc<{ settings: SettingsV1 }>('settings.get');
-      return state.ok && state.payload.settings.hub.baseUrl === fakeHubOrigin();
+      return state.ok && state.payload.settings.hub.baseUrl === hubOrigin;
     },
     { timeout: 15_000, timeoutMsg: 'the settings owner did not pick the hub address up' },
   );
   await browser.url(testBuildPage('options.html'));
-  const signedIn = await pageRpc('session.signIn', { login: WORLD.user.username, password: SHIFT_PASSWORD });
-  if (!signedIn.ok) throw new Error(`sign-in to the fake hub: ${signedIn.error.code}`);
-  await assignPersona(WORLD.pages.fansly.pageLabel);
+  const login = realHub === null ? WORLD.user.username : (process.env['CG_SEE_LIVE_LOGIN'] ?? '');
+  const password = realHub === null ? SHIFT_PASSWORD : (process.env['CG_SEE_LIVE_PASSWORD'] ?? '');
+  const signedIn = await pageRpc('session.signIn', { login, password });
+  if (!signedIn.ok) throw new Error(`sign-in to ${realHub === null ? 'the fake hub' : 'the hub'}: ${signedIn.error.code}`);
+  if (realHub === null) await assignPersona(WORLD.pages.fansly.pageLabel);
+  else console.log(`cg-see hub: signed in to ${realHub} as ${login}`);
   await grantOptional({ origins: FANSLY_ORIGINS, permissions: ['webRequest'] });
   await browser.url(testBuildPage());
   await browser.waitUntil(async () => (await registeredScripts()).some((script) => script.id === 'fansly'), { timeout: 15_000, timeoutMsg: 'background registers Fansly after the grant' });
@@ -333,7 +346,7 @@ export async function startLiveShift(hub: FakeHubControlClient, options: LiveShi
   const toPages = (): Promise<void> => browser.switchToWindow(pagesTab);
   await toFansly();
   // A new document: the registered scripts run from its start.
-  await browser.url(`${SITE}/messages${options.group === undefined ? '' : `/${options.group}`}`);
+  await browser.url(landing);
   return {
     account,
     toFansly,

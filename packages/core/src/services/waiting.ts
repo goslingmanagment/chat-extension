@@ -6,10 +6,10 @@
 // - 0 — no number. A hub that does not send a count (older, or it could not count this minute) changes nothing: the
 //   icon keeps what it shows. Another sign-in, or none: the number goes at once.
 // - The popup's line: the count, the title of the longest waiting matter, and the shift to hand in — the newest
-//   `shift.report.missing` matter's screen in Workboard. The hub opens that kind only for a person whose switch
+//   `shift.report.missing` matter says one waits, and «Сдать смену» opens the board «Отчёт» (`/workboard/report`). The hub opens that kind only for a person whose switch
 //   «сдаёт смену в системе» is on, and closes it when the switch goes off: the matter is the hub's word on both.
 
-import { SHIFT_REPORT_MISSING_KIND, WEB_LINK_NEXT_MAX_CHARS, WORKBOARD_PATH_PREFIX, type ClientMatters } from '@cg/contracts/hub';
+import { SHIFT_REPORT_MISSING_KIND, WEB_LINK_NEXT_MAX_CHARS, WORKBOARD_PATH_PREFIX, WORKBOARD_REPORT_PATH, type ClientMatters } from '@cg/contracts/hub';
 
 import { NO_LOG, type LogSink } from './ports';
 
@@ -45,7 +45,9 @@ export function waitingLineOf(answer: ClientMatters): WaitingLine {
   const shift = answer.matters
     .filter((matter) => matter.kind === SHIFT_REPORT_MISSING_KIND && matter.link !== null && matter.link.startsWith(WORKBOARD_PATH_PREFIX) && matter.link.length <= WEB_LINK_NEXT_MAX_CHARS)
     .sort((a, b) => at(b.openedAt) - at(a.openedAt) || b.id - a.id)[0];
-  return { count: answer.count, title: title === '' ? null : title, handIn: shift?.link ?? null };
+  // 2026-11-15 (package R): «Сдать смену» opens the board «Отчёт», the shift that needs the person most; the matter only
+  // says that one waits.
+  return { count: answer.count, title: title === '' ? null : title, handIn: shift === undefined ? null : WORKBOARD_REPORT_PATH };
 }
 
 export interface WaitingBadgeDeps {

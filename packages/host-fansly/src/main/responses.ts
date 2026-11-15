@@ -19,6 +19,7 @@
 // | exactly `/vault/albums/media`          | vault     | `success` alone: the page reads no more (P3a)    |
 // | `/media/vaultnew`                      | vaultLoad | not read: its address names the album (P13a)     |
 // | `/media/upload/complete`, `/media/upload/<id>` | upload | `id`, `fileName`, `fileSize` — an upload's answer (2026-11-04) |
+// | `/account/wallets/earnings/transactions` | wallet | `data[]` — the creator's Wallet history (2026-11-15, the board «Отчёт») |
 //
 // The uploads are `mediav2`'s (an origin of `apiOrigins` too): `complete` and the page's poll of the upload say the
 // file's name and size as the page sent them and, once done, the medium Fansly made of it (`mediaId`). Their `create`
@@ -54,7 +55,7 @@ import type { Guard } from '@cg/host-kit/main/guard';
 
 import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, DRAIN_CHARS_PER_MS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
 
-export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultLoad' | 'upload' | 'settings';
+export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultLoad' | 'upload' | 'settings' | 'wallet';
 
 /** An answer of the API by its address: of the table, or `other` — an API answer MAIN does not read. */
 export interface ApiCall {
@@ -123,6 +124,8 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
       }
       case 'settings':
         return { kind: 'settings', groupId: null };
+      case 'account/wallets/earnings/transactions':
+        return { kind: 'wallet', groupId: null };
       case 'messaging/groups':
         return { kind: 'groups', groupId: null };
       case 'account/me':
@@ -167,6 +170,8 @@ function ofForm(call: ApiCall, response: unknown): boolean {
       return Array.isArray(response['messageInteractions']);
     case 'group':
       return idOf(response['id']) === call.groupId && typeof response['type'] === 'number' && Array.isArray(response['users']);
+    case 'wallet':
+      return Array.isArray(response['data']);
     case 'groups':
       return Array.isArray(response['data']);
     case 'me':

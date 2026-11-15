@@ -510,6 +510,11 @@ export class FakePageBackground implements PageRpc {
       case 'messages.authors':
       case 'chat.length':
       case 'notes.written':
+      case 'report.state':
+      case 'frame.fetch':
+      case 'report.find':
+      case 'report.statement':
+      case 'report.sightings':
         return refuse('CG-UNKNOWN', `${type} is not scripted`);
     }
   }

@@ -72,6 +72,7 @@ import type { SoundBatch, SoundStreamEvent } from '@cg/contracts/sound';
 import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, FromMainFansly } from '@cg/contracts/bridge-messages-fansly';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyChatActivity, FanslyChatMeta, FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
+import type { SaleSightingRow } from '@cg/contracts/report-board';
 import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-host';
 import type { AttachIntent, AttachReceipt, ChatWindow, ComposerState, DraftMedia, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
@@ -353,6 +354,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   /** The vault panel's upload of one file (P13b), while its module is up. */
   let vaultUpload: FanslyPagePort['uploadToVault'] | null = null;
   const vaultListeners = new Set<(fact: FanslyVaultFact) => void>();
+  const walletListeners = new Set<(creatorId: string, rows: readonly SaleSightingRow[]) => void>();
   const vaultLosses = new Set<() => void>();
   const soundListeners = new Set<(batch: SoundBatch) => void>();
   const pendingSounds: SoundBatch[] = [];
@@ -700,6 +702,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         if (event.t === 'fx.vaultLoaded' && (vaultLoad === null || event.p.seq > vaultLoad.seq)) vaultLoad = event.p;
         for (const listener of [...vaultListeners]) listener(event);
         return;
+      // 2026-11-15 (hub package R): the Wallet history the page loaded, under the creator it belongs to.
+      case 'fx.wallet':
+        if (creator !== null) for (const listener of [...walletListeners]) listener(creator, event.p.rows);
+        return;
       // The person's send, proven by MAIN: linked to the draft read at its gesture (P7f).
       case 'fx.sent':
         return sends.sent(event.p);
@@ -964,6 +970,12 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     setMessageAuthors: (view) => {
       if (!disposed) messageAuthors.set(view);
     },
+    onWallet(cb): Unsubscribe {
+      walletListeners.add(cb);
+      return () => {
+        walletListeners.delete(cb);
+      };
+    },
     onDeleted(cb): Unsubscribe {
       deletedListeners.add(cb);
       return () => {
@@ -1066,6 +1078,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     slotListeners.clear();
     deletedListeners.clear();
     vaultListeners.clear();
+    walletListeners.clear();
     vaultLosses.clear();
     vaultUpload = null;
     relayFrame.close();

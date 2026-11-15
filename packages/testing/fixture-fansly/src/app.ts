@@ -23,6 +23,7 @@ import { FANSLY_STAND_DEFAULT_LATENCY_MS } from './protocol';
 import { Router, type Route } from './router';
 import { GroupService } from './store';
 import { VaultRoute } from './vault';
+import { WalletRoute } from './wallet';
 
 /** The Angular version the live page declares (`ng-version`, chat-dom-2026-10-13.json). */
 export const NG_VERSION = '19.1.2';
@@ -79,6 +80,7 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
   const content = el(s, 'div', { class: 'content-wrapper' }, [outlet]);
   let messages: MessagesRoute | null = null;
   let vault: VaultRoute | null = null;
+  let wallet: WalletRoute | null = null;
   let other: HTMLElement | null = null;
 
   const activate = (route: Route): void => {
@@ -101,8 +103,17 @@ export function createStandApp(mount: HTMLElement, options: StandAppOptions = {}
     vault?.host.remove();
     vault?.destroy();
     vault = null;
+    wallet?.destroy();
+    wallet = null;
     other?.remove();
     other = null;
+    // Wallet history (hub package R): over the fake Fansly the page asks it, else it answers itself.
+    if (route.kind === 'wallet') {
+      wallet = new WalletRoute(live?.xhr ?? null);
+      outlet.after(wallet.host);
+      record('route-created', { route: 'app-creator-wallet-route' });
+      return;
+    }
     // The vault asks the fake Fansly (R20 P13a); the page answering itself has no vault.
     if (route.kind === 'vault' && live !== null) {
       vault = new VaultRoute(live.xhr);

@@ -160,6 +160,7 @@ import {
   type VoiceNoteView,
 } from '@cg/contracts';
 import { hubErrorWire } from '@cg/core/domain';
+import { REPORT_FETCH_ANSWER_MAX, type ReportFetchAnswer, type SaleSightingRow } from '@cg/contracts/report-board';
 import { KERNEL_CONTRACT_HASH } from '@kernel/sdk';
 
 import { sdkStreamTransport, type AiStreamTransport } from './ai-stream-transport';
@@ -559,6 +560,36 @@ export class ChatExtensionHub implements HubFacade {
     if (!hasCapability(entry.bootstrap.capabilities, 'web-link-v1')) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, 'web-link-v1');
     if (!WebLinkRequestSchema.safeParse(request).success) throw this.ctx.failure(route, transportFailure('contract'), connection);
     return (await this.ctx.sdk(route, { body: request }, {}, connection)) as WebLink;
+  }
+
+  async frameRelay(request: { readonly method: string; readonly path: string; readonly body: string | null }): Promise<ReportFetchAnswer> {
+    await this.ready;
+    let connection: Connection;
+    try {
+      connection = this.ctx.connection(null);
+    } catch {
+      return { error: 'signed_out' };
+    }
+    const result = await this.wire.relay({ hubOrigin: connection.hubOrigin, token: connection.token, signals: [this.ctx.epochSignalOf(connection)], timeoutMs: REQUEST_TIMEOUT_MS }, request.method, request.path, request.body);
+    if (!result.ok) return { error: 'network' };
+    // A 401 of the hub is the sign-in's own matter: said to custody as for any call (the wipe reasons), the frame still
+    // gets the answer as it came.
+    if (result.status === 401) {
+      let body: unknown;
+      try {
+        body = JSON.parse(result.text) as unknown;
+      } catch {
+        body = null;
+      }
+      const reason = typeof body === 'object' && body !== null && typeof (body as { reason?: unknown }).reason === 'string' ? (body as { reason: string }).reason : null;
+      this.ctx.failure('clientMatters', { kind: 'http', status: 401, error: null, reason, retryAfterMs: null }, connection);
+    }
+    return { status: result.status, body: result.text.length > REPORT_FETCH_ANSWER_MAX ? '' : result.text };
+  }
+
+  async saleSightings(request: { readonly pageLabel: string; readonly rows: readonly SaleSightingRow[] }): Promise<boolean> {
+    const answer = await this.frameRelay({ method: 'POST', path: '/api/v1/client/sale-sightings', body: JSON.stringify(request) });
+    return 'status' in answer && answer.status >= 200 && answer.status < 300;
   }
 
   /** true: revoked (or already revoked); false: the hub refused; null: no answer in 5 s. */

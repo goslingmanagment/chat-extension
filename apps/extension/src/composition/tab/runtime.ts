@@ -153,6 +153,18 @@ export function queuesNudgesOf(api: BrowserApi = defaultBrowser()): { load(): Pr
   };
 }
 
+/**
+ * `report.changed` / `report.state` in their light form (the early bundle carries no schemas, §11): `{ report: null }`
+ * or `{ report: { needsMe: boolean, … } }`. undefined — not that form.
+ */
+const reportOf = (value: unknown): { readonly needsMe: boolean } | null | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const report = (value as { report?: unknown }).report;
+  if (report === null) return null;
+  if (typeof report !== 'object' || typeof (report as { needsMe?: unknown }).needsMe !== 'boolean') return undefined;
+  return { needsMe: (report as { needsMe: boolean }).needsMe };
+};
+
 const isAck = (value: unknown): value is { recorded: boolean } =>
   typeof value === 'object' && value !== null && Object.keys(value).length === 1 && typeof (value as { recorded?: unknown }).recorded === 'boolean';
 
@@ -169,7 +181,10 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     if (registry !== null) return registry(kind, type, payload);
     // A page command may come before the registry is loaded (the tab shows no chat yet): it is kept as it came
     // and checked against its schema once the application — and the registry with it — is in (below).
-    if (kind === 'evt' && (type === 'tab.command' || type === 'greet.start')) return { ok: true, payload };
+    if (kind === 'evt' && (type === 'tab.command' || type === 'greet.start' || type === 'report.find' || type === 'report.statement')) return { ok: true, payload };
+    // The pulse's board for the launcher's fifth row (hub package R): its light form is checked here, as the ack's.
+    if (type === 'report.changed' && kind === 'evt') return reportOf(payload) === undefined ? { ok: false } : { ok: true, payload };
+    if (type === 'report.state' && kind === 'res') return reportOf(payload) === undefined ? { ok: false } : { ok: true, payload };
     if (kind !== 'res') return { ok: false };
     if (type === 'tab.register') {
       const parsed = TabRegisterResponseSchema.safeParse(payload);
@@ -200,8 +215,25 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     // The extension was reloaded or updated under the tab: this instance is done (UP-009).
     if (state === 'reloaded' || !isExtensionContextAlive(env.api)) probe?.set('runtime', 'reloaded');
     // A new tab session: the background knows nothing of this tab yet — its chat, its focus, its accounts.
-    if (state === 'ready') reportPresence(true);
+    if (state === 'ready') {
+      reportPresence(true);
+      askReport();
+    }
   });
+  // ── the launcher's fifth row «Отчёт» (hub package R): the pulse's board, asked once a session and then said ──
+  const takeReport = (payload: unknown): void => {
+    const report = reportOf(payload);
+    if (report !== undefined && !life.aborted) host.launcher?.setReport(report);
+  };
+  function askReport(): void {
+    if (host.launcher === undefined) return;
+    void (rpc.request as (type: string, payload: unknown) => Promise<{ readonly ok: boolean; readonly payload?: unknown }>)('report.state', {}).then(
+      (answer) => answer.ok && takeReport(answer.payload),
+      () => undefined,
+    );
+  }
+  const offReport = (rpc.onEvent as unknown as (type: string, listener: (payload: unknown) => void) => () => void)('report.changed', takeReport);
+  life.addEventListener('abort', offReport);
 
   // ── presence (sound, «AI готово», the accounts this browser saw) ───────────
   let presenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -412,6 +444,22 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   };
   const offGreet = rpc.onEvent('greet.start', startGreet);
   life.addEventListener('abort', offGreet);
+  // 2026-11-15 (hub package R): «show on the site» of a tab of another page, handed to this tab by the background.
+  const offFind = (rpc.onEvent as unknown as (type: string, listener: (payload: unknown) => void) => () => void)('report.find', (raw) => {
+    if (life.aborted) return;
+    ensureApp().then(
+      (ready) => {
+        if (life.aborted) return;
+        const checked = registry?.('evt', 'report.find', raw) ?? { ok: false as const };
+        if (checked.ok) ready.reportFind(checked.payload as Parameters<TabApp['reportFind']>[0]);
+      },
+      (error: unknown) => {
+        app = null;
+        if (!life.aborted) probe?.set('appError', String(error));
+      },
+    );
+  });
+  life.addEventListener('abort', offFind);
   // The stand's own hand-over of a Hi (test builds on the stand only, probe.ts GREET_START_ATTRIBUTE).
   const offStandGreet = probe?.onGreetStart(startGreet) ?? (() => undefined);
   life.addEventListener('abort', offStandGreet);

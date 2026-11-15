@@ -40,6 +40,11 @@ export interface ChatSpaceFeedPollDeps {
   readonly random: () => number;
   readonly setTimer: (ms: number, fn: () => void) => unknown;
   readonly clearTimer: (handle: unknown) => void;
+  /**
+   * 2026-11-15 (hub package R): the board «Отчёт» asks these accounts' statements read again now. Each is asked of the
+   * hub at once instead of at its time (a poll running goes on); whether it is this tab's to read stays the hub's word.
+   */
+  readonly onSoon?: (listener: (hostAccountIds: readonly string[]) => void) => () => void;
 }
 
 interface AccountPoll {
@@ -120,9 +125,18 @@ export function startChatSpaceFeedPoll(deps: ChatSpaceFeedPollDeps): () => void 
     timer = deps.setTimer(FEED_POLL_TICK_MS, tick);
   };
   timer = deps.setTimer(FEED_POLL_PAGE_GAP_MS, tick);
+  const offSoon = deps.onSoon?.((hostAccountIds) => {
+    for (const account of deps.accounts()) {
+      if (!hostAccountIds.includes(account.hostAccountId)) continue;
+      const state = polls.get(account.hostAccountId);
+      if (state !== undefined && !state.running) state.nextAt = 0;
+      void maybePoll(account).catch(() => undefined);
+    }
+  });
 
   return () => {
     stopped = true;
+    offSoon?.();
     if (timer !== null) deps.clearTimer(timer);
   };
 }

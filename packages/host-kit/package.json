@@ -16,6 +16,8 @@
     "./isolated/keyboard": "./src/isolated/keyboard.ts",
     "./isolated/launcher": "./src/isolated/launcher.ts",
     "./isolated/launcher-view": "./src/isolated/launcher-view.ts",
+    "./isolated/frame-host": "./src/isolated/frame-host.ts",
+    "./isolated/row-finder": "./src/isolated/row-finder.ts",
     "./isolated/photos": "./src/isolated/photos.ts",
     "./isolated/report": "./src/isolated/report.ts",
     "./isolated/shadow-registry": "./src/isolated/shadow-registry.ts",

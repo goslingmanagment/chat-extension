@@ -16,6 +16,13 @@ import { CountSchema, HubIntIdSchema, IsoTimestampSchema } from '../primitives';
 export const SHIFT_REPORT_MISSING_KIND = 'shift.report.missing';
 /** Workboard's paths: the only links of a matter the popup opens (the one-time link takes a path of the team's place). */
 export const WORKBOARD_PATH_PREFIX = '/workboard/';
+/**
+ * The board «Отчёт» (hub package R, 2026-11-15): the person's own shift that needs them most. «Сдать смену» opens it
+ * instead of the matter's own link; Workboard redirects the old shift screens to it.
+ */
+export const WORKBOARD_REPORT_PATH = '/workboard/report';
+/** The popup's «Workboard» (2026-11-15): the person's day in Workboard; until Hub has it, its app's home answers. */
+export const WORKBOARD_TODAY_PATH = '/workboard/today';
 
 export const ClientMattersSchema = z.object({
   count: CountSchema,

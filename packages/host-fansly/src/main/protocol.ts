@@ -41,6 +41,13 @@ export const EVT_VAULT_UPLOAD = 'fx.vaultUpload';
 export const VAULT_UPLOAD_ALIVE_MS = 30_000;
 /** Uploads MAIN remembers the last word of (its own throttle, not the page's state): the oldest goes first. */
 export const VAULT_UPLOADS_KEPT = 500;
+/**
+ * 2026-11-15 (hub package R): rows of the creator's wallet list the page itself loaded (`GET …/account/wallets/earnings/
+ * transactions`, Wallet history): the board's «нет в Hub» sightings. Never a request of ours.
+ */
+export const EVT_WALLET = 'fx.wallet';
+/** Rows one wallet event carries at most (the site's own page is 30). */
+export const WALLET_ROWS_MAX = 100;
 /** Who has the last word in a chat (2026-10-29): the mark of the list of chats. */
 export const EVT_LAST_WORD = 'fx.lastWord';
 /** 2026-11-13: what the page's answers say of its filter chips (filters.ts), a state said again after `fx.state`. */

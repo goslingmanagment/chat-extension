@@ -12,6 +12,7 @@
     "./fan-marks-fansly": "./src/fan-marks-fansly.ts",
     "./deleted-fansly": "./src/deleted-fansly.ts",
     "./chat-length": "./src/chat-length.ts",
+    "./report-board": "./src/report-board.ts",
     "./notes": "./src/notes.ts",
     "./notes-fill": "./src/notes-fill.ts",
     "./fan-badges": "./src/fan-badges.ts",

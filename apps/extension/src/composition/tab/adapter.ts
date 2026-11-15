@@ -27,6 +27,7 @@
 // are the shared machinery of our closed hosts (host-kit, P5); the tab reads
 // them through the structural types below, so it imports no site package.
 
+import type { ReportSale } from '@cg/contracts/report-board';
 import type { CgCode } from '@cg/contracts/errors';
 import type { Tone } from '@cg/contracts/features';
 import type { FeatureSlice } from '@cg/contracts/features/types';
@@ -138,6 +139,11 @@ export interface StartedHost<P extends HostPort = HostPort> {
    * `/creator/vault`): while it holds, the application is loaded as for the dock's place. Absent — the dock's alone.
    */
   readonly wantsApp?: { current(): boolean; onChange(listener: () => void): () => void };
+  /**
+   * The site's launcher, as far as the early runtime feeds it: the fifth row «Отчёт» from the pulse (hub package R).
+   * Absent — the site has no launcher (Telegram, the e2e harness).
+   */
+  readonly launcher?: { setReport(report: { readonly needsMe: boolean } | null): void };
 }
 
 /** The route by the address alone (§9.1): `epoch` is the path, so a kept key runs only where it was pressed. */
@@ -211,6 +217,14 @@ export interface SiteAppEnv<P extends HostPort = HostPort> {
    * registered, the key runs it instead of the shared runner. The answer unregisters it.
    */
   readonly keys: { handle(command: DispatcherCommandId, run: () => void): () => void };
+  /** 2026-11-15 (hub package R): Workboard's screens over the site; the launcher's «Отчёт» opens the board. */
+  readonly frames?: {
+    open(screen: 'report'): void;
+    /** Said when the board's bar comes or goes (the site moves what it covers). */
+    onBar(listener: (shown: boolean) => void): () => void;
+    /** The bar's left edge, px (ChatSpace: right of its account rail). */
+    inset(left: number): void;
+  };
   /**
    * The chatter's log (2026-10-21, tab/journal.ts): a site's own surface (Fansly's notes, its vault) writes its
    * decisions with `watch` — what is off and why, on change only — and the person's clicks on it with `action`
@@ -287,4 +301,14 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * mount into our layers, load their chunks of the site's build and stop with the answer. Absent — none (ChatSpace).
    */
   start?(env: SiteAppEnv<P>): () => void;
+  /**
+   * 2026-11-15 (hub package R): «show on the site» — the sale's row on this page (Fansly's Wallet history, ChatSpace's
+   * transactions window), opened without a reload where the site allows it; null — not found (never a similar row).
+   * Absent — the site has none (Telegram).
+   */
+  readonly findSale?: (win: Window, sale: ReportSale) => Promise<Element | null>;
+  /** How the site's own list shows a sale (its words of each kind, the number printed or not): the bar's compare line. */
+  readonly saleLook?: { readonly words: Readonly<Record<string, string>>; readonly number: boolean };
+  /** Whether the page shows the site's own list of sales now: the only place the board's bar stands. Absent — nowhere. */
+  readonly saleScreen?: (win: Window) => boolean;
 }

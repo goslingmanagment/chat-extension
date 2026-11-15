@@ -385,6 +385,12 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
       { groupId: Number(group), word: 'fan' },
     ],
   },
+  'fx.wallet': {
+    // The site's own Wallet history page: a tip and a subscription, one without the other account's name.
+    valid: [{ rows: [{ platformRef: '700000000000000401', kind: '7101', occurredAt: '2026-11-12T19:30:00.000Z', netMills: 8000, grossMills: null, fanRef: '700000000000000402', fanName: 'Viggo' }, { platformRef: '700000000000000403', kind: '15001', occurredAt: '2026-11-12T19:31:00.000Z', netMills: 4000, grossMills: null, fanRef: null, fanName: null }] }],
+    // No rows; a row without its own id; an amount that is no integer.
+    invalid: [{ rows: [] }, { rows: [{ kind: '7101', occurredAt: 'x', netMills: 1, grossMills: null, fanRef: null, fanName: null }] }, { rows: [{ platformRef: '700000000000000401', kind: '7101', occurredAt: 'x', netMills: 1.5, grossMills: null, fanRef: null, fanName: null }] }],
+  },
   'fx.filters': {
     valid: [
       { tiers: null, lists: null, unread: null },

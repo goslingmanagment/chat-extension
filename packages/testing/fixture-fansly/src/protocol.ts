@@ -265,3 +265,48 @@ export interface FanslyStandControl {
   modals(): string[];
   journal(since?: number): FanslyPageJournalEntry[];
 }
+
+// ── Wallet history (hub package R, 2026-11-15; wallet.ts) ──
+// Invented rows at fixed moments: the page shows them (wallet.ts), the fake Fansly answers them, and the fake hub's
+// board stub names the same sales (src/fake-hub/report-board.ts). Here, so the fake hub — part of the AMO sources
+// archive — reads them from a file the archive keeps.
+
+/** One row of the stand's wallet, as the API answers it. */
+export interface StandWalletRow {
+  readonly transactionId: string;
+  readonly type: number;
+  /** Mills after the fee, as Fansly prints them. */
+  readonly amount: number;
+  readonly createdAt: number;
+  readonly fanId: string;
+  readonly fanName: string;
+  readonly fanHandle: string;
+}
+
+export const STAND_WALLET_FANS: readonly (readonly [string, string, string])[] = [
+  ['930000000000000101', 'Viggo', 'viggo_nord'],
+  ['930000000000000102', 'Harlan/Texas', 'harlan_tx'],
+  ['930000000000000103', 'mossrain', 'mossrain'],
+  ['930000000000000104', 'Juno/Oslo', 'juno_oslo'],
+  ['930000000000000105', 'Rowan/Canada', 'rowan_k'],
+  ['930000000000000106', 'Felix B.', 'felix_b'],
+  ['930000000000000107', 'Dario/Milan', 'dario_mi'],
+];
+const TYPES = [2110, 7101, 15001, 2110, 7101] as const;
+const AMOUNTS = [48000, 24000, 8000, 30000, 16000, 12000, 4000] as const;
+/** The newest row: 12 Nov 2026, 22:30 UTC; then one every 23 minutes back. */
+const NEWEST = Date.UTC(2026, 10, 12, 22, 30);
+
+/** 25 rows, newest first (three pages of the site's pager). */
+export const STAND_WALLET: readonly StandWalletRow[] = Array.from({ length: 25 }, (_, index) => {
+  const fan = STAND_WALLET_FANS[index % STAND_WALLET_FANS.length] ?? STAND_WALLET_FANS[0];
+  return {
+    transactionId: String(981337562090745305n - BigInt(index) * 131_072n),
+    type: TYPES[index % TYPES.length] ?? 7101,
+    amount: AMOUNTS[index % AMOUNTS.length] ?? 8000,
+    createdAt: NEWEST - index * 23 * 60_000,
+    fanId: fan?.[0] ?? '',
+    fanName: fan?.[1] ?? '',
+    fanHandle: fan?.[2] ?? '',
+  };
+});
