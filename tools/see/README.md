@@ -69,7 +69,8 @@ the hub's rows of Spenders: a found row and a row of «Ждут ответа» e
 place, «+ Метка», «✨ Дополнить из чата» with the Goose's suggestions in their rows, the fan's words on hover, one ✓
 and its «Отменить», one put aside, «Принять все», a quick note; on the stand also a long note and an edit after
 someone else's change), `fansly-notes-new` (a fan without a questionnaire: the card with «✨ Заполнить из чата»,
-«Заполнить вручную», the suggestions as faint rows in the centre and the side panel, «Принять все» creates one),
+«Заполнить вручную», the suggestions as faint rows in the centre and the side panel, «Принять все» creates one and its
+«Имя» becomes the fan's name for oneself in the head),
 `fansly-authors` (who wrote each of the model's messages, before its time: two colleagues' runs from the fake hub's
 record, one with a message nobody is known for, the chatter's own send named a moment later, a click on the time (the name on the «Sent» line) and another chat and back; the showcase world),
 `fansly-inbox` (who waits for a reply in Fansly's own list of chats: the dot on the avatar of a fan who wrote last,

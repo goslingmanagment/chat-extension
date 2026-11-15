@@ -94,8 +94,9 @@ export interface NotesPlace {
   readonly flush?: boolean;
 }
 
-/** The name for oneself (12002): `saving` — a write in flight; `unconfirmed` — it may have landed (read again). */
-export type NotesNameStatus = 'idle' | 'saving' | 'saved' | 'error' | 'unconfirmed' | 'too-long';
+/** The name for oneself (12002): `saving` — a write in flight; `unconfirmed` — it may have landed (read again);
+ * `pulled` (2026-11-16) — a write of the questionnaire just made its «Имя» the name of a fan who had none. */
+export type NotesNameStatus = 'idle' | 'saving' | 'saved' | 'pulled' | 'error' | 'unconfirmed' | 'too-long';
 
 /** Why a write did not land. `failed.created` — a create that may have landed: no second one before a reread. */
 export type NotesProblem =

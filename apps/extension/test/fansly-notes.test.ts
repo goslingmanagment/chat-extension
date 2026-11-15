@@ -140,7 +140,8 @@ describe('[host:fansly] who wrote each note: every write Fansly confirmed, told 
 /** Two tabs with separate caches over the same background and Fansly account. */
 function twoTabs() {
   const w = world();
-  const stored = [structuredClone(account.notes[0]!)];
+  // The fan has a name for oneself: a questionnaire written here never adds a name write of its own (2026-11-16).
+  const stored = [structuredClone(account.notes[0]!), structuredClone(account.notes[1]!)];
   w.prepare.mockImplementation((raw: unknown) => {
     const call = raw as { route: string; body?: (typeof stored)[number] };
     return Promise.resolve({ cancel: w.cancel, start: vi.fn((): Promise<{ status: number; response: unknown }> => {
