@@ -11,7 +11,11 @@ People and sign-in, sales and whose a sale is, shifts and shift reports, custom 
 in the hub; accounting in the ledger; files in ContentOps. Words, money and date formats come from the vendored
 `@hub/look`, never a local copy. A new thing a chatter does gets its door in the hub first and a narrow-token route
 (`HUB_ROUTES`, `narrowToken: true`), never a local store of its own: the extension shows and asks, the hub keeps.
-The one map of the system is `~/code/SYSTEM.md` on the owner's machine.
+What a chatter does outside the conversation is a Workboard screen (`https://chatgoose.gosling-agency.ru/workboard/`):
+the fifth button «Отчёт» (Fansly's corner card, ChatSpace's icons; since 3.30.1, shown only to a person whose «Сдаёт
+смену доской» is on) opens Workboard's board over the site in a frame (`/workboard/frame/report`); other Workboard
+screens open in a tab by a one-time link, no password. The one map of the system is `~/code/SYSTEM.md` on the owner's
+machine.
 
 ## Layout
 
