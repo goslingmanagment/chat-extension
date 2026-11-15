@@ -24,6 +24,7 @@ import {
   type Violation,
 } from './checks.ts';
 import { notesViolations } from './notes.ts';
+import { vendorPinViolations } from './vendor.ts';
 import { checkBuildData, checkSiteLiterals, checkSiteMarkers, deriveSiteMarkers, SITE_LITERAL_DEBT, SITES } from './sites.ts';
 
 const sources = readSources();
@@ -31,6 +32,10 @@ const violations: Violation[] = [...runSourceGates(sources)];
 
 // The notes of changes parse; a PR keeps the rules of notes and versions (notes.ts).
 violations.push(...notesViolations());
+
+// The vendored SDK and hotkeys are the pinned ones (vendor.ts): the release gate reads the same pins.
+const vendorJson = (path: string): Record<string, unknown> => JSON.parse(readFileSync(`${REPO_ROOT}${path}`, 'utf8')) as Record<string, unknown>;
+violations.push(...vendorPinViolations({ sdk: vendorJson('vendor/kernel-sdk/kernel-sdk.vendor.json'), hotkeys: vendorJson('vendor/chatgoose-hotkeys/chatgoose-hotkeys.vendor.json'), pins: vendorJson('tests/vendor-pins.json') }));
 
 // Site literals: shared code names no site, but for the debt list.
 violations.push(...checkSiteLiterals(sources, SITE_LITERAL_DEBT));
@@ -88,7 +93,7 @@ for (const violation of violations) {
 if (violations.length > 0) fail(`gates: ${violations.length} violation(s).`);
 const debt = SITE_LITERAL_DEBT.length === 0 ? 'none left' : `${SITE_LITERAL_DEBT.reduce((sum, entry) => sum + entry.count, 0)} left in ${SITE_LITERAL_DEBT.length} debt entries`;
 console.log(
-  `gates: HTML sinks, browser.* scope, send-queue scope, stand-only hooks, MAIN-world guards, fetch only in the hub, fansly-api and the relay (${FETCH_EXCEPTIONS.length} counted exceptions), Fansly's addresses under its API, no /message/ack, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab — all clean.`,
+  `gates: HTML sinks, browser.* scope, send-queue scope, stand-only hooks, MAIN-world guards, fetch only in the hub, fansly-api and the relay (${FETCH_EXCEPTIONS.length} counted exceptions), Fansly's addresses under its API, no /message/ack, release manifest and bundle, SDK custody (${sdkMarkers.length} SDK markers), MAIN-world bundles (no console, debugger or WXT wrapper), the isolated start without WXT's context, no storage listener in the tab, the vendored packages as pinned — all clean.`,
 );
 console.log(
   `gates: the two sites — site literals (${debt}), no Fansly data in ChatSpace's files (${fanslyMarkers.length} markers), no build field in a bundle — all clean.`,
