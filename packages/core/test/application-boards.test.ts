@@ -2014,7 +2014,8 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
       fanRef: '5000',
       card: card([
         custom(1, 'paid', { stepLabel: 'Снят', orderState: 'shot', deadlineOn: today, overdueDays: null, leader: { name: 'Mira', product: 'workboard' }, mayGive: true }),
-        custom(2, 'paid', { stepLabel: 'У модели', orderState: 'at_model', deadlineOn: '2020-01-01', overdueDays: 3, leader: { name: 'Lora', product: 'contentops' }, mayGive: false }),
+        // Hub lets «Отдан» from any open state; the panel offers it only at «Снят», as Workboard does (round 2, N7).
+        custom(2, 'paid', { stepLabel: 'У модели', orderState: 'at_model', deadlineOn: '2020-01-01', overdueDays: 3, leader: { name: 'Lora', product: 'contentops' }, mayGive: true }),
         // An older hub: no code, no step — the four states' words, nothing to press.
         { ...custom(3, 'ordered', {}), code: undefined, stepAt: undefined },
       ]),
@@ -2034,8 +2035,21 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
     expect(customs.items[1]?.deadline?.text).toContain('просрочен на 3');
     expect(customs.record).toEqual({ record: { type: 'RecordFanCustom', fanRef: '5000' }, ask: { type: 'AskAboutFan', fanRef: '5000' } });
 
-    // «Отдан»: Workboard's own step, then the card as it stands.
+    // «Отдан» asks once first (a step with no way back): nothing goes to Hub; «Нет» takes the question away.
+    expect(customs.items[0]?.giveAsk).toBeNull();
     await h.dispatch(customs.items[0]!.give!);
+    await h.flush();
+    customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
+    expect(customs.items[0]?.giveAsk).not.toBeNull();
+    expect(h.hub.read().entries.filter((entry) => entry.route === 'customOrderAct')).toEqual([]);
+    await h.dispatch(customs.items[0]!.giveAsk!.no);
+    await h.flush();
+    customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
+    expect(customs.items[0]?.giveAsk).toBeNull();
+    // Asked again and answered: Workboard's own step, then the card as it stands.
+    await h.dispatch(customs.items[0]!.give!);
+    await h.flush();
+    await h.dispatch(h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!.items[0]!.giveAsk!.yes);
     await h.flush();
     customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
     expect([customs.items.find((item) => item.code === 'K-1')?.step?.label, customs.items.find((item) => item.code === 'K-1')?.give]).toEqual(['Отдан', null]);

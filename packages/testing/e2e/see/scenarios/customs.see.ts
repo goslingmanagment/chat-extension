@@ -1,6 +1,7 @@
 // «Кастомы» of the fan panel as Workboard's (products package R5), on ChatSpace and Fansly: in «Память» the open orders
 // first, each with its code, its step in Workboard's words, who has it now and the deadline (red when it passed); «Отдан»
-// only on the order the board lets this person give; «В Workboard ↗» opens the order's card in a new tab by the one-time
+// only on a shot order («Снят») the board lets this person give, asked once first (no way back; Hub lets every open
+// order be given, the panel does as Workboard's card does); «В Workboard ↗» opens the order's card in a new tab by the one-time
 // link. «Записать кастом» opens Workboard's own form over the site with the page and the fan filled in — what it records
 // shows in the panel at once; «Спросить» opens Workboard's question window the same way. On the stand the windows are
 // the fake hub's stub of Workboard's (fake-hub/workboard-forms.ts) speaking the same frame protocol; ChatSpace also shows
@@ -47,8 +48,8 @@ function order(pageLabel: string, id: number, description: string, priceMills: n
 function customsOf(pageLabel: string) {
   return [
     order(pageLabel, 13, 'Фото в душе, 8 штук', 45_000, { label: 'Снят', state: 'shot', hours: 5, deadline: day(1), leader: { name: 'Nikita', product: 'workboard' }, mayGive: true }),
-    order(pageLabel, 11, 'Видео 5 минут в красном белье, с его именем', 120_000, { label: 'У модели', state: 'at_model', hours: 46, deadline: day(-2), overdue: 2, leader: { name: 'Lora', product: 'contentops' } }),
-    order(pageLabel, 12, 'Фотосет в очках, 10 фото', 60_000, { label: 'Записан', state: 'recorded', hours: 22, deadline: day(4), leader: null }),
+    order(pageLabel, 11, 'Видео 5 минут в красном белье, с его именем', 120_000, { label: 'У модели', state: 'at_model', hours: 46, deadline: day(-2), overdue: 2, leader: { name: 'Lora', product: 'contentops' }, mayGive: true }),
+    order(pageLabel, 12, 'Фотосет в очках, 10 фото', 60_000, { label: 'Записан', state: 'recorded', hours: 22, deadline: day(4), leader: null, mayGive: true }),
     order(pageLabel, 10, 'Голосовое с днём рождения', 30_000, { label: 'Отдан', state: 'given', hours: 380, deadline: null, leader: null, given: true }),
   ];
 }
@@ -135,8 +136,11 @@ scenario(
     await s.see('panel', 'Видео 3 минуты, в чёрном', 20_000);
     await s.shot('custom-recorded');
 
-    // «Отдан»: Workboard's own step, only where the board lets.
+    // «Отдан»: only on the shot order, asked once first; then Workboard's own step.
     await s.press(/^Отдан$/, 'panel');
+    await s.see('panel', 'Это шаг без возврата', 10_000);
+    await s.shot('custom-give-ask');
+    await s.press(/^Отдать$/, 'panel');
     await s.wait(1500);
     await s.shot('custom-given');
 

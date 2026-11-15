@@ -282,6 +282,8 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
 
   /** Workboard's window of this panel is up or on its way (`openForm`). */
   let formOpen = false;
+  /** The order whose «Отдан» is asked about now (round 2, N7); another chat forgets it. */
+  let givingAsked: number | null = null;
 
   /**
    * Workboard's form or question window for the open chat's fan (package R5): its page and the fan filled in; what the
@@ -344,7 +346,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       return { ...nothing, view: loadingView(memory?.since ?? null), error: null };
     }
     const card = memory.card;
-    const model = memoryModel({ card, busy: memory.busy, openOf: (pageLabel) => openOf(card, pageLabel), customs: customsServed(), forms: deps.workboard !== undefined });
+    const model = memoryModel({ card, busy: memory.busy, openOf: (pageLabel) => openOf(card, pageLabel), customs: customsServed(), forms: deps.workboard !== undefined, asking: givingAsked });
     // A fan Hub holds nothing about yet: said once, not as three «не знаю».
     const view: VmView = !card.known ? { s: 'empty', why: msg('fanPanel.memory.nobody') } : memory.error !== null ? failureView(memory.error, i18n, retry, memory.loadedAt) : dataView(memory.loading ? [{ kind: 'stale-cache', asOf: new Date(memory.loadedAt ?? clock.now()).toISOString() }] : []);
     return { ...model, view, error };
@@ -473,9 +475,22 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     // Products package R5: «Записать кастом» and «Спросить» — Workboard's own windows over the site; «Отдан» —
     // Workboard's own step; the order's card in Workboard.
     if (action.type === 'RecordFanCustom' || action.type === 'AskAboutFan') return openForm(action.type, action.fanRef);
+    // «Отдан» has no way back (round 2, N7): the first click asks, «Отдать» takes Workboard's step, «Нет» forgets it.
     if (action.type === 'GiveFanCustom') {
-      const { customId, code } = action;
       if (!customsServed()) return Promise.resolve(done(action.type, 'noop'));
+      givingAsked = action.customId;
+      changed();
+      return Promise.resolve(done(action.type));
+    }
+    if (action.type === 'CancelGiveFanCustom') {
+      if (givingAsked === action.customId) givingAsked = null;
+      changed();
+      return Promise.resolve(done(action.type));
+    }
+    if (action.type === 'ConfirmGiveFanCustom') {
+      const { customId, code } = action;
+      if (!customsServed() || givingAsked !== customId) return Promise.resolve(done(action.type, 'noop'));
+      givingAsked = null;
       return changeMemory(action.type, `custom:${String(customId)}`, (pageId, fanRef) => rpc.request('fan.memory.give', { pageId, fanRef, code }));
     }
     if (action.type === 'OpenWorkboardCustom') {
@@ -502,6 +517,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       if (state.epoch !== epoch) {
         epoch = state.epoch;
         cards = new Map();
+        givingAsked = null;
         queue.reset();
       }
       changed();
