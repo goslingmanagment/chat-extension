@@ -474,7 +474,7 @@ export class FakePageBackground implements PageRpc {
       case 'fan.memory':
       case 'fan.memory.link':
       case 'fan.memory.fact':
-      case 'fan.memory.custom':
+      case 'fan.memory.give':
       case 'queue.handoff':
       case 'online.list':
       case 'online.presence':
@@ -515,6 +515,7 @@ export class FakePageBackground implements PageRpc {
       case 'report.find':
       case 'report.statement':
       case 'report.sightings':
+      case 'workboard.open':
         return refuse('CG-UNKNOWN', `${type} is not scripted`);
     }
   }

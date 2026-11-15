@@ -116,6 +116,8 @@ export const AGENT_CAPABILITIES = [
      * the owner, never a Hub session token — and re-checks that sign-in later
      * (`authSsoRedeem`, `authSsoCheck`; ecosystem plan §3.2). Reads nothing of a
      * page: the key's page grant does not widen it. SIGNIN_CLIENT_CAPABILITIES.
+     * ContentOps' answers also carry the person in the registry, and it reads
+     * what waits for a person it signed in (`authSsoWaiting`, products plan §4.1).
      */
     "signin:contentops",
     "signin:taskindex",
@@ -159,6 +161,14 @@ export const AGENT_CAPABILITIES = [
      * the message it was said in. Gengar's /smena. Never another person's money.
      */
     "write:shift_reports",
+    /**
+     * The «Отчёт» board's check after the hand-in (products plan 2026-11-13,
+     * package R): read the candidates waiting for a check on the key's pages and
+     * answer «замечаний нет» or proposals (whose a sale is, a note), each with
+     * why and the messages read. A proposal is a card the person accepts or
+     * declines; it is never the person's own word. Never confirms a report.
+     */
+    "review:shift_reports",
 ];
 const AGENT_CAPABILITY_SET = new Set(AGENT_CAPABILITIES);
 /**

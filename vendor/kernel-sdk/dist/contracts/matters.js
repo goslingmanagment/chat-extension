@@ -8,7 +8,7 @@
  */
 import { z } from "zod";
 import { intId, isoTimestamp } from "./primitives";
-import { WAITING_GROUP_IDS, WAITING_TONES } from "./waiting-groups";
+import { WAITING_GROUP_IDS, WAITING_PRODUCT_IDS, WAITING_TONES } from "./waiting-groups";
 /** Dotted words: `send.held`, `shift.report.missing`. */
 export const MATTER_KIND_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
 export const matterKindSchema = z.string().max(64).regex(MATTER_KIND_PATTERN);
@@ -33,8 +33,6 @@ export const MATTER_MIRROR_KINDS = [
     "ledger.report_post",
     /** A paid day whose report changed since (the ledger's pending change). */
     "ledger.paid_day_changed",
-    /** A custom the fan paid for and nobody delivered yet. */
-    "custom.paid_not_delivered",
     /** A send of the chat extension whose outcome nobody reported. */
     "send.held",
     /** A Fansly page whose browser or login needs the owner. */
@@ -46,14 +44,13 @@ export const MATTER_MIRROR_KINDS = [
     /** An OnlyFans history request that waits for the owner's approval. */
     "history.request",
 ];
-/** Whom a mirrored kind waits for: the owner's role, or the team lead's (customs paid and not given, held sends). */
+/** Whom a mirrored kind waits for: the owner's role, or the team lead's (held sends). */
 export const MATTER_MIRROR_KIND_ROLES = {
     "publication.draft": "owner",
     "publication.unknown": "owner",
     "ledger.sale_question": "owner",
     "ledger.report_post": "owner",
     "ledger.paid_day_changed": "owner",
-    "custom.paid_not_delivered": "team_lead",
     "send.held": "team_lead",
     "page.login_needed": "owner",
     "incident.open": "owner",
@@ -90,7 +87,13 @@ export function isMatterServerKind(kind) {
  * after the ledger paid its day (the owner's). Kept apart from MATTER_SERVER_KINDS: «Состояние» closes every open
  * matter of those that its own pass did not find.
  */
-export const SHIFT_REPORT_MATTER_KINDS = ["shift.report.missing", "shift.reports.missing", "shift.report.after_paid"];
+export const SHIFT_REPORT_MATTER_KINDS = [
+    "shift.report.missing", "shift.reports.missing", "shift.report.after_paid",
+    // The «Отчёт» board (package R): the person's «Подтвердите отчёт», «Генгар дочитал: N правок» (shift-report-board.ts).
+    "shift.report.confirm", "shift.report.late_proposals",
+    // A sighting not in Hub for 48 hours (the decider's), the post changed after it was copied, the shift cancelled.
+    "shift.report.sighting_unmatched", "shift.report.post_changed", "shift.report.shift_cancelled",
+];
 const SHIFT_REPORT_KIND_SET = new Set(SHIFT_REPORT_MATTER_KINDS);
 export function isShiftReportMatterKind(kind) {
     return SHIFT_REPORT_KIND_SET.has(kind);
@@ -180,13 +183,16 @@ export const mattersListResponseSchema = z.object({
 /** «Ждут вас» is never cut by page: no parameters. */
 export const mattersWaitingQuerySchema = z.object({}).strict();
 export const mattersWaitingResponseSchema = z.object({
-    /** The owner's switch (`mattersReadEnabled`): the screens read this answer instead of their own sources. */
-    active: z.boolean(),
+    /**
+     * Always true, and no code of ours reads it any more: a bundle loaded in a browser tab before the owner's switch was
+     * removed reads it, and without it such a tab falls back to queues that no longer have their routes.
+     */
+    active: z.literal(true),
     /**
      * «Ждут вас» by the list's groups (waiting-groups.ts, the one table) — for every role, in both apps: a group per
      * kind the viewer's own open matters fall in, in the list's order, never «Для сведения»; the console Home's chips. A
-     * group's count is the list's (one per matter; the custom orders' count where they are customs' home); `checked:
-     * false` — a source of the group did not answer lately.
+     * group's count is the list's (one per matter; in «Кастомы» the custom orders' count too); `checked: false` — a
+     * source of the group did not answer lately.
      */
     groups: z.array(z.object({
         id: z.enum(WAITING_GROUP_IDS),
@@ -196,6 +202,21 @@ export const mattersWaitingResponseSchema = z.object({
         /** The worst tone of its matters (`bad` broken, `warn` outcome unknown or not checked; waiting-groups.ts); null — none. */
         tone: z.enum(WAITING_TONES).nullable(),
         to: z.string(),
+        /** The product its matters are decided in (waiting-groups.ts). */
+        product: z.enum(WAITING_PRODUCT_IDS),
+    })),
+    /**
+     * The same by product (Hub · Workboard · ContentOps; the Home's tiles, Workboard's number): a product the viewer has
+     * a group in, its count the sum of its groups' and the matter that waits longest (since its reason began,
+     * `waitingSinceOf`); `oldest` null when only the custom orders' count or an unchecked source stands for it.
+     */
+    products: z.array(z.object({
+        id: z.enum(WAITING_PRODUCT_IDS),
+        title: z.string(),
+        count: z.number().int().nonnegative(),
+        checked: z.boolean(),
+        tone: z.enum(WAITING_TONES).nullable(),
+        oldest: z.object({ title: z.string(), since: isoTimestamp, link: z.string().nullable() }).nullable(),
     })),
     /** The menu's number, the list's: the sum of `groups`. */
     total: z.number().int().nonnegative(),
@@ -203,7 +224,7 @@ export const mattersWaitingResponseSchema = z.object({
     failed: z.array(z.enum(WAITING_GROUP_IDS)),
     /**
      * Of «Кастомы»'s count, the custom orders paid or shot and not given that wait for the viewer (no matter stands
-     * for them: the list draws them as one line to the board); 0 — none, not read, or the orders are not customs' home.
+     * for them: the list draws them as one line to the board); 0 — none, or not read.
      */
     customOrders: z.number().int().nonnegative(),
     serverNow: isoTimestamp,

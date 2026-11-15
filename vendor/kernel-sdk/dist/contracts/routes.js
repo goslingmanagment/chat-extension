@@ -10,6 +10,7 @@ import { ofapiCollectionRouteSchemas } from "./routes-ofapi-collection";
 import { ofLinksRouteSchemas } from "./routes-of-links";
 import { pageBrowserRouteSchemas } from "./routes-page-browser";
 import { publicationRouteSchemas } from "./routes-publications";
+import { agentPublicationTargetsResponseSchema, personPublicationApproveResponseSchema, personPublicationDetailSchema, personPublicationListResponseSchema, personPublicationSettingsListResponseSchema, personPublicationWithdrawResponseSchema, publicationApproveBodySchema, publicationListQuerySchema, publicationQueueListResponseSchema, publicationQueueRefreshResponseSchema, publicationResolveBodySchema, publicationResolveResponseSchema, publicationSchema, publicationSettingsSchema, publicationSettingsUpdateBodySchema, } from "./publications";
 import { mediaLookRouteSchemas } from "./routes-media-looks";
 import { agentDoorRouteSchemas } from "./agent-doors";
 import { agentTeamRouteSchemas } from "./agent-team";
@@ -27,11 +28,18 @@ import { matterRouteSchemas } from "./routes-matters";
 import { agentReportRouteSchemas } from "./routes-agent-reports";
 import { accountPayRouteSchemas } from "./routes-account-pay";
 import { customOrderRouteSchemas } from "./routes-custom-orders";
+import { agentCustomOrderResponseSchema, agentCustomOrdersResponseSchema, customOrderCodeSchema } from "./custom-orders";
 import { accountReportsRouteSchemas } from "./routes-account-reports";
 import { peopleRouteSchemas } from "./routes-people";
+import { teamRouteSchemas } from "./routes-teams";
+import { workboardTodayRouteSchemas } from "./routes-workboard-today";
+import { teamQuestionRouteSchemas } from "./routes-team-questions";
+import { learnRouteSchemas } from "./routes-learn";
+import { fanRouteSchemas } from "./routes-fans";
 import { shiftHandinRouteSchemas } from "./routes-shift-handins";
 import { saleClaimRouteSchemas } from "./routes-sale-claims";
 import { saleChainRouteSchemas } from "./routes-sale-chain";
+import { shiftReportNoteRouteSchemas } from "./routes-shift-report-notes";
 import { erasureRouteSchemas } from "./routes-erasures";
 import { saleDecisionRouteSchemas } from "./routes-sale-decisions";
 // One sign-in across the names Hub serves: the one-time code between names (ecosystem plan §3.2).
@@ -41,6 +49,7 @@ import { systemStateRouteSchemas } from "./routes-system-state";
 import { peopleMessageRouteSchemas } from "./routes-people-messages";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
+import { PRODUCTS } from "./products";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
 // contract with its own envelope law and principal) and spread into routeSchemas
 // below, so registration, the auth-declaration gate and the OpenAPI generator
@@ -260,6 +269,15 @@ export const authStateSchema = z.object({
     /** Present only on a NARROW web session (opened from the extension, web-session-scopes.ts):
      *  it opens the team's place alone, whatever `user.role` says. */
     narrow: z.literal(true).optional(),
+    /** The products this person crosses between with the frame's switcher (products.ts `productsOf`), in its order.
+     *  Optional: the sign-in's answer and older servers leave it out. */
+    products: z.array(z.enum(PRODUCTS)).optional(),
+    /** The person's teams (products package T, services/teams.ts), model ids: in by working pages, given «видит
+     *  команду», leading. The owner reads every team whatever these say. Optional: the sign-in's answer leaves it out. */
+    teams: z.object({ mine: z.array(intId), view: z.array(intId), lead: z.array(intId) }).optional(),
+    /** Present only for a test person's login (the test team, sandbox/realm.ts): what the agency's owner alone reads
+     *  (accounts, AI spend, agents' proposals) is not its to read, and the screens leave those blocks out. */
+    test: z.literal(true).optional(),
 });
 const serviceHealthStatusEnum = z.enum(["ok", "degraded"]);
 const systemCheckStatusEnum = z.enum(["ok", "error"]);
@@ -411,6 +429,26 @@ const customRevenueQuerySchema = z.object({
 export const revenueQuerySchema = z.union([
     standardRevenueQuerySchema,
     customRevenueQuerySchema,
+]);
+/**
+ * The overview's custom window may be cut at an instant: `until` counts only what occurred before it,
+ * [from, min(to, until)). «Деньги → Месяц» asks Hub's own income of a month up to the ledger's cut (its card's
+ * `asOf`), to set like beside like. A part of a day is read from the transactions, the same rows the Moscow-dated
+ * rollup is built from; the answer has no comparison.
+ */
+const customOverviewRevenueQuerySchema = z.object({
+    period: z.literal("custom"),
+    windowAt: revenueInstantSchema.optional(),
+    from: businessDate,
+    to: businessDate,
+    until: revenueInstantSchema.optional().describe("Count only what occurred before this instant (exclusive), inside the window. Read from the transactions; no comparison."),
+}).refine((value) => value.from <= value.to, {
+    message: "`from` must be on or before `to`",
+    path: ["to"],
+});
+export const overviewRevenueQuerySchema = z.union([
+    standardRevenueQuerySchema,
+    customOverviewRevenueQuerySchema,
 ]);
 /** Hub counts its days in Moscow. `utcDays` counts a page's custom window in UTC
  *  days instead — Fansly's own days, to set Hub's money beside Fansly's
@@ -5369,6 +5407,173 @@ export const moneyPayoutsResponseSchema = z.object({
     coverage: z.array(insightsCoverageRowSchema),
     nextCursor: z.string().nullable(),
 });
+// --- ContentOps acting as the signed-in person (products plan §2.4, package C2) ---
+// «Публикации» and «Статистика» are ContentOps' own screens; Hub stays the engine. ContentOps' server calls these with
+// its own key (`signin:contentops`) and the person's live sign-in grant; Hub runs the console's services with THAT person
+// as the principal (services/person-door.ts: the one table of what the door does and who may). POST everywhere: the
+// grant never travels in an address. 401 — the grant is over; 403 — not the person's to do; 404 — not in their pages.
+const personDoorBodySchema = z.object({ client: z.literal("contentops"), grant: z.string().min(1).max(128) });
+const personDoorErrors = {
+    400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema, 409: errorResponseSchema, 429: errorResponseSchema,
+};
+const personDoor = { kind: "agentKey" };
+const personIdBodySchema = personDoorBodySchema.extend({ id: z.coerce.number().int().positive() });
+const personPageBodySchema = personDoorBodySchema.extend({ pageLabel: z.string().min(1).max(100) });
+/** One model's pages only (Hub's slug, any case): ContentOps' screens are a model's; absent — every page of the person. */
+const personModelBodySchema = personDoorBodySchema.extend({ modelSlug: z.string().min(1).max(100).optional() });
+/** The keys of «Настройки публикации»'s switches and limits: the only config the door reads and (the owner) sets. */
+export const PUBLICATION_SWITCH_KEYS = [
+    "publishingEnabled",
+    "publishingOnlyfansEnabled",
+    "publishingOnlyfansVaultEnabled",
+    "onlyfansVaultDailyCredits",
+    "publishingOnlyfansDailyCredits",
+    "publicationFileMaxMb",
+    "publicationFilesMaxTotalGb",
+    "ofapiApiKey",
+];
+export const personDoorRouteSchemas = {
+    personPublicationList: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: publications of their pages (or one page, or one model) by publish time",
+        body: personDoorBodySchema.extend(publicationListQuerySchema.shape),
+        response: { 200: personPublicationListResponseSchema, ...personDoorErrors },
+    },
+    personPublicationGet: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: one publication with its findings, journal and approval, and who drafted, approved and moved it by name",
+        body: personIdBodySchema,
+        response: { 200: personPublicationDetailSchema, ...personDoorErrors },
+    },
+    personPublicationTargets: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: where a post of their page goes — its Fansly walls and subscription tiers by name, no prices",
+        body: personPageBodySchema,
+        response: { 200: agentPublicationTargetsResponseSchema, ...personDoorErrors },
+    },
+    personPublicationApprove: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: approve drafts of their pages in order, each checked again",
+        body: personDoorBodySchema.extend(publicationApproveBodySchema.shape),
+        response: { 200: personPublicationApproveResponseSchema, ...personDoorErrors },
+    },
+    personPublicationCancel: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: cancel a publication of their pages before Hub sends it",
+        body: personIdBodySchema,
+        response: { 200: publicationSchema, ...personDoorErrors },
+    },
+    personPublicationWithdraw: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: take a Hub post of their pages off the platform's schedule (sent once)",
+        body: personIdBodySchema,
+        response: { 200: personPublicationWithdrawResponseSchema, ...personDoorErrors },
+    },
+    personPublicationReplace: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: draft a replacement of a withdrawn publication of their pages",
+        body: personIdBodySchema,
+        response: { 200: publicationSchema, ...personDoorErrors },
+    },
+    personPublicationResolve: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: answer an unknown outcome of a publication of their pages",
+        body: personIdBodySchema.extend({ answer: publicationResolveBodySchema }),
+        response: { 200: publicationResolveResponseSchema, ...personDoorErrors },
+    },
+    personPublicationQueueList: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: the platforms' schedules of their pages",
+        body: personModelBodySchema,
+        response: { 200: publicationQueueListResponseSchema, ...personDoorErrors },
+    },
+    personPublicationQueueRefresh: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: read a page's schedule again (OnlyFans: spends API credits)",
+        body: personPageBodySchema,
+        response: { 200: publicationQueueRefreshResponseSchema, ...personDoorErrors },
+    },
+    personPublicationSettingsList: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: the global switch and their pages' publishing settings",
+        body: personModelBodySchema,
+        response: { 200: personPublicationSettingsListResponseSchema, ...personDoorErrors },
+    },
+    personPublicationSwitches: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: the switches and limits of publishing (PUBLICATION_SWITCH_KEYS), read",
+        body: personDoorBodySchema,
+        response: { 200: configViewResponseSchema, ...personDoorErrors },
+    },
+    personPublicationSettingsUpdate: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the owner: set one page's publishing (on/off, paid price range, repeat threshold, daily limit)",
+        body: personPageBodySchema.extend({ settings: publicationSettingsUpdateBodySchema }),
+        response: { 200: publicationSettingsSchema, ...personDoorErrors },
+    },
+    personPublicationDeletePost: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the owner: delete a published Fansly post Hub made from the wall (sent once)",
+        body: personIdBodySchema,
+        response: { 200: personPublicationWithdrawResponseSchema, ...personDoorErrors },
+    },
+    personPublicationWithdrawPage: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the owner: take every post Hub put in a page's schedule off it",
+        body: personPageBodySchema,
+        response: { 200: personPublicationWithdrawResponseSchema, ...personDoorErrors },
+    },
+    personPublicationSwitchSet: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the owner: set switches and limits of publishing (PUBLICATION_SWITCH_KEYS only)",
+        body: personDoorBodySchema.extend(configUpdateBodySchema.shape),
+        response: { 200: configUpdateResponseSchema, ...personDoorErrors },
+    },
+    personFanslyLoginPages: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the owner: the Fansly pages that need a login («Нужен вход в Fansly»), by the matters' rule",
+        body: personDoorBodySchema,
+        response: { 200: z.object({ pages: z.array(z.string()) }), ...personDoorErrors },
+    },
+    personCreatorStatsContent: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: Fansly's media statistics of one of their pages",
+        body: personPageBodySchema.extend(creatorStatsOverviewQuerySchema.shape),
+        response: { 200: creatorStatsContentResponseSchema, ...personDoorErrors },
+    },
+    personCreatorStatsMedia: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: Fansly's statistics of one media offer of their pages",
+        body: personPageBodySchema.extend({ mediaOfferId: creatorStatsMediaParamsSchema.shape.mediaOfferId }).extend(creatorStatsOverviewQuerySchema.shape),
+        response: { 200: creatorStatsMediaResponseSchema, ...personDoorErrors },
+    },
+    personContentComments: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: post comments of one of their pages",
+        body: personPageBodySchema.extend(contentCommentsQuerySchema.shape),
+        response: { 200: contentCommentsResponseSchema, ...personDoorErrors },
+    },
+    // «Съёмка» (package C3): the shooting side of custom orders as the person — the agent read's list cut by the person's
+    // scope and realm (services/custom-orders/person.ts), and a step by the step's leader (leaders.ts).
+    personCustomOrderList: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: the open custom orders of their shooting (all of the owner's realm, a content manager's models, the models whose customs they lead)",
+        body: personDoorBodySchema.extend({ modelSlug: z.string().trim().min(1).max(80).optional() }),
+        response: { 200: agentCustomOrdersResponseSchema, ...personDoorErrors },
+    },
+    personCustomOrderStep: {
+        auth: personDoor, tags: ["person-door"],
+        summary: "As the signed-in person: a step of the shooting side of a custom order they lead (at the model with a deadline, partly, shot, revision, refused)",
+        body: personDoorBodySchema.extend({
+            code: customOrderCodeSchema,
+            step: z.enum(["at_model", "partly", "shot", "revision", "refused"]),
+            deadlineOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+            note: z.string().trim().min(1).max(500).optional(),
+            part: z.enum(["video", "photos"]).optional(),
+        }),
+        response: { 200: agentCustomOrderResponseSchema, ...personDoorErrors },
+    },
+};
 const baseRouteSchemas = {
     ...ofapiMarketingRouteSchemas,
     ...ofapiBannedWordRouteSchemas,
@@ -5891,6 +6096,18 @@ const baseRouteSchemas = {
             401: errorResponseSchema,
         },
     },
+    fanPages: {
+        auth: { kind: "any-session" },
+        tags: ["fans"],
+        summary: "The pages whose fans the viewer reads («Фаны» in Workboard)",
+        description: "The owner every page; anyone else the pages of their teams and of their login's grant "
+            + "(services/fan-reads.ts). The page filter and the page pickers of «Фаны» list these.",
+        response: {
+            200: z.array(assignedPageSchema),
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
     voiceNoteCreate: {
         auth: { kind: "apiKey", scope: "page" },
         tags: ["voice"],
@@ -6009,7 +6226,7 @@ const baseRouteSchemas = {
         auth: { kind: "session" },
         tags: ["revenue"],
         summary: "Get agency or visible-scope revenue overview",
-        querystring: revenueQuerySchema,
+        querystring: overviewRevenueQuerySchema,
         response: {
             200: overviewRevenueResponseSchema,
             401: errorResponseSchema,
@@ -6171,7 +6388,7 @@ const baseRouteSchemas = {
         },
     },
     pageFanCard: {
-        auth: { kind: "session", scope: "page" },
+        auth: { kind: "any-session", scope: "page" },
         tags: ["fans"],
         summary: "The fan's card for the owner's console: the person's accounts, facts and customs",
         description: "Read-only and database-only. The card a chatter's client reads, for a dashboard session on a page it "
@@ -6234,7 +6451,7 @@ const baseRouteSchemas = {
         },
     },
     crossPageFanDetail: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["fans"],
         summary: "Get one fan across visible pages",
         params: fanLookupParamsSchema,
@@ -6273,7 +6490,7 @@ const baseRouteSchemas = {
         },
     },
     spenderSeries: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["spenders"],
         summary: "Get zero-filled spender trend series",
         params: fanLookupParamsSchema,
@@ -6313,7 +6530,7 @@ const baseRouteSchemas = {
         },
     },
     pageConversationPreview: {
-        auth: { kind: "session", scope: "page" },
+        auth: { kind: "any-session", scope: "page" },
         tags: ["conversations"],
         summary: "Return locally cached DM preview rows for one conversation",
         params: pageConversationPreviewParamsSchema,
@@ -6446,7 +6663,7 @@ const baseRouteSchemas = {
         },
     },
     pageFanTransactions: {
-        auth: { kind: "session", scope: "page" },
+        auth: { kind: "any-session", scope: "page" },
         tags: ["fans"],
         summary: "Get fan transaction history on a specific page",
         params: pageFanParamsSchema,
@@ -6459,7 +6676,7 @@ const baseRouteSchemas = {
         },
     },
     crossPageFanTransactions: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["fans"],
         summary: "Get cross-page fan transaction history",
         params: fanLookupParamsSchema,
@@ -7732,6 +7949,10 @@ export const routeSchemas = {
     ...agentReportRouteSchemas,
     ...accountPayRouteSchemas,
     ...peopleRouteSchemas,
+    ...teamRouteSchemas,
+    ...teamQuestionRouteSchemas,
+    ...learnRouteSchemas,
+    ...fanRouteSchemas,
     ...signinRouteSchemas,
     ...systemStateRouteSchemas,
     ...customOrderRouteSchemas,
@@ -7739,6 +7960,9 @@ export const routeSchemas = {
     ...peopleMessageRouteSchemas,
     ...saleClaimRouteSchemas,
     ...saleChainRouteSchemas,
+    ...shiftReportNoteRouteSchemas,
     ...erasureRouteSchemas,
     ...saleDecisionRouteSchemas,
+    ...workboardTodayRouteSchemas,
+    ...personDoorRouteSchemas,
 };

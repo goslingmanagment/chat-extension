@@ -46,10 +46,72 @@ export const PLACES = {
     hub: "Hub",
     /** The team's place. */
     workboard: "Workboard",
+    /** The content's product (a КМ's, the owner's). */
+    contentops: "ContentOps",
+    /** The owner's outside tools, at the foot of the products' switcher. */
+    tasks: "Задачи",
+    monitor: "Монитор",
     /** The extension. */
     chatgoose: "ChatGoose",
     /** The team's agent in Telegram. */
     gengar: "Генгар",
 };
+/**
+ * The name of a failure (a notification incident) by its kind: the console's «Система → Сбои» and the list «Ждут
+ * вас» say the same words (design/ia.md §5.2). The console checks that every kind of the contract has one.
+ */
+export const INCIDENT_KIND_WORDS = {
+    auth_blocked: "Вход заблокирован",
+    proxy_failed: "Прокси не работает",
+    proxy_missing: "Нет прокси",
+    stream_failed_threshold: "Сбор падает 3 раза подряд",
+    ofapi_auth: "OnlyFans API: доступ отклонён",
+    ofapi_binding_conflict: "OnlyFans API: конфликт привязки",
+    ofapi_low_credit: "Мало кредитов OnlyFans API",
+    ofapi_webhook_silence: "События OnlyFans API замолчали",
+    ofapi_burn_rate: "Кредиты сгорают необычно быстро",
+    db_disk_usage: "База: мало места",
+    observations_partitions: "База: разделы журнала",
+    wrong_transactions_writer: "Операции пишет не тот процесс",
+    read_gateway_capture: "Сбор: шлюз чтения",
+    golden_signal_lag: "Отставание ключевых метрик",
+    scheduler_silent: "Планировщик молчит",
+    ops_sampler_silent: "Сбор метрик молчит",
+    sync_silent: "Сбор Fansly молчит",
+    fansly_sync_engine: "Сбор Fansly: сбой",
+    ofapi_chargebacks_reconcile_failed: "Сверка возвратов OnlyFans",
+    ofapi_link_stats_reconcile_failed: "Сверка статистики ссылок OnlyFans",
+    ai_provider_billing: "ИИ: проблема с оплатой",
+    ai_provider_failed: "ИИ: поставщик не отвечает",
+    capture_payload_parity: "Расхождение сохранённых данных",
+    publishing_stopped: "Hub остановил публикацию",
+    publication_not_published: "Пост не вышел",
+    ofapi_platform_notice: "OnlyFans написал странице",
+    chatspace_tab: "Вкладка ChatSpace на сервере",
+};
+/** A failure's name by its kind; null — a kind the dictionary does not know (say its code, never nothing). */
+export function incidentKindWord(kind) {
+    return INCIDENT_KIND_WORDS[kind] ?? null;
+}
 /** The AI buttons: proper names, the same everywhere, never translated. */
 export const AI_BUTTONS = ["Reply", "Fix", "Hi", "Ping", "Recap", "Coach"];
+const CYRILLIC_NAME = /^[А-ЯЁ][а-яё]+$/u;
+/**
+ * A Russian first name «кому»: Алекс → Алексу, Андрей → Андрею, Никита → Никите, Катя → Кате, Мария → Марии.
+ * Only the first word, only a Cyrillic name with a known ending; null otherwise (a Latin name, a name ending in
+ * «ь», «о», «е»…): the caller then says it without the case («Отправить в Telegram: Rick»).
+ */
+export function nameToWhom(name) {
+    const first = name.trim().split(/\s+/u)[0] ?? "";
+    if (!CYRILLIC_NAME.test(first))
+        return null;
+    if (/ия$/u.test(first))
+        return `${first.slice(0, -2)}ии`;
+    if (/[ая]$/u.test(first))
+        return `${first.slice(0, -1)}е`;
+    if (/й$/u.test(first))
+        return `${first.slice(0, -1)}ю`;
+    if (/[бвгджзклмнпрстфхцчшщ]$/u.test(first))
+        return `${first}у`;
+    return null;
+}

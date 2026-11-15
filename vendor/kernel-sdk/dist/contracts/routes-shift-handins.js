@@ -21,6 +21,7 @@
 import { z } from "zod";
 import { businessDate, errorResponseSchema, intId, isoTimestamp, mills } from "./primitives";
 import { shiftReportClaimSchema } from "./sale-claims";
+import { shiftReportBoardSchema, shiftReportPhaseEnum, shiftReportWordEnum } from "./shift-report-board";
 export const SHIFT_REPORT_STATEMENTS = ["mine", "not_mine", "share"];
 export const SHIFT_REPORT_DOORS = ["extension", "workboard", "telegram"];
 export const shiftReportStatementEnum = z.enum(SHIFT_REPORT_STATEMENTS);
@@ -46,7 +47,10 @@ export const shiftReportShiftSchema = z.object({
     /** A shift still going: the last time Hub looked. */
     endedAt: isoTimestamp,
     workedMinutes: z.number().int().nonnegative(),
-    /** The Moscow day the shift is reported on (the ledger's rule). */
+    /**
+     * The Moscow day the shift is reported on: once handed in, the report's own day (its newest version's) — the day the
+     * ledger's feed and the post name; before that, the shift's day by the ledger's rule.
+     */
     reportDate: businessDate,
     pages: z.array(z.string()),
 });
@@ -173,7 +177,11 @@ export const shiftReportResponseSchema = z.object({
     /** Own, handed in: the draft's sales of the person that the report does not hold yet («после сдачи»); null — none. */
     afterSubmission: z.object({ count: z.number().int().positive(), mills }).nullable(),
     /** Own: the newest version as today's post in «Отчётность», one per model. */
-    posts: z.array(z.object({ modelName: z.string(), text: z.string() })),
+    /**
+     * One post per model of the shift, each its own text: «Отчётность» takes one post per model (the ledger's post reader
+     * reads one model from a text), so they are copied one by one, never joined.
+     */
+    posts: z.array(z.object({ modelSlug: z.string(), modelName: z.string(), text: z.string() })),
     /** Own: the people a «делим с…» may name. */
     colleagues: z.array(z.object({ userId: intId, name: z.string() })),
     /**
@@ -182,13 +190,33 @@ export const shiftReportResponseSchema = z.object({
      * decision. A reader of shared pages sees those of the pages they may open; the owner every one.
      */
     claims: z.array(shiftReportClaimSchema).default([]),
+    /**
+     * The «Отчёт» board (package R, shift-report-board.ts): everything the board draws, a column per page. Null — the
+     * person has no board (the right is off) or the reader may not see it.
+     */
+    board: shiftReportBoardSchema.nullable().default(null),
+    /**
+     * Whether THIS shift is a board shift: the person's right was on when it began (the agent's /smena decides by the
+     * shift, not by the person). Absent from an older server.
+     */
+    boardShift: z.boolean().optional(),
     serverNow: isoTimestamp,
 });
+/** A change the phase does not take now (ticks and «чья» in «Проверка», «Подтвердите», «Учтён»): 409 with the fresh board. */
+export const shiftReportPhaseConflictSchema = errorResponseSchema.extend({
+    report: shiftReportResponseSchema.optional(),
+});
 export const shiftReportLineBodySchema = z.object({
-    /** null — back to the rule's word. «не моё», «делим с…» on «Ваши продажи»; «моё» on «Рядом». */
-    statement: shiftReportStatementEnum.nullable(),
+    /**
+     * null — back to the rule's word. «не моё», «делим с…» on «Ваши продажи»; «моё» on «Рядом»; on the board also
+     * `give` (one's own sale to a colleague, `toUserId`) and `pot` (one's own sale to the pot). A word that makes the
+     * person's share larger at someone's cost is not a mark: it is a question (`shiftReportAsk`).
+     */
+    statement: shiftReportWordEnum.nullable(),
     /** With «делим с…»: the colleague. */
     shareWithUserId: intId.nullable().optional(),
+    /** With `give`: the colleague the sale is given to. */
+    toUserId: intId.nullable().optional(),
     /** Empty or null — none. «Моё» on «Рядом» needs one line of why. */
     note: z.string().trim().max(SHIFT_REPORT_NOTE_MAX).nullable().optional(),
 });
@@ -256,6 +284,164 @@ export const shiftReportClaimableResponseSchema = z.object({
     sales: z.array(shiftReportClaimableSaleSchema),
     serverNow: isoTimestamp,
 });
+// ── The «Отчёт» board's operations (package R) ──────────────────────────────
+export const shiftReportAskParamsSchema = z.object({ shiftId: shiftIdParam, transactionId: shiftIdParam });
+export const shiftReportProposalParamsSchema = z.object({ shiftId: shiftIdParam, proposalId: shiftIdParam });
+export const shiftReportSightingParamsSchema = z.object({ shiftId: shiftIdParam, sightingId: shiftIdParam });
+/** «Подтверждаю»: signs one exact candidate — and what the board showed of it. */
+export const shiftReportConfirmBodySchema = z.object({
+    candidateId: intId,
+    /** The total the board showed («Вы подтверждаете: 18 продаж на $461.40»): a version that would differ is not made (`changed`). */
+    seenTotalMills: mills.optional(),
+    /** The count the board showed. */
+    seenCount: z.number().int().nonnegative().optional(),
+});
+export const shiftReportConfirmResponseSchema = z.object({
+    /** A version was made from the candidate. */
+    confirmed: z.boolean(),
+    /** Why not: superseded — a correction or a re-check made a newer candidate (it is in `report`); not_ready — the phase is not «Подтвердите». Null — confirmed. */
+    refused: z.enum(["superseded", "not_ready", "changed"]).nullable(),
+    /** The fresh board. */
+    report: shiftReportResponseSchema,
+});
+/** «Досдать»: late sales the rule gives the person, into the next version at once. */
+export const shiftReportResendBodySchema = z.object({
+    transactionIds: z.array(intId).min(1).max(200),
+});
+/** «Почему продажа ваша?» → «Спросить Олега» / «Спросить владельца»: a question from the draft. */
+export const shiftReportAskBodySchema = z.object({
+    transactionId: intId,
+    /** What the person wants: «моя» or «пополам с …». */
+    statement: z.enum(["mine", "share"]),
+    shareWithUserId: intId.nullable().optional(),
+    /** The one line of why. */
+    note: z.string().trim().min(1).max(SHIFT_REPORT_NOTE_MAX),
+});
+/** A card of Gengar: decline it («Не согласен»), restore it («Вернуть правку»), or accept a late one («Принять»). */
+export const shiftReportPostCopiedQuerySchema = z.object({
+    /** The model whose post was copied: its slug, as the report's `posts` name it. */
+    model: z.string().trim().min(1).max(100).optional(),
+});
+export const shiftReportProposalAnswerBodySchema = z.object({
+    answer: z.enum(["decline", "restore", "accept"]),
+    /** With «Не согласен» on a card of whose the sale is: the person's line of why, for whoever decides it. */
+    note: z.string().trim().max(SHIFT_REPORT_NOTE_MAX).nullable().optional(),
+});
+export const shiftReportCurrentResponseSchema = z.object({
+    /** The person's own shift that needs them most: the running one, else the newest not counted, else the newest; null — none. */
+    report: shiftReportResponseSchema.nullable(),
+    /** The pulse's view of it: the bar and the fifth button. */
+    phase: shiftReportPhaseEnum.nullable(),
+    serverNow: isoTimestamp,
+});
+// ── «Нет в Hub»: what the site's own list showed (the extension) ────────────
+export const clientSaleSightingsBodySchema = z.object({
+    pageLabel: z.string().min(1).max(63),
+    rows: z.array(z.object({
+        /** Fansly's transaction id; ChatSpace's statement id when it has one. */
+        platformRef: z.string().trim().min(1).max(200),
+        /** Hub's canonical type the site's words read as: message_purchase, post_purchase, tip, stream_tip, subscription. */
+        kind: z.string().min(1).max(64),
+        occurredAt: isoTimestamp,
+        grossMills: mills.min(0).max(100_000_000).nullable(),
+        netMills: mills.min(0).max(100_000_000),
+        fanRef: z.string().trim().min(1).max(200).nullable(),
+        fanName: z.string().trim().min(1).max(200).nullable(),
+    }).strict()).min(1).max(200),
+}).strict();
+export const clientSaleSightingsResponseSchema = z.object({
+    /** Rows Hub does not hold as transactions: kept (new or seen again). */
+    kept: z.number().int().nonnegative(),
+    /** Rows Hub already holds: nothing kept. */
+    known: z.number().int().nonnegative(),
+    serverNow: isoTimestamp,
+});
+// ── Gengar's check after the hand-in (review:shift_reports) ─────────────────
+export const agentShiftReportChecksQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export const agentShiftReportCheckSchema = z.object({
+    candidateId: intId,
+    shiftId: intId,
+    /** The person's code; null — a login no person holds. */
+    person: z.string().nullable(),
+    userId: intId,
+    personName: z.string(),
+    startedAt: isoTimestamp,
+    endedAt: isoTimestamp,
+    cutoffAt: isoTimestamp,
+    handedInAt: isoTimestamp,
+    pages: z.array(z.string()),
+    /** The candidate's lines as handed in, with the fan (the agent reads the chats by it). */
+    lines: z.array(z.object({
+        transactionId: intId,
+        pageLabel: z.string(),
+        kind: z.string(),
+        occurredAt: isoTimestamp,
+        netMills: mills,
+        fan: z.object({ fanRef: z.string().nullable(), name: z.string().nullable(), username: z.string().nullable() }),
+        statement: shiftReportWordEnum.nullable(),
+        /** The colleague of «пополам» or of «отдал»; null — none. */
+        withUserId: intId.nullable(),
+        note: z.string().nullable(),
+        amountMills: mills,
+        ruleWords: z.string(),
+    })),
+    comment: z.string(),
+    /** The people a proposal may name. */
+    colleagues: z.array(z.object({ userId: intId, name: z.string() })),
+});
+export const agentShiftReportChecksResponseSchema = z.object({
+    /** Candidates waiting for the check on the key's pages (every page of the shift in the grant), oldest first. */
+    checks: z.array(agentShiftReportCheckSchema),
+    /**
+     * The reports standing in «Подтвердите» on the key's pages and of its realm (every page of the shift in the grant;
+     * a report with a page outside is left out whole), oldest first: what the reminder «Отчёт не подтверждён сутки» reads.
+     * `confirmSince` — when the report entered «Подтвердите» for its current candidate (the check finished, or the 10
+     * minutes ran out; a candidate re-made since counts from its own hand-in).
+     */
+    awaitingConfirm: z.array(z.object({
+        shiftId: intId,
+        candidateId: intId,
+        /** The person's code; null — a login no person holds. */
+        person: z.string().nullable(),
+        personName: z.string(),
+        pages: z.array(z.string()),
+        startedAt: isoTimestamp,
+        confirmSince: isoTimestamp,
+    })).default([]),
+    serverNow: isoTimestamp,
+});
+export const agentShiftReportCheckParamsSchema = z.object({ candidateId: shiftIdParam });
+export const agentShiftReportCheckBodySchema = z.object({
+    /** «замечаний нет» when there is no proposal. */
+    proposals: z.array(z.object({
+        /** A sale of the candidate (else 400 `not_in_candidate`). */
+        transactionId: intId,
+        kind: z.enum(["owner_change", "note"]),
+        /** owner_change: the word it should be (`rule` — back to the rule); `share` and `give` with `userId`. */
+        to: z.object({
+            word: z.enum(["rule", "mine", "not_mine", "share", "give", "pot"]),
+            userId: intId.nullable().optional(),
+        }).optional(),
+        /** note: the comment. */
+        note: z.string().trim().min(1).max(SHIFT_REPORT_NOTE_MAX).optional(),
+        /** One or two sentences of why. */
+        why: z.string().trim().min(1).max(600),
+        /** The messages it read (links or `<chat>:<message>`). */
+        messageRefs: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
+    }).strict()).max(100),
+}).strict();
+export const agentShiftReportCheckResponseSchema = z.object({
+    candidateId: intId,
+    /** Proposals recorded. */
+    recorded: z.number().int().nonnegative(),
+    /** The report was already counted: the proposals became a matter for the person, nothing changed by itself. */
+    late: z.boolean(),
+    /** The candidate was superseded: nothing recorded, the newer one comes in the next `checks`. */
+    superseded: z.boolean(),
+    serverNow: isoTimestamp,
+});
 // ── The agent's door (write:shift_reports) ──────────────────────────────────
 /** Whose words: the sender of the Telegram message, checked against the person. */
 const agentWords = {
@@ -300,13 +486,19 @@ export const agentShiftReportsFeedItemSchema = z.object({
     id: intId,
     /**
      * Its place in the feed (review R2-b): given when the feed first finds the version committed, after every place given
-     * before. The feed's order and its cursor: `next` is the last place served. Every version written before 0405 has its
-     * id as its place.
+     * before. The feed's order and its cursor: `next` is the last place read. Every version written before 0405 has its
+     * id as its place. A place moves only to the end: a version held back for a key gets a new one when the key may read
+     * it, so the same version may come again at a later place — keep versions by `id`.
      */
     seq: intId,
     /** The person's code (the ledger's slug); null — a login no person holds. */
     person: z.string().nullable(),
     hubUserId: intId,
+    /**
+     * The shift the version was made under — the version's own, never changed (0426): a report moved to the shift that
+     * remains after a merge keeps its earlier versions under the shift that is gone (the last of them a version with no
+     * lines) and makes its next ones under the new shift. A shift's report is its highest version.
+     */
     shiftId: intId,
     reportDate: businessDate,
     version: z.number().int().positive(),
@@ -365,9 +557,10 @@ export const agentShiftReportsFeedResponseSchema = z.object({
     /**
      * The versions held back for the key (review R2b-4): each has a line of a page outside the key's pages. Who and when
      * and which pages, no sums, no lines — the reader records a problem instead of never knowing. A held version is
-     * listed on every read until the key may read its pages; then the next read serves it in `reports`, ahead of the new
-     * ones, at its own `seq` (below the cursor): take every item of `reports` whatever its seq. The cursor passing a held
-     * version never loses it.
+     * listed on every read until the key may read its pages. Then it gets a NEW place at the end of the feed and leaves
+     * this list: it comes in `reports` through the cursor like any other version, so an answer that never arrived is
+     * asked again with the same `since` and brings it again. It may come after newer versions of its report: a report's
+     * newest version is the one with the highest `version`, not the last one read.
      */
     held: z.array(z.object({
         id: intId,
@@ -380,6 +573,11 @@ export const agentShiftReportsFeedResponseSchema = z.object({
     })).default([]),
     /** Ask again with `since` = this (the last place read, served or held); the same as asked when nothing is new. */
     next: z.string(),
+    /**
+     * Whether places follow `next`. `limit` counts places, held ones too, so a page may carry fewer `reports` than
+     * `limit` — none even — while more follow: read on while this is true (or until `next` is the `since` asked).
+     */
+    more: z.boolean(),
     serverNow: isoTimestamp,
 });
 const personErrors = {
@@ -419,7 +617,7 @@ export const shiftHandinRouteSchemas = {
             + "(else 404); a statement the line does not take is 400.",
         params: shiftReportLineParamsSchema,
         body: shiftReportLineBodySchema,
-        response: { 200: shiftReportSavedResponseSchema, ...personErrors },
+        response: { 200: shiftReportSavedResponseSchema, ...personErrors, 409: shiftReportPhaseConflictSchema },
     },
     shiftReportCommentSet: {
         auth: { kind: "any" }, tags: ["client"],
@@ -493,13 +691,115 @@ export const shiftHandinRouteSchemas = {
         body: agentShiftReportSubmitBodySchema,
         response: { 200: shiftReportResponseSchema, ...agentErrors },
     },
+    shiftReportCurrent: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "The «Отчёт» board of the person's own shift that needs them most: the running one, else the newest not counted, else the newest",
+        description: `${ANY} The board's frame opens with it when no shift is named.`,
+        response: { 200: shiftReportCurrentResponseSchema, ...personErrors },
+    },
+    shiftReportConfirm: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Подтверждаю»: the named candidate, with Gengar's proposals not declined, becomes the report's next version",
+        description: `${ANY} Own shift, switched on, phase «Подтвердите». A superseded candidate is refused with the fresh board; `
+            + "no agent door confirms.",
+        params: shiftReportParamsSchema,
+        body: shiftReportConfirmBodySchema,
+        response: { 200: shiftReportConfirmResponseSchema, ...personErrors },
+    },
+    shiftReportPostCopied: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Скопировать пост»: remember the copy of one model's post, so a later version that changes its page sums says «Пост изменился»",
+        description: `${ANY} Own counted report. \`model\` — the model whose post was copied (one of the report's posts); absent — every post (a client before the per-model copy).`,
+        params: shiftReportParamsSchema,
+        querystring: shiftReportPostCopiedQuerySchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors },
+    },
+    shiftReportReopen: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Исправить»: back to editing («Правка»); a counted version stands until a new one is confirmed",
+        description: ANY,
+        params: shiftReportParamsSchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors },
+    },
+    shiftReportReopenCancel: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Отмена» of «Правка»: back to the counted report as it was",
+        description: ANY,
+        params: shiftReportParamsSchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors },
+    },
+    shiftReportResend: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Досдать»: sales that came after the hand-in and are the person's by the rule go into the next version at once",
+        description: `${ANY} Own counted report. Only sales the rule gives the person and the report does not hold (else 400).`,
+        params: shiftReportParamsSchema,
+        body: shiftReportResendBodySchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors },
+    },
+    shiftReportAsk: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Спросить»: a question from the draft about a sale the rule gives a colleague or the pot",
+        description: `${ANY} Own draft. The colleague answers on their board or in «Ждут вас»; the pot is the decider's. `
+            + "While it is open the sale counts in nobody's sum.",
+        params: shiftReportParamsSchema,
+        body: shiftReportAskBodySchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors, 409: shiftReportPhaseConflictSchema },
+    },
+    shiftReportAskWithdraw: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Отменить» a question asked from the draft",
+        description: ANY,
+        params: shiftReportAskParamsSchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors, 409: shiftReportPhaseConflictSchema },
+    },
+    shiftReportProposalAnswer: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "A card of Gengar: «Не согласен», «Вернуть правку», or «Принять» a late one (opens «Правка» with it applied)",
+        description: ANY,
+        params: shiftReportProposalParamsSchema,
+        body: shiftReportProposalAnswerBodySchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors },
+    },
+    shiftReportSightingAdd: {
+        auth: { kind: "any" }, tags: ["client"],
+        summary: "«Добавить» a «нет в Hub» row: it counts on the board, a version takes it once Hub holds the sale",
+        description: ANY,
+        params: shiftReportSightingParamsSchema,
+        response: { 200: shiftReportResponseSchema, ...personErrors, 409: shiftReportPhaseConflictSchema },
+    },
+    clientSaleSightings: {
+        auth: { kind: "apiKey" }, tags: ["client"],
+        summary: "«Нет в Hub»: the sales a page's own list showed on the site, as the extension saw them",
+        description: "Database only. A device token's. Hub keeps only rows it does not hold as transactions, once per "
+            + "(page, platform reference). Sent only for a person whose pulse carries `report`.",
+        body: clientSaleSightingsBodySchema,
+        response: { 200: clientSaleSightingsResponseSchema, ...personErrors },
+    },
+    agentShiftReportChecks: {
+        auth: { kind: "agentKey" }, tags: ["agent"],
+        summary: "Candidates handed in and waiting for Gengar's check, on the key's pages (needs review:shift_reports)",
+        description: "Database only. Every page of the shift must be of the key's grant. Oldest first.",
+        querystring: agentShiftReportChecksQuerySchema,
+        response: { 200: agentShiftReportChecksResponseSchema, ...agentErrors },
+    },
+    agentShiftReportCheckAnswer: {
+        auth: { kind: "agentKey" }, tags: ["agent"],
+        summary: "Gengar's answer to a candidate: «замечаний нет» or proposals (needs review:shift_reports); never a confirmation",
+        description: "A proposal names a sale of the candidate and a legal word. After the report is counted the proposals "
+            + "become a matter for the person and change nothing by themselves.",
+        params: agentShiftReportCheckParamsSchema,
+        body: agentShiftReportCheckBodySchema,
+        response: { 200: agentShiftReportCheckResponseSchema, ...agentErrors },
+    },
     agentShiftReportsFeed: {
         auth: { kind: "agentKey" }, tags: ["agent"],
         summary: "Every version of every shift report handed in, after a cursor: the ledger's feed (needs read:team and read:money)",
         description: "Database only. A version is served as soon as it is committed, in the order the feed placed it (`seq`): a "
             + "version committed after a later one is placed after it, so `next` never passes a version not served yet. A "
             + "version with a line on a page outside the key's grant is held back and listed in `held` on every read until the key "
-            + "may read it; then it is served in `reports` at its own place.",
+            + "may read it; then it gets a new place at the end of the feed and comes in `reports` through the cursor (a lost "
+            + "answer is asked again and brings it again). `limit` counts places: a page may carry fewer reports than asked "
+            + "while `more` is true.",
         querystring: agentShiftReportsFeedQuerySchema,
         response: { 200: agentShiftReportsFeedResponseSchema, ...agentErrors },
     },

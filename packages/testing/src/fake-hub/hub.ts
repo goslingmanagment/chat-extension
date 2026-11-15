@@ -52,8 +52,7 @@ import {
   type NoteAttributionsRequest,
   type ActivityBeatRequest,
   type FanCard,
-  type FanCustomChangeRequest,
-  type FanCustomCreateRequest,
+  type CustomOrderGiveRequest,
   type Handoff,
   type FanQueueItemDoneRequest,
   type FanQueueReleaseRequest,
@@ -100,6 +99,7 @@ import { fakeFanMarks } from './fan-marks';
 import { CursorSigner, DataModel, type FakeActivityBeat, type FakeNoteAttribution, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { REPORT_FRAME_PATH, forwardBoard, reportBoardAnswer, reportFrameHtml } from './report-board';
+import { formFrameHtml, formScreenOf, stubPriceMills } from './workboard-forms';
 import { type OnlineSeed } from './online';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
 import { Gates, sseBody } from './sse';
@@ -306,6 +306,8 @@ export class FakeHub {
   readonly journal = new FakeHubJournal();
   /** Hub package R: the sightings the extension reported (`POST /api/v1/client/sale-sightings`), as they came. */
   readonly sightings: unknown[] = [];
+  /** Products package R5: the questions the stand's «Спросить» window asked (kept for the run's pictures and checks). */
+  readonly questions: unknown[] = [];
   private origin_: string;
   private readonly options: FakeHubOptions;
   private state: State;
@@ -718,6 +720,37 @@ export class FakeHub {
     if (method === 'GET' && url.pathname === REPORT_FRAME_PATH) {
       this.journal.record({ ...base, kind: 'legacy', operation: 'report-board:frame', status: 200, servedBy: 'model' });
       return new Response(reportFrameHtml(), { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    }
+    // Products package R5: the fan panel's windows of Workboard (workboard-forms.ts) and what they write.
+    const formScreen = method === 'GET' ? formScreenOf(url.pathname) : null;
+    if (formScreen !== null) {
+      this.journal.record({ ...base, kind: 'legacy', operation: `workboard-form:${formScreen}`, status: 200, servedBy: 'model' });
+      return new Response(formFrameHtml(formScreen), { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    }
+    if (match.kind !== 'route' && method === 'POST' && (url.pathname === '/api/v1/custom-orders' || url.pathname === '/api/v1/team/questions')) {
+      const operation = url.pathname === '/api/v1/custom-orders' ? 'workboard-form:record' : 'workboard-form:ask';
+      if (!verdict.ok) return refuse({ kind: 'legacy', operation, servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(bodyText) as Record<string, unknown>;
+      } catch {
+        return refuse({ kind: 'legacy', operation, servedBy: 'check' }, 'bad_request');
+      }
+      const page = this.pages().find((candidate) => candidate.pageLabel === body['pageLabel']);
+      if (page === undefined || !this.granted(verdict.user.userId, page)) return refuse({ kind: 'legacy', operation, servedBy: 'check' }, 'forbidden');
+      const token = tokenOf({ token: verdict.token, user: verdict.user });
+      if (operation === 'workboard-form:ask') {
+        this.questions.push(body);
+        this.journal.record({ ...base, kind: 'legacy', operation, status: 201, servedBy: 'model', token, request: { kind: body['kind'], pageLabel: body['pageLabel'], fanRef: body['fanRef'] } });
+        return json(201, { question: { id: this.questions.length } });
+      }
+      const card = (body['card'] ?? {}) as Record<string, unknown>;
+      const fan = typeof body['fan'] === 'string' ? body['fan'] : '';
+      const task = typeof card['task'] === 'string' ? card['task'] : '';
+      if (fan === '' || task.trim() === '') return refuse({ kind: 'legacy', operation, servedBy: 'check' }, 'bad_request');
+      const code = s.data.recordOrder(page, fan, task, stubPriceMills(card['price']), s.auth.userById(verdict.user.userId)?.username ?? 'chatter', now);
+      this.journal.record({ ...base, kind: 'legacy', operation, status: 201, servedBy: 'model', token, request: { pageLabel: page.pageLabel, fan, code } });
+      return json(201, { order: { code } });
     }
     // `CG_SEE_BOARD_API` (the stand with Hub's demo Workboard): the board's own routes go to the demo's API as its
     // chatter, so Hub's real board reads Hub's own demo shift; the sightings stay the stub's.
@@ -1360,10 +1393,9 @@ export class FakeHub {
         return read(s.data.fanLinkDecide(need(page), request as FanLinkDecideRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
       case 'clientFanFactChange':
         return read(s.data.fanFactChange(need(page), request as FanFactChangeRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
-      case 'clientFanCustomCreate':
-        return read(s.data.fanCustomCreate(need(page), request as FanCustomCreateRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
-      case 'clientFanCustomChange':
-        return read(s.data.fanCustomChange(need(page), request as FanCustomChangeRequest, now));
+      case 'customOrderAct':
+        need(principal);
+        return read(s.data.giveOrder((request as CustomOrderGiveRequest).code, now));
       case 'clientHandoff':
         return { kind: 'json', status: 200, body: s.data.handoff(need(page), now) };
       case 'clientInConversation':

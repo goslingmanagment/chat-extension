@@ -94,6 +94,7 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "introspect:agent_keys": "introspect:agent_keys";
     "write:customs": "write:customs";
     "write:shift_reports": "write:shift_reports";
+    "review:shift_reports": "review:shift_reports";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -2610,6 +2611,7 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "introspect:agent_keys": "introspect:agent_keys";
         "write:customs": "write:customs";
         "write:shift_reports": "write:shift_reports";
+        "review:shift_reports": "review:shift_reports";
     }>>;
     ownContent: z.ZodBoolean;
     captureState: z.ZodEnum<{
@@ -2693,6 +2695,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "introspect:agent_keys": "introspect:agent_keys";
                 "write:customs": "write:customs";
                 "write:shift_reports": "write:shift_reports";
+                "review:shift_reports": "review:shift_reports";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
@@ -3002,6 +3005,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "introspect:agent_keys": "introspect:agent_keys";
             "write:customs": "write:customs";
             "write:shift_reports": "write:shift_reports";
+            "review:shift_reports": "review:shift_reports";
         }>>;
         ownContent: z.ZodBoolean;
         captureState: z.ZodEnum<{
@@ -30498,6 +30502,7 @@ export declare const agentRouteSchemas: {
                             "introspect:agent_keys": "introspect:agent_keys";
                             "write:customs": "write:customs";
                             "write:shift_reports": "write:shift_reports";
+                            "review:shift_reports": "review:shift_reports";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
@@ -30807,6 +30812,7 @@ export declare const agentRouteSchemas: {
                         "introspect:agent_keys": "introspect:agent_keys";
                         "write:customs": "write:customs";
                         "write:shift_reports": "write:shift_reports";
+                        "review:shift_reports": "review:shift_reports";
                     }>>;
                     ownContent: z.ZodBoolean;
                     captureState: z.ZodEnum<{

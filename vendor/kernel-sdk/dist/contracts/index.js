@@ -1,6 +1,10 @@
 // House primitives (mills, platformEnum, the error body, pagination) — extracted
 // from routes.ts so the agent route module shares ONE declaration of each.
 export * from "./primitives";
+// The products a person crosses between (the frames' switcher, `auth/me`).
+export * from "./products";
+// Where an invitation's link opens (package C4).
+export * from "./join-links";
 export * from "./routes";
 // Agent Read Plane operations #1-#10 (spread into routeSchemas by routes.ts).
 export * from "./routes-agent";
@@ -12,6 +16,7 @@ export * from "./routes-sync";
 export * from "./routes-client";
 // Publications: wall posts through Hub (owner + agent drafts), spread by routes.ts.
 export * from "./publications";
+export * from "./publication-words";
 export * from "./routes-publications";
 // Media looks: frames of a page's own media for an agent key (look:media), spread by routes.ts.
 export * from "./media-looks";
@@ -93,10 +98,19 @@ export * from "./shift-review-audit";
 export * from "./people";
 export * from "./person-start";
 export * from "./routes-people";
+export * from "./routes-teams";
+export * from "./routes-workboard-today";
+export * from "./own-shift-rows";
+export * from "./chat-team";
+export * from "./routes-team-questions";
+export * from "./routes-learn";
+export * from "./routes-fans";
+export * from "./people-paths";
 // Система → «Состояние»: the routines and copies of every place (package P), spread by routes.ts.
 export * from "./system-state";
 export * from "./routes-system-state";
 export * from "./routes-shift-handins";
+export * from "./shift-report-board";
 // Система → «Сообщения людям»: the server's sender of messages to people, off twice (package S), spread by routes.ts.
 export * from "./people-messages";
 export * from "./people-message-kinds";
@@ -105,6 +119,8 @@ export * from "./sale-claims";
 export * from "./routes-sale-claims";
 // Цепочка продажи (package T): from one sale, whose it is down to its payout.
 export * from "./routes-sale-chain";
+// «Смены» and «Мои смены»: what stands between a day's shifts and the report it is paid by (`GET /api/v1/shift-report-notes`).
+export * from "./routes-shift-report-notes";
 // Стирание фана: the ledger's feed of the erasures Hub completed.
 export * from "./routes-erasures";
 // «Чья продажа» «со слов» through Hub (review R2b-3).

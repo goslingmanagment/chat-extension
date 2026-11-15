@@ -22,7 +22,8 @@ export const peopleRouteSchemas = {
         summary: "«Начало»: the caller's own way from the invitation to the first shift, each step closed by what Hub sees",
         description: "Workboard «Начало». The person of the session's login (null when the login is nobody's): the extension "
             + "installed and signed in, the pages opened, the first active minute, where payouts go — the caller's own, "
-            + "never anyone else's. A narrow session (from the extension) reads it too; writing where payouts go needs a "
+            + "never anyone else's. A narrow session (from the extension) reads it too, without where payouts go: "
+            + "`payoutDetails.text` is null for it (written, and when, is all it learns), and writing it needs a "
             + "password (accountPayoutDetailsSet is refused to it). Database only.",
         response: { 200: accountStartResponseSchema, ...sessionErrors },
     },
@@ -35,7 +36,7 @@ export const peopleRouteSchemas = {
         response: { 200: accountPayoutDetailsResponseSchema, 400: errorResponseSchema, ...sessionErrors, 409: errorResponseSchema },
     },
     teamPeople: {
-        auth: { kind: "session" }, tags: ["admin"],
+        auth: { kind: "any-session" }, tags: ["admin"],
         summary: "The people of the agency, one record per person, with their logins, agent keys, working pages, schedule, rights"
             + " and Telegram — no money",
         description: "The owner and a team lead. The owner also gets the Hub logins no person holds yet. Pay terms are never here: "

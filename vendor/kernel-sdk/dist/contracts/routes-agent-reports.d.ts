@@ -17,6 +17,7 @@ export declare const agentReportRouteSchemas: {
                 system: "system";
                 team: "team";
                 traffic: "traffic";
+                learn: "learn";
             }>;
             body: z.ZodString;
             teamLeads: z.ZodOptional<z.ZodBoolean>;
@@ -74,6 +75,7 @@ export declare const agentReportRouteSchemas: {
                         system: "system";
                         team: "team";
                         traffic: "traffic";
+                        learn: "learn";
                     }>;
                     teamLeads: z.ZodBoolean;
                     validHours: z.ZodNullable<z.ZodNumber>;
@@ -149,6 +151,7 @@ export declare const agentReportRouteSchemas: {
                         system: "system";
                         team: "team";
                         traffic: "traffic";
+                        learn: "learn";
                     }>;
                     teamLeads: z.ZodBoolean;
                     validHours: z.ZodNullable<z.ZodNumber>;
@@ -211,6 +214,7 @@ export declare const agentReportRouteSchemas: {
                         system: "system";
                         team: "team";
                         traffic: "traffic";
+                        learn: "learn";
                     }>;
                     teamLeads: z.ZodBoolean;
                     validHours: z.ZodNullable<z.ZodNumber>;
@@ -275,6 +279,7 @@ export declare const agentReportRouteSchemas: {
                         system: "system";
                         team: "team";
                         traffic: "traffic";
+                        learn: "learn";
                     }>;
                     teamLeads: z.ZodBoolean;
                     validHours: z.ZodNullable<z.ZodNumber>;

@@ -701,6 +701,17 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     log: (message, fields) => logger.info('tab.frames', message, { fields }),
   });
   offs.push(() => frames.dispose());
+  // Test builds only (R5 stage 3, TEST_FAN_STAND_IN_KEY): a fan of the bound page the fan panel acts for in place of the
+  // open chat's, for a live check against Hub's test realm. A release build never asks.
+  let fanStandIn: string | null = null;
+  if (__CG_TEST_HOSTS__) {
+    void rpc.request('report.state', {}).then(
+      (answer) => {
+        if (answer.ok) fanStandIn = answer.payload.fanStandIn ?? null;
+      },
+      () => undefined,
+    );
+  }
   if (site.start !== undefined) {
     const siteJournal = journal;
     offs.push(
@@ -918,6 +929,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
           bind: (results) => ai.workspace.bindBoards(results),
           talking: navigation.talking,
           queuesCount: ai.queues,
+          // Products package R5: «Записать кастом» and «Спросить» of the fan panel — Workboard's windows over the site.
+          workboard: { open: (screen, form) => frames.form(screen, form) },
+          ...(__CG_TEST_HOSTS__ ? { fanStandIn: () => fanStandIn } : {}),
           // §6.5: the chat is open — its dock goes on with the result. What the dock could not take is said aloud.
           handover(handover) {
             void ai.workspace.adoptBoardResult(handover).then(

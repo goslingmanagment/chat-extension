@@ -534,13 +534,15 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** A fact of a page the person works: «Удалить», or «Исправить» with the text they wrote (≤ 500). One hub call. */
   act('ChangeFanFact', { factId: z.int().check(z.gte(1)), action: z.enum(['delete', 'correct']), text: z.optional(z.string().check(z.maxLength(500))) }),
   /**
-   * Chat Memory week 4, «Кастомы» of «Память»: «Записать кастом» — what was ordered (≤ 500), the price, and optionally
-   * one of the tips the card suggests as its payment. One hub call, never repeated by itself.
+   * «Кастомы» of «Память» (products package R5): «Записать кастом» and «Спросить» open Workboard's own form and question
+   * window over the site, for the open chat's fan (`fanRef`: another chat open by then — nothing opens).
    */
-  // `fanRef` — the fan the custom was written for: another chat open by the time it is saved takes nothing.
-  act('RecordFanCustom', { fanRef: NativeIdSchema, description: z.string().check(z.maxLength(500)), priceMills: z.optional(z.int().check(z.gte(0))), paymentRef: z.optional(NativeIdSchema) }),
-  /** An open custom: «Оплачен» by a suggested tip (`ref`), «Отдали» by a suggested message (`ref`), «Отменить». One hub call. */
-  act('ChangeFanCustom', { customId: z.int().check(z.gte(1)), action: z.enum(['paid', 'delivered', 'cancel']), ref: z.optional(NativeIdSchema) }),
+  act('RecordFanCustom', { fanRef: NativeIdSchema }),
+  act('AskAboutFan', { fanRef: NativeIdSchema }),
+  /** «Отдан»: Workboard's own step of the order (`code`); one hub call, the board's rule decides. */
+  act('GiveFanCustom', { customId: z.int().check(z.gte(1)), code: z.string().check(z.regex(/^K-[1-9][0-9]{0,17}$/)) }),
+  /** The order's card in Workboard, in a new tab by the one-time link. */
+  act('OpenWorkboardCustom', { code: z.string().check(z.regex(/^K-[1-9][0-9]{0,17}$/)) }),
 
   // ── toasts ──
   act('DismissToast', { toastId: HandleSchema }),

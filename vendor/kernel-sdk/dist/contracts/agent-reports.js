@@ -13,8 +13,11 @@ import { intId, isoTimestamp } from "./primitives";
 /** Lowercase words and hyphens: `traffic`, `customs-board`. */
 export const AGENT_REPORT_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export const agentReportSlugSchema = z.string().regex(AGENT_REPORT_SLUG_PATTERN);
-/** Where a report belongs in the owner's place. */
-export const AGENT_REPORT_SECTIONS = ["traffic", "team", "content", "system"];
+/**
+ * Where a report belongs in the owner's place; `learn` — a page of «Обучение» in Workboard (products plan §2.3), read by
+ * the chat team once the owner approved it (`learnPages`).
+ */
+export const AGENT_REPORT_SECTIONS = ["traffic", "team", "content", "system", "learn"];
 export const agentReportSectionSchema = z.enum(AGENT_REPORT_SECTIONS);
 /** The body's ceiling, in UTF-8 bytes (the database repeats it). */
 export const AGENT_REPORT_BODY_MAX_BYTES = 256 * 1024;

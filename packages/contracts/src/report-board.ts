@@ -26,11 +26,14 @@ export const REPORT_FRAME_PORT = 'report-board/port';
 
 /**
  * Workboard's screens the extension shows in its frame over the site (the coordinator, 2026-11-15: one host, one
- * handshake, one fetch relay; the background's allow-list is a table per screen). ONE row ships: `report`, the board
- * «Отчёт», at exactly `/workboard/frame/report` (Hub lifts its no-framing headers for that one path only). Another
- * screen («Записать кастом», «Мои деньги») is added here explicitly, with its own Hub path, never by a wildcard.
+ * handshake, one fetch relay; the background's allow-list is a table per screen), each at its own exact Hub path (Hub
+ * lifts its no-framing headers for these paths only, on the team's name):
+ * - `report` — the board «Отчёт» (`/workboard/frame/report`);
+ * - `custom` — «Записать кастом» of the fan panel (`/workboard/frame/custom?page=&fan=&name=`, package R5);
+ * - `ask` — «Спросить» of the fan panel (`/workboard/frame/ask?page=&fan=&name=`, package R5).
+ * Another screen is added here explicitly, with its own Hub path, never by a wildcard.
  */
-export const WORKBOARD_FRAME_SCREENS = ['report'] as const;
+export const WORKBOARD_FRAME_SCREENS = ['report', 'custom', 'ask'] as const;
 export type WorkboardFrameScreen = (typeof WORKBOARD_FRAME_SCREENS)[number];
 /**
  * The team origin of the production hub (R-protocol «Addresses»): Workboard lives there, the API at the hub's origin.
@@ -46,10 +49,35 @@ export const TEST_FRAME_ORIGIN_KEY = 'see.frameOrigin';
  * for a live check where no tab of the person can be bound to a page (no pulse is sent then). Never gates sightings.
  */
 export const TEST_REPORT_PULSE_KEY = 'see.reportPulse';
+/**
+ * Test builds only: a storage.local key naming a fan of the bound page the fan panel acts for in place of the open
+ * chat's fan — a live check against Hub's test realm, whose pages have no fans of the live site (R5 stage 3).
+ */
+export const TEST_FAN_STAND_IN_KEY = 'see.fanStandIn';
 
 /** Where Workboard draws a screen for the frame on the team origin: `/workboard/frame/<screen>`. */
 export const WORKBOARD_FRAME_PREFIX = '/workboard/frame/';
 export const workboardFramePath = (screen: WorkboardFrameScreen): string => `${WORKBOARD_FRAME_PREFIX}${screen}`;
+/** The fan panel's windows of Workboard (package R5): opened for one fan, closed when done; no bar, never kept. */
+export const WORKBOARD_FORM_SCREENS = ['custom', 'ask'] as const satisfies readonly WorkboardFrameScreen[];
+export type WorkboardFormScreen = (typeof WORKBOARD_FORM_SCREENS)[number];
+/** Who a form is for: the open chat's page and fan, as Workboard's form takes them filled in. */
+export interface WorkboardFormFor {
+  readonly pageLabel: string;
+  readonly fanRef: string;
+  /** The fan's name as the panel shows it; null — none known. */
+  readonly fanName: string | null;
+}
+/** A form's address with its fan: `/workboard/frame/custom?page=…&fan=…&name=…`. */
+export const workboardFormPath = (screen: WorkboardFormScreen, form: WorkboardFormFor): string => {
+  const name = form.fanName === null ? '' : form.fanName.trim().slice(0, 120);
+  const parts = [`page=${encodeURIComponent(form.pageLabel)}`, `fan=${encodeURIComponent(form.fanRef)}`, ...(name === '' ? [] : [`name=${encodeURIComponent(name)}`])];
+  return `${workboardFramePath(screen)}?${parts.join('&')}`;
+};
+/** Workboard's card of a custom order (`/workboard/customs/K-12`), opened in a tab by the one-time link. */
+export const workboardCustomPath = (code: string): string => `/workboard/customs/${encodeURIComponent(code)}`;
+/** A custom order's code as Hub writes it (`K-123`). */
+export const CUSTOM_ORDER_CODE = /^K-[1-9][0-9]{0,17}$/;
 
 /** The board's phases (hub `shift_handins.phase`); `none` — no shift to report. */
 export const REPORT_PHASES = ['draft', 'checking', 'confirm', 'counted', 'fixing', 'none'] as const;

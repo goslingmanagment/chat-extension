@@ -74,6 +74,11 @@ export declare function millsToRoundedDollars(value: MillsLike): number;
 export declare function millsPercentOf(value: MillsLike, percent: number): Mills;
 /** An amount rounded half away from zero to whole cents or whole dollars (a payout-sheet cell). */
 export declare function millsRoundedTo(value: MillsLike, unit: "cent" | "dollar"): Mills;
+/**
+ * What `credits` of a vendor cost at `centsPer1000` US cents a thousand (OnlyFansAPI's credits, shown
+ * beside an album's price), rounded half away from zero to whole cents. Display only.
+ */
+export declare function millsFromCreditsAt(credits: number, centsPer1000: number): Mills;
 export declare function sumMills(values: Iterable<MillsLike>): Mills;
 /**
  * Legacy name for the dollars constructor — same function, kept because the

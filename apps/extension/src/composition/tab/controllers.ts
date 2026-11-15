@@ -20,12 +20,13 @@ import { FAN_QUEUES_CAPABILITY, ONLINE_CAPABILITY, type ChatRef } from '@cg/cont
 import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import type { AiHostPolicy, OpState } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
-import type { HostPort, NavigationReceipt } from '@cg/contracts/host';
+import type { HostEvent, HostPort, NavigationReceipt, RouteState } from '@cg/contracts/host';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, QueueWalkVM, TargetHandle, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
 import type { GreetHereState, GreetedChat } from '@cg/core/application/newcomers';
 import type { GreetRun } from '@cg/core/application/shell';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
+import type { WorkboardFormsPort } from '@cg/core/application/fanpanel';
 import { toastKindOf } from '@cg/core/domain/errors';
 import type { OnlineSiteSource } from '@cg/core/application/online/source';
 import type { Logger } from '@cg/core/domain/logging';
@@ -416,6 +417,10 @@ export interface BoardsDock {
   readonly talking?: NavigationChunk.TalkingController;
   /** 2026-11-02: the dock's own read of the queues: the strip over the bar, and whether the person holds a portion. */
   readonly queuesCount?: AiChunk.QueuesCount;
+  /** Products package R5: Workboard's form and question window over the site, for the fan panel. */
+  readonly workboard?: WorkboardFormsPort;
+  /** Test builds only (R5 stage 3): the fan the fan panel acts for in place of the open chat's; null — the open chat's. */
+  readonly fanStandIn?: () => string | null;
   /**
    * 2026-10-26: a greeting reminder's «Hi» goes on in the fan's chat it opened. The dock's handle of `chat` once its dock
    * can start a generation there; null — not within `ms`.
@@ -425,6 +430,28 @@ export interface BoardsDock {
   fanName(chat: ChatRef): string | null;
   /** How the dock's operation ended within `ms`: its terminal state; null — still running, or unknown here. */
   ended(opId: string, ms: number): Promise<Exclude<OpState, 'admitted' | 'requesting' | 'streaming'> | null>;
+}
+
+/**
+ * Test builds only (R5 stage 3): the host as the fan panel sees it, its open chat's fan replaced by a fan of the bound
+ * page (Hub's test realm has no fans of the live site). Everything else is the host itself.
+ */
+function fanStandInHost(host: HostPort, standIn: () => string | null): HostPort {
+  const map = (route: RouteState): RouteState => {
+    const fan = standIn();
+    return fan === null || route.chat === null ? route : { ...route, chat: { ...route.chat, platformFanId: fan } };
+  };
+  return new Proxy(host, {
+    get(target, key) {
+      if (key === 'current') return () => {
+        const snapshot = target.current();
+        return { ...snapshot, route: map(snapshot.route) };
+      };
+      if (key === 'subscribe') return (listener: (event: HostEvent) => void) => target.subscribe((event) => listener(event.type === 'route' ? { ...event, route: map(event.route) } : event));
+      const value: unknown = Reflect.get(target, key);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
 }
 
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
@@ -618,7 +645,7 @@ export async function startBoards(
   queues.attachBatch(preview);
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
-  const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
+  const fanPanel = chunk.createFanPanelController({ rpc, host: dock.fanStandIn === undefined ? boardsHost : fanStandInHost(boardsHost, dock.fanStandIn), i18n, clock, context, surfaces, rowOf, rowsChanged, ...(dock.workboard === undefined ? {} : { workboard: dock.workboard }), ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   // R12's order: the preview first — it answers for the parts of its own results.
   const controllers = [preview, spenders, newcomers, fanPanel, outreach, online, queues];

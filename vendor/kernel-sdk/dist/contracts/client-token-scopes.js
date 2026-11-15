@@ -116,6 +116,29 @@ export const CLIENT_TOKEN_PROFILES = {
             "shiftReportSubmit",
             // Заявки (ecosystem package G): the other side answers a claim on the extension's «Смена».
             "saleClaimAnswer",
+            // The «Отчёт» board (package R): the board in the extension's frame runs every request through the background with
+            // this token (chat-extension's allow-list follows R-protocol.md): the current shift, «Подтверждаю», «Исправить» and
+            // its «Отмена», «Досдать», a question from the draft and its «Отменить», a card of Gengar, «Добавить» a «нет в Hub»;
+            // and what the site's own list showed («нет в Hub»).
+            "shiftReportCurrent",
+            "shiftReportConfirm",
+            "shiftReportReopen",
+            "shiftReportReopenCancel",
+            "shiftReportResend",
+            "shiftReportAsk",
+            "shiftReportAskWithdraw",
+            "shiftReportProposalAnswer",
+            "shiftReportSightingAdd",
+            "shiftReportPostCopied",
+            "clientSaleSightings",
+            // Workboard's screens in the extension's frame (products package R5; the frame host of package R): «Записать кастом»
+            // (the customs record form) and «Спросить» (the question window) run their requests through the background with
+            // this token, as the board does — the order recorded, the question asked (the page and the fan come from the fan
+            // panel: the page list stays off); and the fan panel's «Отдан», the same step as the order's card on the board.
+            // This token reads as a narrow session there: a chatter whatever the role (customViewerOf), never a decider.
+            "customOrderCreate",
+            "customOrderAct",
+            "teamQuestionAsk",
             // chatspace-tab-state-v1: the always-on ChatSpace tab's report (the server's own hub user).
             "clientChatspaceTabState",
             // onlyfans-feed-v1: what the page's ChatSpace already received, passed on

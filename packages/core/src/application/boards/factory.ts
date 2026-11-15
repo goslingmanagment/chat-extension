@@ -9,7 +9,7 @@ import { type HostPort } from '@cg/contracts/host';
 import { type ActionReceipt, type I18n } from '@cg/contracts/vm';
 
 import { type BoardHandover } from '../board-handover';
-import { createFanPanelController, type FanPanelController } from '../fanpanel/controller';
+import { createFanPanelController, type FanPanelController, type WorkboardFormsPort } from '../fanpanel/controller';
 import { createNewcomersController, type NewcomersController } from '../newcomers/controller';
 import { createOnlineController, type OnlineController } from '../online/controller';
 import { createOutreachController, type OutreachController } from '../outreach/controller';
@@ -56,6 +56,8 @@ export interface BoardsDeps {
   readonly onNewSubscribers?: (events: readonly { readonly eventRef: string; readonly fanRef: string }[]) => void;
   /** 1.20.0 (X47): the site's own fan panel stands next to the chat — the shared one shows only what it lacks. */
   readonly fanPanelBesideHost?: boolean;
+  /** Products package R5: Workboard's windows over the site for the fan panel (the tab's frame host). */
+  readonly workboard?: WorkboardFormsPort;
 }
 
 export interface BoardsControllers {
@@ -155,7 +157,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
   online.attachBatch(preview);
   queues.attachBatch(preview);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
-  const fanPanel = createFanPanelController({ rpc, host, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(deps.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
+  const fanPanel = createFanPanelController({ rpc, host, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(deps.workboard === undefined ? {} : { workboard: deps.workboard }), ...(deps.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   const controllers: readonly SurfaceController[] = [preview, spenders, newcomers, fanPanel, outreach, online, queues] as readonly SurfaceController[];
   return {

@@ -65,7 +65,7 @@ export declare const transactionStates: readonly ["pending", "posted", "unknown"
 export type TransactionState = (typeof transactionStates)[number];
 export declare const ofapiCaptureJobStates: readonly ["ready", "leased", "awaiting_parse", "retry_wait", "blocked", "complete", "cancelled"];
 export type OfapiCaptureJobState = (typeof ofapiCaptureJobStates)[number];
-export declare const userRoles: readonly ["owner", "team_lead", "chatter"];
+export declare const userRoles: readonly ["owner", "team_lead", "chatter", "content_manager"];
 export type UserRole = (typeof userRoles)[number];
 export declare const creatableUserRoles: readonly ["owner", "team_lead", "chatter"];
 export type CreatableUserRole = (typeof creatableUserRoles)[number];

@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { CHAT_READ_LIMITS, DEFAULT_SETTINGS, type Bootstrap, type CgCode, type ChatReadRead, type ChatRef, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type NewcomerRowVM, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
+import { type WorkboardFormsPort } from '@cg/core/application/fanpanel';
 import { chatHandle } from '@cg/core/application/navigation';
 import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE, SEND_PACE_MS } from '@cg/core/application/preview';
@@ -60,6 +61,8 @@ interface Options {
   readonly slowNavigate?: boolean;
   /** 1.20.0: the site's own fan panel stands next to the chat (ChatSpace 0.195). */
   readonly fanPanelBesideHost?: boolean;
+  /** Products package R5: the tab's frame host of Workboard's windows (the fan panel's «Записать кастом», «Спросить»). */
+  readonly workboard?: WorkboardFormsPort;
   /** 1.30.0 (X53): the vault the media picker reads; absent — the host has none. */
   readonly media?: FakeMediaVault;
   /** Chat Memory week 1: «в разговоре» marks by chat key; absent — none. */
@@ -279,6 +282,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     ...(options.queuePageSize === undefined ? {} : { queuePageSize: options.queuePageSize }),
     ...(options.watchForSound === undefined ? {} : { watchForSound: options.watchForSound }),
     ...(options.fanPanelBesideHost === undefined ? {} : { fanPanelBesideHost: options.fanPanelBesideHost }),
+    ...(options.workboard === undefined ? {} : { workboard: options.workboard }),
     onNewSubscribers: (events) => fresh.push([...events]),
     ...(options.ownSend === true ? { sha256: (text: string) => Promise.resolve(createHash('sha256').update(text, 'utf8').digest('hex')) } : {}),
   });
@@ -1972,70 +1976,104 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
     expect(h.boards.fanPanel.getSnapshot(PANEL).memory?.facts[0]?.items).toEqual([]);
   });
 
-  it('«Кастомы»: written paid by a suggested tip, delivered by a suggested message; only the asked page’s tips pay; an ended one has no buttons', async () => {
-    const h = await harness();
+  it('«Кастомы» as Workboard says them: step, who has it, the deadline; «Отдан» only where the board lets; the card in Workboard; the form and the question over the site', async () => {
+    const forms: { readonly screen: string; readonly pageLabel: string; readonly fanRef: string; readonly fanName: string | null }[] = [];
+    let recordOnOpen: (() => void) | null = null;
+    const workboard: WorkboardFormsPort = {
+      open: (screen, form) => {
+        forms.push({ screen, ...form });
+        recordOnOpen?.();
+        return Promise.resolve({ done: screen === 'custom' ? recordOnOpen !== null : true });
+      },
+    };
+    const h = await harness({ workboard });
     const page = h.bootstrap.pages.find((candidate) => candidate.platformAccountId === hostAccount.platformAccountId)!;
-    const custom = (id: number, pageLabel: string, state: string, candidates: number) => ({
+    const custom = (id: number, state: string, fields: Record<string, unknown>) => ({
       id,
-      pageLabel,
+      pageLabel: page.pageLabel,
       granted: true,
       description: `custom ${String(id)}`,
       priceMills: 120_000,
       state,
-      paymentMills: state === 'ordered' ? null : 120_000,
-      paidAt: state === 'ordered' ? null : iso(NOW_MS - 2 * 86_400_000),
+      paymentMills: null,
+      paidAt: null,
       deliveredMessageRef: null,
       deliveredAt: null,
       createdBy: 'Nikita',
       createdAt: iso(NOW_MS - 3 * 86_400_000),
-      deliveryCandidates: Array.from({ length: candidates }, (_, n) => ({ messageRef: String(9100 + n), at: iso(NOW_MS - 3_600_000), mediaCount: 1, priceMills: null })),
+      deliveryCandidates: [],
+      code: `K-${String(id)}`,
+      stepAt: iso(NOW_MS - 2 * 86_400_000),
+      ...fields,
     });
+    const card = (customs: readonly unknown[]) => ({ pageLabel: page.pageLabel, fanRef: '5000', known: true, accounts: [{ platform: 'onlyfans', fanRef: '5000', username: 'kai38', displayName: 'Kai', gone: false, linkedBy: null }], pages: [], suggestions: [], facts: [], customs, serverNow: iso(NOW_MS) });
+    const today = new Date(NOW_MS).toISOString().slice(0, 10);
     h.hub.control({
       op: 'fanCard',
       pageLabel: page.pageLabel,
       fanRef: '5000',
-      card: {
-        pageLabel: page.pageLabel,
-        fanRef: '5000',
-        known: true,
-        accounts: [],
-        pages: [],
-        suggestions: [],
-        facts: [],
-        // An ordered custom of another page the person works: the tips of this page do not pay it.
-        customs: [custom(1, page.pageLabel, 'paid', 1), custom(2, 'lora-1', 'ordered', 0), custom(3, page.pageLabel, 'cancelled', 0)],
-        customPayments: [{ paymentRef: '8001', amountMills: 50_000, at: iso(NOW_MS - 86_400_000), note: 'for my video' }],
-        serverNow: iso(NOW_MS),
-      },
+      card: card([
+        custom(1, 'paid', { stepLabel: 'Снят', orderState: 'shot', deadlineOn: today, overdueDays: null, leader: { name: 'Mira', product: 'workboard' }, mayGive: true }),
+        custom(2, 'paid', { stepLabel: 'У модели', orderState: 'at_model', deadlineOn: '2020-01-01', overdueDays: 3, leader: { name: 'Lora', product: 'contentops' }, mayGive: false }),
+        // An older hub: no code, no step — the four states' words, nothing to press.
+        { ...custom(3, 'ordered', {}), code: undefined, stepAt: undefined },
+      ]),
     });
     h.hostEvent({ type: 'route', route: { epoch: 6, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } } });
     await h.dispatch(open('fan-panel'));
     await h.dispatch({ type: 'SetFanPanelTab', tab: 'memory' });
     await h.flush();
     let customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
-    expect(customs.items.map((item) => [item.id, item.state, item.payWith.length, item.deliveredBy.length, item.cancel !== null])).toEqual([
-      [1, 'paid', 0, 1, true],
-      [2, 'ordered', 0, 0, true],
-      [3, 'cancelled', 0, 0, false],
+    expect(customs.items.map((item) => [item.code, item.step?.label ?? null, item.leader, item.deadline?.late ?? null, item.give !== null, item.open])).toEqual([
+      ['K-1', 'Снят', 'Mira', false, true, { type: 'OpenWorkboardCustom', code: 'K-1' }],
+      ['K-2', 'У модели', 'Lora, в ContentOps', true, false, { type: 'OpenWorkboardCustom', code: 'K-2' }],
+      [null, null, null, null, false, null],
     ]);
-    // «Записать кастом» with the suggested tip: written paid, the tip taken.
-    await h.dispatch({ type: 'RecordFanCustom', fanRef: '5000', description: '  A photo set  ', priceMills: 50_000, paymentRef: '8001' });
+    // Shot already: the deadline is said as it was (Workboard's words), not counted down.
+    expect(customs.items[0]?.deadline?.text).toMatch(/^срок был \d\d\.\d\d$/);
+    expect(customs.items[1]?.deadline?.text).toContain('просрочен на 3');
+    expect(customs.record).toEqual({ record: { type: 'RecordFanCustom', fanRef: '5000' }, ask: { type: 'AskAboutFan', fanRef: '5000' } });
+
+    // «Отдан»: Workboard's own step, then the card as it stands.
+    await h.dispatch(customs.items[0]!.give!);
     await h.flush();
     customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
-    expect(customs.items[0]).toMatchObject({ description: 'A photo set', state: 'paid', paid: 50_000, createdBy: WORLD.user.username });
-    expect(customs.payments).toEqual([]);
-    // «Отдали» by the suggested message: final, no buttons left.
-    await h.dispatch(customs.items.find((item) => item.id === 1)!.deliveredBy[0]!.action);
+    expect([customs.items.find((item) => item.code === 'K-1')?.step?.label, customs.items.find((item) => item.code === 'K-1')?.give]).toEqual(['Отдан', null]);
+    expect(h.hub.read().entries.filter((entry) => entry.route === 'customOrderAct').map((entry) => entry.status)).toEqual([200]);
+
+    // The order's card in Workboard, by the one-time link in a new tab.
+    await h.dispatch({ type: 'OpenWorkboardCustom', code: 'K-2' });
+    expect(h.bg.opened).toEqual(['/workboard/customs/K-2']);
+
+    // «Спросить»: Workboard's window for this page and fan; nothing is read again.
+    await h.dispatch(customs.record!.ask);
+    expect(forms.at(-1)).toEqual({ screen: 'ask', pageLabel: page.pageLabel, fanRef: '5000', fanName: 'Kai' });
+
+    // «Записать кастом»: Workboard's form; what it records shows at once (the card read again).
+    recordOnOpen = () =>
+      h.hub.control({ op: 'fanCard', pageLabel: page.pageLabel, fanRef: '5000', card: card([custom(9, 'ordered', { stepLabel: 'Записан', orderState: 'recorded', deadlineOn: null, overdueDays: null, leader: null, mayGive: false })]) });
+    await h.dispatch(customs.record!.record);
     await h.flush();
-    const delivered = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!.items.find((item) => item.id === 1)!;
-    expect([delivered.state, delivered.deliveredBy, delivered.cancel]).toEqual(['delivered', [], null]);
-    expect(h.hub.read().entries.filter((entry) => entry.route === 'clientFanCustomCreate' || entry.route === 'clientFanCustomChange').length).toBe(2);
-    // The form was written for this fan, then another chat opened: saving it writes nothing to anyone.
+    expect(forms.at(-1)?.screen).toBe('custom');
+    expect(h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!.items.map((item) => [item.code, item.step?.label])).toEqual([['K-9', 'Записан']]);
+
+    // Another chat open by then: the form is not opened for anyone.
     h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5001' } } });
     await h.flush();
-    expect(await h.dispatch({ type: 'RecordFanCustom', fanRef: '5000', description: 'A video for 5000' })).toMatchObject({ outcome: 'noop' });
+    const opened = forms.length;
+    expect(await h.dispatch({ type: 'RecordFanCustom', fanRef: '5000' })).toMatchObject({ outcome: 'noop' });
+    expect(forms.length).toBe(opened);
+  });
+
+  it('«Записать кастом» and «Спросить» are not offered in a tab without Workboard\'s frame', async () => {
+    const h = await harness();
+    const page = h.bootstrap.pages.find((candidate) => candidate.platformAccountId === hostAccount.platformAccountId)!;
+    h.hub.control({ op: 'fanCard', pageLabel: page.pageLabel, fanRef: '5000', card: { pageLabel: page.pageLabel, fanRef: '5000', known: true, accounts: [], pages: [], suggestions: [], facts: [], customs: [], serverNow: iso(NOW_MS) } });
+    h.hostEvent({ type: 'route', route: { epoch: 6, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } } });
+    await h.dispatch(open('fan-panel'));
+    await h.dispatch({ type: 'SetFanPanelTab', tab: 'memory' });
     await h.flush();
-    expect(h.hub.read().entries.filter((entry) => entry.route === 'clientFanCustomCreate').length).toBe(1);
+    expect(h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!.record).toBeNull();
   });
 });
 

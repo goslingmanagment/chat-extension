@@ -7,7 +7,7 @@
  * Two copies exist in Hub and both are GENERATED from here (`node --import tsx/esm
  * packages/look/generate.ts`; CI checks they are fresh):
  *   - packages/ui/src/styles/tokens.css   `--ui-*`, Workboard and the shared components;
- *   - apps/dashboard/src/styles/tokens.css `--color-*` and the type scale under
+ *   - packages/ui/src/styles/console-tokens.css `--color-*` and the type scale under
  *     Tailwind's `@theme static`, the console.
  * Other repositories take the values through `scripts/vendor-look.mjs` (the
  * extension keeps its own dock palette; ContentOps and TaskIndex keep their
@@ -381,6 +381,22 @@ export declare const COLORS: {
     };
 };
 export type ColorName = keyof typeof COLORS;
+/**
+ * A product's own accent in the one system (products plan §2.1): Hub keeps the ink above; Workboard takes the
+ * ChatGoose family's clay (the extension's `--clay #d97757`), darkened where text must clear 4.5:1 on the sheet
+ * (#ad5230 on white: 5.2:1; white on the dark fill #a8502e: 5.4:1). Only the accent changes: the current item of the
+ * menu, the main button, a link, focus, a selected row's ground and line. Surfaces, tables and charts stay as they are.
+ * Workboard's copy sets them under `:root[data-product="workboard"]` (the app marks its <html>).
+ */
+export declare const PRODUCT_ACCENTS: {
+    readonly workboard: {
+        readonly accent: ThemeValue;
+        readonly accentFill: ThemeValue;
+        readonly accentFillHover: ThemeValue;
+        readonly accentSoft: ThemeValue;
+        readonly accentLine: ThemeValue;
+    };
+};
 /** Inter 400/500/600, the system's sans after it. */
 export declare const FONT: {
     readonly family: "\"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
@@ -807,6 +823,15 @@ export declare const TOKENS: {
             readonly value: ThemeValue;
             readonly console: "danger-hover";
             readonly note: "Legacy: danger under the pointer.";
+        };
+    };
+    readonly productAccents: {
+        readonly workboard: {
+            readonly accent: ThemeValue;
+            readonly accentFill: ThemeValue;
+            readonly accentFillHover: ThemeValue;
+            readonly accentSoft: ThemeValue;
+            readonly accentLine: ThemeValue;
         };
     };
     readonly font: {

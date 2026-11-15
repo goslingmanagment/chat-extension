@@ -13,7 +13,7 @@
 // - `report.sightings`: rows of Fansly's wallet list the site itself loaded, to Hub, only for a person with the board;
 //   each row once, at most one report a page in SIGHTINGS_GAP_MS. Nothing is requested of Fansly for it.
 
-import type { ReportFetchAnswer, ReportPulse, ReportSale, SaleSightingRow } from '@cg/contracts/report-board';
+import type { ReportFetchAnswer, ReportPulse, ReportSale, SaleSightingRow, WorkboardFrameScreen } from '@cg/contracts/report-board';
 import type { HubFacade } from '@cg/contracts/hub';
 import type { TabPresence } from '@cg/core/services';
 import { frameRequestAllowed, reportPulseOf } from '@cg/core/domain/report-board';
@@ -46,7 +46,7 @@ export interface ReportBoardBackground {
   /** A tab reported its route: a find waiting for its page goes to it. */
   presence(tabSessionId: string): void;
   current(): ReportPulse | null;
-  fetch(request: { readonly screen: 'report'; readonly method: string; readonly path: string; readonly body: string | null }): Promise<ReportFetchAnswer>;
+  fetch(request: { readonly screen: WorkboardFrameScreen; readonly method: string; readonly path: string; readonly body: string | null }): Promise<ReportFetchAnswer>;
   find(sale: ReportSale, from: string): Promise<{ readonly where: 'here' | 'tab' | 'none' }>;
   statement(pages: readonly string[]): void;
   /** `accountKey`: the tab's host account key (`fansly-web:<creator id>`). */

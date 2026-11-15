@@ -157,7 +157,7 @@ const QUEUE_ITEM = { ...ONLINE_ITEM, reason: 'never_wrote', act: 'template_b', i
 const QUEUE_TAKE = { queueId: 4, items: [QUEUE_ITEM], stopped: null, today: { mine: 12, page: 61 }, pending: 1938, dropped: 1, left: [{ itemId: 78, fanRef: '700000000000000002', reason: 'fan_wrote' }], results: { sent: 3, answered: 1, spentMills: 45_000 }, serverNow: '2026-10-29T10:00:00.000Z' };
 
 /** Chat Memory week 4: a paid custom with a delivery Hub suggests. */
-const CUSTOM = { id: 3, pageLabel: 'model-two-fansly', granted: true, description: 'A 5-minute video in red', priceMills: 120_000, state: 'paid', paymentMills: 120_000, paidAt: '2026-10-22T10:00:00.000Z', deliveredMessageRef: null, deliveredAt: null, createdBy: 'Nikita', createdAt: '2026-10-22T10:05:00.000Z', deliveryCandidates: [{ messageRef: '930000000000000078', at: '2026-10-23T10:00:00.000Z', mediaCount: 1, priceMills: null }] };
+const CUSTOM = { id: 3, pageLabel: 'model-two-fansly', granted: true, description: 'A 5-minute video in red', priceMills: 120_000, state: 'paid', paymentMills: 120_000, paidAt: '2026-10-22T10:00:00.000Z', deliveredMessageRef: null, deliveredAt: null, createdBy: 'Nikita', createdAt: '2026-10-22T10:05:00.000Z', code: 'K-3', stepLabel: 'У модели', stepAt: '2026-10-23T10:00:00.000Z', orderState: 'at_model', deadlineOn: '2026-10-26', overdueDays: null, leader: { name: 'Mira', product: 'workboard' }, mayGive: true };
 
 /** Chat Memory week 2: a fan's card as the hub answers it. */
 const MEMORY_CARD = { pageLabel: 'model-two-fansly', fanRef: '920000000000000003', known: true, accounts: [{ platform: 'fansly', fanRef: '920000000000000003', username: 'kai_38', displayName: 'Kai', gone: false, linkedBy: null }], pages: [{ pageLabel: 'model-two-fansly', platform: 'fansly', modelName: 'Model Two', fanRef: '920000000000000003', granted: true, alias: '💵Rowan/Norway/52', subscribed: true, subscribedSince: '2026-09-01T10:00:00.000Z', subscriptionEndsAt: null, spentMills: 120000, last30Mills: { tip: 20000 }, lastPurchaseAt: '2026-10-20T10:00:00.000Z' }], suggestions: [], facts: [{ id: 7, kind: 'about', text: 'Lives in Toronto, works nights', pageLabel: 'model-two-fansly', granted: true, conversationRef: '810000000000000001', messageRef: '930000000000000001', messageAt: '2026-10-20T10:00:00.000Z', source: 'ai', author: null, createdAt: '2026-10-20T10:20:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
@@ -255,9 +255,14 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'frame.fetch': {
     req: {
-      valid: [{ screen: 'report', method: 'GET', path: '/api/v1/shift-reports/current', body: null }, { screen: 'report', method: 'PUT', path: '/api/v1/shift-reports/41/comment', body: '{"comment":"ok"}' }],
+      valid: [
+        { screen: 'report', method: 'GET', path: '/api/v1/shift-reports/current', body: null },
+        { screen: 'report', method: 'PUT', path: '/api/v1/shift-reports/41/comment', body: '{"comment":"ok"}' },
+        { screen: 'custom', method: 'POST', path: '/api/v1/custom-orders', body: '{}' },
+        { screen: 'ask', method: 'POST', path: '/api/v1/team/questions', body: '{}' },
+      ],
       // A screen of another build, a method of none, no body field.
-      invalid: [{ screen: 'custom', method: 'GET', path: '/api/v1/x', body: null }, { screen: 'report', method: 'PATCH', path: '/api/v1/x', body: null }, { screen: 'report', method: 'GET', path: '/api/v1/x' }],
+      invalid: [{ screen: 'money', method: 'GET', path: '/api/v1/x', body: null }, { screen: 'report', method: 'PATCH', path: '/api/v1/x', body: null }, { screen: 'report', method: 'GET', path: '/api/v1/x' }],
     },
     res: { valid: [{ status: 200, body: '{}' }, { error: 'refused' }, { error: 'signed_out' }], invalid: [{ status: 200 }, { error: 'other' }] },
   },
@@ -629,19 +634,17 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
     res: { valid: [{ changed: true, card: MEMORY_CARD }, { changed: false, card: MEMORY_CARD }], invalid: [{ changed: true }] },
   },
-  'fan.memory.custom': {
+  'fan.memory.give': {
     req: {
-      valid: [
-        { ...pageFan, action: 'create', description: 'A 5-minute video in red', priceMills: 120_000, paymentRef: '930000000000000077' },
-        { ...pageFan, action: 'create', description: 'A photo set' },
-        { ...pageFan, customId: 3, action: 'paid', paymentRef: '930000000000000077' },
-        { ...pageFan, customId: 3, action: 'delivered', messageRef: '930000000000000078' },
-        { ...pageFan, customId: 3, action: 'cancel' },
-      ],
-      // Something ordered, a suggestion named whole; no edit from the extension.
-      invalid: [{ ...pageFan, action: 'create', description: '  ' }, { ...pageFan, customId: 3, action: 'paid' }, { ...pageFan, customId: 3, action: 'edit', description: 'x', priceMills: null }],
+      valid: [{ ...pageFan, code: 'K-3' }],
+      // Workboard's code only: no id, no other step.
+      invalid: [{ ...pageFan, code: '3' }, { ...pageFan, code: 'K-0' }, { ...pageFan, code: 'K-3', action: 'cancel' }],
     },
-    res: { valid: [{ changed: true, card: { ...MEMORY_CARD, customs: [CUSTOM], customPayments: [{ paymentRef: '930000000000000077', amountMills: 120_000, at: '2026-10-22T10:00:00.000Z', note: 'for my video' }] } }], invalid: [{ changed: true, card: { ...MEMORY_CARD, customs: [{ id: 3 }] } }] },
+    res: { valid: [{ changed: true, card: { ...MEMORY_CARD, customs: [CUSTOM] } }], invalid: [{ changed: true, card: { ...MEMORY_CARD, customs: [{ id: 3 }] } }] },
+  },
+  'workboard.open': {
+    req: { valid: [{ next: '/workboard/customs/K-3' }, { next: '/workboard/money/mine' }], invalid: [{ next: '/admin' }, { next: 'https://example.test/workboard/x' }, { next: '/workboard/x?y=1' }, {}] },
+    res: { valid: [{ recorded: true }], invalid: [{}] },
   },
   'newcomers.list': {
     req: { valid: [{ pageId: 11, windowHours: 48, cursor: null }], invalid: [{ pageId: 11, windowHours: 721, cursor: null }] },

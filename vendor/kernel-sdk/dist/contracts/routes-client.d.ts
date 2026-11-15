@@ -111,7 +111,7 @@ export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-
 export declare const CLIENT_FEATURE_UNAVAILABLE_REASONS: readonly ["disabled", "flag_off", "platform_unsupported", "binding_missing", "hub_not_ready", "not_granted", "client_outdated", "lane_off"];
 /** The platforms and roles this hub knows today (`pages[].platform`, `identity.role`). */
 export declare const CLIENT_KNOWN_PLATFORMS: readonly ["fansly", "onlyfans", "telegram"];
-export declare const CLIENT_KNOWN_ROLES: readonly ["owner", "team_lead", "chatter"];
+export declare const CLIENT_KNOWN_ROLES: readonly ["owner", "team_lead", "chatter", "content_manager"];
 /**
  * How much of one conversation's history the hub can vouch for: the `coverage`
  * of the AI `context_v1` frame (routes.ts) and of the client reads built on the
@@ -2174,6 +2174,17 @@ export declare const clientActivityBodySchema: z.ZodObject<{
 export declare const clientActivityResponseSchema: z.ZodObject<{
     recorded: z.ZodNumber;
     matters: z.ZodOptional<z.ZodNumber>;
+    report: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        shiftId: z.ZodNumber;
+        phase: z.ZodEnum<{
+            draft: "draft";
+            checking: "checking";
+            confirm: "confirm";
+            counted: "counted";
+            fixing: "fixing";
+        }>;
+        needsMe: z.ZodBoolean;
+    }, z.core.$strip>>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 /** How often the server's tab reports. */
@@ -2433,6 +2444,14 @@ export declare const clientFanFactSchema: z.ZodObject<{
 /** Chat Memory week 4: the states of a custom; open on the wire. */
 export declare const CLIENT_FAN_CUSTOM_STATES: readonly ["ordered", "paid", "delivered", "cancelled"];
 export declare const clientFanCustomSchema: z.ZodObject<{
+    orderState: z.ZodOptional<z.ZodString>;
+    deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        name: z.ZodNullable<z.ZodString>;
+        product: z.ZodString;
+    }, z.core.$strip>>>;
+    mayGive: z.ZodOptional<z.ZodBoolean>;
     code: z.ZodOptional<z.ZodString>;
     stepLabel: z.ZodOptional<z.ZodString>;
     stepAt: z.ZodOptional<z.ZodString>;
@@ -2525,6 +2544,14 @@ export declare const clientFanCardResponseSchema: z.ZodObject<{
         }, z.core.$strip>>>;
     }, z.core.$strip>>;
     customs: z.ZodArray<z.ZodObject<{
+        orderState: z.ZodOptional<z.ZodString>;
+        deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+        leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            name: z.ZodNullable<z.ZodString>;
+            product: z.ZodString;
+        }, z.core.$strip>>>;
+        mayGive: z.ZodOptional<z.ZodBoolean>;
         code: z.ZodOptional<z.ZodString>;
         stepLabel: z.ZodOptional<z.ZodString>;
         stepAt: z.ZodOptional<z.ZodString>;
@@ -2661,6 +2688,14 @@ export declare const clientFanFactChangeResponseSchema: z.ZodObject<{
             }, z.core.$strip>>>;
         }, z.core.$strip>>;
         customs: z.ZodArray<z.ZodObject<{
+            orderState: z.ZodOptional<z.ZodString>;
+            deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+            leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                name: z.ZodNullable<z.ZodString>;
+                product: z.ZodString;
+            }, z.core.$strip>>>;
+            mayGive: z.ZodOptional<z.ZodBoolean>;
             code: z.ZodOptional<z.ZodString>;
             stepLabel: z.ZodOptional<z.ZodString>;
             stepAt: z.ZodOptional<z.ZodString>;
@@ -2776,6 +2811,14 @@ export declare const clientFanLinkDecideResponseSchema: z.ZodObject<{
             }, z.core.$strip>>>;
         }, z.core.$strip>>;
         customs: z.ZodArray<z.ZodObject<{
+            orderState: z.ZodOptional<z.ZodString>;
+            deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+            leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                name: z.ZodNullable<z.ZodString>;
+                product: z.ZodString;
+            }, z.core.$strip>>>;
+            mayGive: z.ZodOptional<z.ZodBoolean>;
             code: z.ZodOptional<z.ZodString>;
             stepLabel: z.ZodOptional<z.ZodString>;
             stepAt: z.ZodOptional<z.ZodString>;
@@ -3210,20 +3253,6 @@ export declare const clientHandoffResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
-export declare const teamCustomsResponseSchema: z.ZodObject<{
-    customs: z.ZodArray<z.ZodObject<{
-        id: z.ZodNumber;
-        pageLabel: z.ZodString;
-        fanRef: z.ZodString;
-        description: z.ZodString;
-        priceMills: z.ZodNullable<z.ZodNumber>;
-        state: z.ZodString;
-        paidAt: z.ZodNullable<z.ZodString>;
-        createdBy: z.ZodString;
-        createdAt: z.ZodString;
-    }, z.core.$strip>>;
-    serverNow: z.ZodString;
-}, z.core.$strip>;
 /** Chat Memory week 5: the longest window of the chatter numbers. */
 export declare const CHATTER_NUMBERS_MAX_DAYS = 31;
 /**
@@ -3259,12 +3288,119 @@ export declare const teamChatterNumbersQuerySchema: z.ZodObject<{
     to: z.ZodOptional<z.ZodString>;
     userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strip>;
+/**
+ * A period's quality, «в среднем за смену»: each number the plain average over the shifts that have one (the reply
+ * median over shifts with replies, «ИИ без правки» over shifts with texts). The rules: `shiftQualityOf` and
+ * `averageShiftQuality` (shift-review-rules.ts).
+ */
+export declare const periodQualitySchema: z.ZodObject<{
+    shifts: z.ZodNumber;
+    replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+    unansweredAtEnd: z.ZodNullable<z.ZodNumber>;
+    aiUneditedShare: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strip>;
+export declare const accountShiftNumbersQuerySchema: z.ZodObject<{
+    from: z.ZodOptional<z.ZodString>;
+    to: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+/**
+ * The signed-in person's own numbers (products plan §5, package N): every login of theirs, all pages. Beside each
+ * quality number the team's average of the same period: the team is the person's (the models of their working pages,
+ * services/teams.ts), the average is of its closed shifts with stored numbers — never a list of people. Sales by the
+ * rule only: the reports' sums stay the reports' (`accountReports`). No pay here.
+ */
+export declare const accountShiftNumbersResponseSchema: z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    personId: z.ZodNullable<z.ZodNumber>;
+    period: z.ZodObject<{
+        shifts: z.ZodNumber;
+        workedMinutes: z.ZodNumber;
+        quality: z.ZodObject<{
+            shifts: z.ZodNumber;
+            replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+            unansweredAtEnd: z.ZodNullable<z.ZodNumber>;
+            aiUneditedShare: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        numbers: z.ZodObject<{
+            workedMinutes: z.ZodNumber;
+            revenueMills: z.ZodNullable<z.ZodNumber>;
+            revenuePerHourMills: z.ZodNullable<z.ZodNumber>;
+            fansWritten: z.ZodNumber;
+            fansPaid: z.ZodNumber;
+            messages: z.ZodNumber;
+            ppvSent: z.ZodNumber;
+            ppvBought: z.ZodNumber;
+            ppvAveragePriceMills: z.ZodNullable<z.ZodNumber>;
+            ppvShare: z.ZodNullable<z.ZodNumber>;
+            replies: z.ZodNumber;
+            replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+            repliesWithinHour: z.ZodNumber;
+            waitingAtEnd: z.ZodNumber;
+            composed: z.ZodObject<{
+                hand: z.ZodNumber;
+                reply: z.ZodNumber;
+                fix: z.ZodNumber;
+                other: z.ZodNumber;
+            }, z.core.$strip>;
+            textMessages: z.ZodNumber;
+            aiUnedited: z.ZodNumber;
+        }, z.core.$strip>;
+    }, z.core.$strip>;
+    team: z.ZodNullable<z.ZodObject<{
+        shifts: z.ZodNumber;
+        replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+        unansweredAtEnd: z.ZodNullable<z.ZodNumber>;
+        aiUneditedShare: z.ZodNullable<z.ZodNumber>;
+        people: z.ZodNumber;
+    }, z.core.$strip>>;
+    shifts: z.ZodArray<z.ZodObject<{
+        userId: z.ZodNumber;
+        startedAt: z.ZodString;
+        endedAt: z.ZodString;
+        ongoing: z.ZodBoolean;
+        pages: z.ZodArray<z.ZodString>;
+        workedMinutes: z.ZodNumber;
+        quality: z.ZodObject<{
+            replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+            unansweredAtEnd: z.ZodNumber;
+            aiUneditedShare: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        numbers: z.ZodObject<{
+            workedMinutes: z.ZodNumber;
+            revenueMills: z.ZodNullable<z.ZodNumber>;
+            revenuePerHourMills: z.ZodNullable<z.ZodNumber>;
+            fansWritten: z.ZodNumber;
+            fansPaid: z.ZodNumber;
+            messages: z.ZodNumber;
+            ppvSent: z.ZodNumber;
+            ppvBought: z.ZodNumber;
+            ppvAveragePriceMills: z.ZodNullable<z.ZodNumber>;
+            ppvShare: z.ZodNullable<z.ZodNumber>;
+            replies: z.ZodNumber;
+            replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+            repliesWithinHour: z.ZodNumber;
+            waitingAtEnd: z.ZodNumber;
+            composed: z.ZodObject<{
+                hand: z.ZodNumber;
+                reply: z.ZodNumber;
+                fix: z.ZodNumber;
+                other: z.ZodNumber;
+            }, z.core.$strip>;
+            textMessages: z.ZodNumber;
+            aiUnedited: z.ZodNumber;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
 export declare const teamChatterNumbersResponseSchema: z.ZodObject<{
     from: z.ZodString;
     to: z.ZodString;
     chatters: z.ZodArray<z.ZodObject<{
         userId: z.ZodNumber;
         username: z.ZodString;
+        personId: z.ZodNullable<z.ZodNumber>;
+        userIds: z.ZodArray<z.ZodNumber>;
         week: z.ZodObject<{
             workedMinutes: z.ZodNumber;
             revenueMills: z.ZodNullable<z.ZodNumber>;
@@ -3292,6 +3428,7 @@ export declare const teamChatterNumbersResponseSchema: z.ZodObject<{
             unconfirmedShifts: z.ZodNumber;
         }, z.core.$strip>;
         shifts: z.ZodArray<z.ZodObject<{
+            userId: z.ZodNumber;
             startedAt: z.ZodString;
             endedAt: z.ZodString;
             ongoing: z.ZodBoolean;
@@ -5048,6 +5185,17 @@ export declare const clientRouteSchemas: {
             readonly 200: z.ZodObject<{
                 recorded: z.ZodNumber;
                 matters: z.ZodOptional<z.ZodNumber>;
+                report: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    shiftId: z.ZodNumber;
+                    phase: z.ZodEnum<{
+                        draft: "draft";
+                        checking: "checking";
+                        confirm: "confirm";
+                        counted: "counted";
+                        fixing: "fixing";
+                    }>;
+                    needsMe: z.ZodBoolean;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -5139,7 +5287,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamShifts: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "The actual shifts of the team, from the chat extension's activity";
@@ -5264,7 +5412,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamAuthorship: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "How many of each page's outgoing messages have an author, per day";
@@ -5325,7 +5473,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamEmptyHours: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "Empty hours of each page and who waited in them";
@@ -5376,7 +5524,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamGreetings: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "Greetings of new subscribers and replies to broadcasts";
@@ -5526,6 +5674,14 @@ export declare const clientRouteSchemas: {
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 customs: z.ZodArray<z.ZodObject<{
+                    orderState: z.ZodOptional<z.ZodString>;
+                    deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                    overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+                    leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                        name: z.ZodNullable<z.ZodString>;
+                        product: z.ZodString;
+                    }, z.core.$strip>>>;
+                    mayGive: z.ZodOptional<z.ZodBoolean>;
                     code: z.ZodOptional<z.ZodString>;
                     stepLabel: z.ZodOptional<z.ZodString>;
                     stepAt: z.ZodOptional<z.ZodString>;
@@ -5842,6 +5998,14 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        orderState: z.ZodOptional<z.ZodString>;
+                        deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                        overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+                        leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                            name: z.ZodNullable<z.ZodString>;
+                            product: z.ZodString;
+                        }, z.core.$strip>>>;
+                        mayGive: z.ZodOptional<z.ZodBoolean>;
                         code: z.ZodOptional<z.ZodString>;
                         stepLabel: z.ZodOptional<z.ZodString>;
                         stepAt: z.ZodOptional<z.ZodString>;
@@ -6002,6 +6166,14 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        orderState: z.ZodOptional<z.ZodString>;
+                        deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                        overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+                        leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                            name: z.ZodNullable<z.ZodString>;
+                            product: z.ZodString;
+                        }, z.core.$strip>>>;
+                        mayGive: z.ZodOptional<z.ZodBoolean>;
                         code: z.ZodOptional<z.ZodString>;
                         stepLabel: z.ZodOptional<z.ZodString>;
                         stepAt: z.ZodOptional<z.ZodString>;
@@ -6559,7 +6731,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamWinBackResults: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "Win-back results by approach and chatter";
@@ -6875,6 +7047,14 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        orderState: z.ZodOptional<z.ZodString>;
+                        deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                        overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+                        leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                            name: z.ZodNullable<z.ZodString>;
+                            product: z.ZodString;
+                        }, z.core.$strip>>>;
+                        mayGive: z.ZodOptional<z.ZodBoolean>;
                         code: z.ZodOptional<z.ZodString>;
                         stepLabel: z.ZodOptional<z.ZodString>;
                         stepAt: z.ZodOptional<z.ZodString>;
@@ -7042,6 +7222,14 @@ export declare const clientRouteSchemas: {
                         }, z.core.$strip>>>;
                     }, z.core.$strip>>;
                     customs: z.ZodArray<z.ZodObject<{
+                        orderState: z.ZodOptional<z.ZodString>;
+                        deadlineOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                        overdueDays: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+                        leader: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                            name: z.ZodNullable<z.ZodString>;
+                            product: z.ZodString;
+                        }, z.core.$strip>>>;
+                        mayGive: z.ZodOptional<z.ZodBoolean>;
                         code: z.ZodOptional<z.ZodString>;
                         stepLabel: z.ZodOptional<z.ZodString>;
                         stepAt: z.ZodOptional<z.ZodString>;
@@ -7110,27 +7298,108 @@ export declare const clientRouteSchemas: {
             }, z.core.$strip>;
         };
     };
-    readonly teamCustoms: {
+    readonly accountShiftNumbers: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
-        readonly summary: "Open customs of the pages the viewer reaches";
+        readonly summary: "The caller's own shift numbers, with the team's average beside each quality number";
         readonly description: string;
+        readonly querystring: z.ZodObject<{
+            from: z.ZodOptional<z.ZodString>;
+            to: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
-                customs: z.ZodArray<z.ZodObject<{
-                    id: z.ZodNumber;
-                    pageLabel: z.ZodString;
-                    fanRef: z.ZodString;
-                    description: z.ZodString;
-                    priceMills: z.ZodNullable<z.ZodNumber>;
-                    state: z.ZodString;
-                    paidAt: z.ZodNullable<z.ZodString>;
-                    createdBy: z.ZodString;
-                    createdAt: z.ZodString;
+                from: z.ZodString;
+                to: z.ZodString;
+                personId: z.ZodNullable<z.ZodNumber>;
+                period: z.ZodObject<{
+                    shifts: z.ZodNumber;
+                    workedMinutes: z.ZodNumber;
+                    quality: z.ZodObject<{
+                        shifts: z.ZodNumber;
+                        replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+                        unansweredAtEnd: z.ZodNullable<z.ZodNumber>;
+                        aiUneditedShare: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>;
+                    numbers: z.ZodObject<{
+                        workedMinutes: z.ZodNumber;
+                        revenueMills: z.ZodNullable<z.ZodNumber>;
+                        revenuePerHourMills: z.ZodNullable<z.ZodNumber>;
+                        fansWritten: z.ZodNumber;
+                        fansPaid: z.ZodNumber;
+                        messages: z.ZodNumber;
+                        ppvSent: z.ZodNumber;
+                        ppvBought: z.ZodNumber;
+                        ppvAveragePriceMills: z.ZodNullable<z.ZodNumber>;
+                        ppvShare: z.ZodNullable<z.ZodNumber>;
+                        replies: z.ZodNumber;
+                        replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+                        repliesWithinHour: z.ZodNumber;
+                        waitingAtEnd: z.ZodNumber;
+                        composed: z.ZodObject<{
+                            hand: z.ZodNumber;
+                            reply: z.ZodNumber;
+                            fix: z.ZodNumber;
+                            other: z.ZodNumber;
+                        }, z.core.$strip>;
+                        textMessages: z.ZodNumber;
+                        aiUnedited: z.ZodNumber;
+                    }, z.core.$strip>;
+                }, z.core.$strip>;
+                team: z.ZodNullable<z.ZodObject<{
+                    shifts: z.ZodNumber;
+                    replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+                    unansweredAtEnd: z.ZodNullable<z.ZodNumber>;
+                    aiUneditedShare: z.ZodNullable<z.ZodNumber>;
+                    people: z.ZodNumber;
+                }, z.core.$strip>>;
+                shifts: z.ZodArray<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    startedAt: z.ZodString;
+                    endedAt: z.ZodString;
+                    ongoing: z.ZodBoolean;
+                    pages: z.ZodArray<z.ZodString>;
+                    workedMinutes: z.ZodNumber;
+                    quality: z.ZodObject<{
+                        replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+                        unansweredAtEnd: z.ZodNumber;
+                        aiUneditedShare: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>;
+                    numbers: z.ZodObject<{
+                        workedMinutes: z.ZodNumber;
+                        revenueMills: z.ZodNullable<z.ZodNumber>;
+                        revenuePerHourMills: z.ZodNullable<z.ZodNumber>;
+                        fansWritten: z.ZodNumber;
+                        fansPaid: z.ZodNumber;
+                        messages: z.ZodNumber;
+                        ppvSent: z.ZodNumber;
+                        ppvBought: z.ZodNumber;
+                        ppvAveragePriceMills: z.ZodNullable<z.ZodNumber>;
+                        ppvShare: z.ZodNullable<z.ZodNumber>;
+                        replies: z.ZodNumber;
+                        replyMedianSeconds: z.ZodNullable<z.ZodNumber>;
+                        repliesWithinHour: z.ZodNumber;
+                        waitingAtEnd: z.ZodNumber;
+                        composed: z.ZodObject<{
+                            hand: z.ZodNumber;
+                            reply: z.ZodNumber;
+                            fix: z.ZodNumber;
+                            other: z.ZodNumber;
+                        }, z.core.$strip>;
+                        textMessages: z.ZodNumber;
+                        aiUnedited: z.ZodNumber;
+                    }, z.core.$strip>;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;
@@ -7150,7 +7419,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamChatterNumbers: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "The eight numbers of each chatter's shifts and week";
@@ -7167,6 +7436,8 @@ export declare const clientRouteSchemas: {
                 chatters: z.ZodArray<z.ZodObject<{
                     userId: z.ZodNumber;
                     username: z.ZodString;
+                    personId: z.ZodNullable<z.ZodNumber>;
+                    userIds: z.ZodArray<z.ZodNumber>;
                     week: z.ZodObject<{
                         workedMinutes: z.ZodNumber;
                         revenueMills: z.ZodNullable<z.ZodNumber>;
@@ -7194,6 +7465,7 @@ export declare const clientRouteSchemas: {
                         unconfirmedShifts: z.ZodNumber;
                     }, z.core.$strip>;
                     shifts: z.ZodArray<z.ZodObject<{
+                        userId: z.ZodNumber;
                         startedAt: z.ZodString;
                         endedAt: z.ZodString;
                         ongoing: z.ZodBoolean;
@@ -7252,7 +7524,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamSalesPpv: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "PPV conversion by page, chatter and price";
@@ -7328,7 +7600,7 @@ export declare const clientRouteSchemas: {
     };
     readonly teamSalesReplies: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "How fast the page answered a fan, against whether the fan bought within 24 hours";
@@ -7822,13 +8094,13 @@ export type TeamEmptyHoursResponse = z.infer<typeof teamEmptyHoursResponseSchema
 export type TeamGreetingsResponse = z.infer<typeof teamGreetingsResponseSchema>;
 export type ChatterNumbers = z.infer<typeof chatterNumbersSchema>;
 export type TeamChatterNumbersResponse = z.infer<typeof teamChatterNumbersResponseSchema>;
+export type AccountShiftNumbersResponse = z.infer<typeof accountShiftNumbersResponseSchema>;
 export type TeamSalesQuery = z.infer<typeof teamSalesQuerySchema>;
 export type TeamSalesPpvResponse = z.infer<typeof teamSalesPpvResponseSchema>;
 export type TeamSalesRepliesResponse = z.infer<typeof teamSalesRepliesResponseSchema>;
 export type ClientFanCustom = z.infer<typeof clientFanCustomSchema>;
 export type ClientFanCustomCreateBody = z.infer<typeof clientFanCustomCreateBodySchema>;
 export type ClientFanCustomChangeBody = z.infer<typeof clientFanCustomChangeBodySchema>;
-export type TeamCustomsResponse = z.infer<typeof teamCustomsResponseSchema>;
 export type ClientHandoffResponse = z.infer<typeof clientHandoffResponseSchema>;
 export type ClientWinBackResponse = z.infer<typeof clientWinBackResponseSchema>;
 export type ClientWinBackAttemptBody = z.infer<typeof clientWinBackAttemptBodySchema>;

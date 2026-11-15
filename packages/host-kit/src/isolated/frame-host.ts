@@ -1,14 +1,15 @@
 // Workboard's screens over the site (hub package R, 2026-11-15; R-protocol.md; the coordinator: one host of Workboard
-// «frame» screens, the board «Отчёт» first, «Записать кастом» and «Мои деньги» later through the same seam). Plain DOM in
-// closed roots of ours, the same on Fansly and ChatSpace:
+// «frame» screens: the board «Отчёт», and since products package R5 the fan panel's «Записать кастом» and «Спросить»).
+// Plain DOM in closed roots of ours, the same on Fansly and ChatSpace:
 //
 // - The layer: a full-window host in <html>, above the site's own modals (FRAME_Z), holding the iframe of
 //   `<team origin>/workboard/frame/<screen>`: `allow="clipboard-write"`, no `sandbox`, `referrerpolicy="no-referrer"`.
-//   Created once per tab and screen, hidden (never unloaded) when collapsed, so opening again is instant.
-// - The handshake (version 1): the frame posts `{ cg: "report-board/hello", v: 1 }` to its parent until it holds a
-//   port; a hello is taken only from this iframe's window and the team origin, once: a `MessageChannel` is made, its
-//   second port transferred to the frame with the team origin as the target. Nothing secret crosses: the frame asks for
-//   what it needs over the port, and the extension's background answers (the device token never leaves it).
+//   The board is created once per tab, hidden (never unloaded) when collapsed, so opening again is instant; a form of
+//   the fan panel is made for its fan and disposed when it closes (tab/frames.ts).
+// - The handshake (version 2): a random key in the frame's address fragment; on the frame's `load` the port is posted
+//   with the key to the team origin, again with a fresh channel every 500 ms until the frame says `ready` on it.
+//   Nothing secret crosses: the frame asks for what it needs over the port, and the extension's background answers
+//   (the device token never leaves it).
 // - Keys: while the layer shows, the frame has the focus; a key that still lands on the site's page (the layer just
 //   opened) stops in the capture phase of the window and never reaches the site's hotkeys; Esc collapses.
 // - The bar (`.mini` of the prototype, 8-docs 2026-11-13-products report-panel-mockups/columns.html): 44 px at the

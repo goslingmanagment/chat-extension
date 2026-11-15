@@ -85,6 +85,8 @@ export interface BootstrapDeps {
   readonly ctx: HubContext;
   readonly local: HubKeyValueStore;
   readonly compatPageAccounts: Readonly<Record<string, string>>;
+  /** Test builds only: switches of a page read as on (pageLabel → flags), for a live check on Hub's test realm. */
+  readonly compatFeaturesOn?: Readonly<Record<string, readonly string[]>>;
   /** The platforms the build's sites serve: the compat bootstrap's pages of another are `platform_unsupported`. */
   readonly compatPlatforms: readonly string[];
 }
@@ -215,6 +217,23 @@ export class BootstrapService {
       if (!this.ctx.compatAllowed()) throw new FacadeCheckError('bootstrapMissing', 'clientBootstrap', connection.epoch);
       bootstrap = await this.synthesize(connection, options, now);
       source = 'compat';
+    }
+    // Test builds only (the background passes no map to a release build): a page of Hub's test realm has no platform
+    // account, so no tab could bind to it; the stand's map names one (a live check against production Hub, R5 stage 3).
+    if (source === 'hub' && Object.keys(this.deps.compatPageAccounts).length > 0) {
+      bootstrap = { ...bootstrap, pages: bootstrap.pages.map((page) => (page.platformAccountId === null && this.deps.compatPageAccounts[page.pageLabel] !== undefined ? { ...page, platformAccountId: this.deps.compatPageAccounts[page.pageLabel] ?? null } : page)) };
+    }
+    // Test builds only, the same live check: a test page's owner switches the stand names are read as on (the
+    // extension's own gate; Hub's routes behind no flag answer as they do).
+    const featuresOn = this.deps.compatFeaturesOn ?? {};
+    if (source === 'hub' && Object.keys(featuresOn).length > 0) {
+      bootstrap = {
+        ...bootstrap,
+        pages: bootstrap.pages.map((page) => {
+          const flags = featuresOn[page.pageLabel];
+          return flags === undefined ? page : { ...page, features: { ...page.features, ...Object.fromEntries(flags.map((flag) => [flag, { available: true }])) } };
+        }),
+      };
     }
     if (bootstrap.identity.userId !== connection.userId) throw this.ctx.failure('clientBootstrap', transportFailure('contract'), connection);
     if (!protocolSupported(bootstrap)) throw new FacadeCheckError('bootstrapProtocol', 'clientBootstrap', connection.epoch);

@@ -18,6 +18,7 @@ import {
   type ClaimOp,
   type ClaimState,
   type Dossier,
+  type FanCard,
   type HostAccount,
   type HubBinding,
   type HubFailure,
@@ -102,6 +103,8 @@ export class BoardsBackground {
   private readonly failures = new Map<BoardsRequestType, CgErrorWire[]>();
   private readonly holds = new Map<BoardsRequestType, Promise<void>[]>();
   private readonly leaseTokens = new Map<string, string>();
+  /** Products package R5: the Workboard screens a tab asked to open in a new tab (`workboard.open`). */
+  readonly opened: string[] = [];
   private readonly ids = sequentialIds(0x7000);
 
   constructor(private readonly options: BackgroundOptions) {
@@ -436,15 +439,18 @@ export class BoardsBackground {
       const { pageId: _pageId, ...change } = request;
       return this.read('clientFanFactChange', { ...change, pageLabel });
     },
-    'fan.memory.custom': (request) => {
-      const pageLabel = this.pageLabel(request.pageId);
-      if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
-      if (request.action === 'create') {
-        const { pageId: _pageId, action: _action, ...custom } = request;
-        return this.read('clientFanCustomCreate', { ...custom, pageLabel });
-      }
-      const { pageId: _pageId, ...change } = request;
-      return this.read('clientFanCustomChange', { ...change, pageLabel });
+    // Products package R5: «Отдан» — Workboard's step by the order's code, then the card as it stands.
+    'fan.memory.give': async ({ pageId, fanRef, code }) => {
+      const pageLabel = this.pageLabel(pageId);
+      if (pageLabel === null) return fail({ code: 'CG-BINDING-NOT-GRANTED' });
+      const acted = await this.options.call('customOrderAct', { code, action: 'given' });
+      if (acted.status < 200 || acted.status > 299) return fail(this.wireOf('customOrderAct', acted, null, false));
+      const card = await this.read<FanCard>('clientFanCard', { pageLabel, fanRef });
+      return card.ok ? ok({ changed: true, card: card.payload }) : card;
+    },
+    'workboard.open': ({ next }) => {
+      this.opened.push(next);
+      return Promise.resolve(ok({ recorded: true }));
     },
     'newcomers.list': ({ pageId, windowHours, cursor }) => {
       const pageLabel = this.pageLabel(pageId);

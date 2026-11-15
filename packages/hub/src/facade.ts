@@ -25,6 +25,7 @@ import {
   WebLinkRequestSchema,
   hasCapability,
   narrowPlatform,
+  narrowRole,
   type AbortSignalLike,
   type AcceptanceEvent,
   type AiLimitReport,
@@ -94,8 +95,8 @@ import {
   type OtherPagesRequest,
   type FanBadgesReport,
   type FanBadgesReportResult,
-  type FanCustomChangeRequest,
-  type FanCustomCreateRequest,
+  CustomOrderGiveRequestSchema,
+  type CustomOrderGiveRequest,
   type Handoff,
   type HandoffQuery,
   type OnlineAttemptRequest,
@@ -197,6 +198,8 @@ export interface HubFacadeOptions {
    * bind (never by name). A release build has no compat mode and never reads it.
    */
   readonly compatPageAccounts?: Readonly<Record<string, string>>;
+  /** Test builds only: a page's switches read as on (pageLabel → flags), for a live check on Hub's test realm. */
+  readonly compatFeaturesOn?: Readonly<Record<string, readonly string[]>>;
   /**
    * DEV-ONLY compat mode: the platforms the build's sites serve (the composition root's word, R20 F9b) — a page of
    * the synthesized bootstrap on another is `platform_unsupported`. Absent — none: every page is.
@@ -333,7 +336,7 @@ export class ChatExtensionHub implements HubFacade {
     this.wire = new HubWire({ fetch: options.fetch, clock, headers });
     this.custody = new AuthCustody({ local: options.local, clock, log, configuredOrigin: () => options.env.hubOrigin(), onReadAgain: () => this.afterSignInRead() });
     this.ctx = new HubContext(options.env, this.custody, this.wire, clock, log, uuid);
-    this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
+    this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatFeaturesOn: options.compatFeaturesOn ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
     this.catalogService = new CatalogService(this.ctx, options.local);
     this.quota = new QuotaTracker(() => clock.now());
     this.aiLimitTracker = new AiLimitTracker(() => clock.now(), options.session ?? null);
@@ -508,7 +511,7 @@ export class ChatExtensionHub implements HubFacade {
         session = await this.custody.commitSignIn({
           token: issued.token,
           hubOrigin,
-          user: { userId: me.user.id, login: me.user.username, role: me.user.role },
+          user: { userId: me.user.id, login: me.user.username, role: narrowRole(me.user.role) },
           narrow,
           tokenMeta: { keyPrefix: issued.keyPrefix, issuedAt: new Date(this.ctx.clock.now()).toISOString(), expiresAt: issued.expiresAt, label: issued.label, version: env.extensionVersion },
         });
@@ -1140,14 +1143,17 @@ export class ChatExtensionHub implements HubFacade {
     return (await this.client('clientFanFactChange', request, request.pageLabel)) as FanFactChangeResult;
   }
 
-  /** Chat Memory week 4: a custom written into the fan's card. Never repeated here. */
-  async fanCustomCreate(request: FanCustomCreateRequest): Promise<FanFactChangeResult> {
-    return (await this.client('clientFanCustomCreate', request, request.pageLabel)) as FanFactChangeResult;
-  }
-
-  /** A custom marked paid, delivered, cancelled or edited. Never repeated here. */
-  async fanCustomChange(request: FanCustomChangeRequest): Promise<FanFactChangeResult> {
-    return (await this.client('clientFanCustomChange', request, request.pageLabel)) as FanFactChangeResult;
+  /** Package R5: «Отдан» — Workboard's own step of the order, by the device token. Never repeated here. */
+  async customOrderGive(request: CustomOrderGiveRequest, pageLabel: string): Promise<void> {
+    await this.ready;
+    const route = 'customOrderAct';
+    const connection = this.ctx.connection(route);
+    if (!CustomOrderGiveRequestSchema.safeParse(request).success) throw this.ctx.failure(route, transportFailure('contract'), connection);
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    const missing = HUB_ROUTES[route].capabilities.filter((capability) => !hasCapability(entry.bootstrap.capabilities, capability));
+    if (missing.length > 0) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, missing.join(','));
+    if (pageOf(entry.bootstrap, pageLabel) === null) throw new FacadeCheckError('pageNotGranted', route, connection.epoch);
+    await this.ctx.sdk(route, { params: { code: request.code }, body: { action: request.action } }, { facts: { pageLabel } }, connection);
   }
 
   /** Chat Memory week 3: the shift handoff of a page granted by this bootstrap; refused without `handoff-v1`. */

@@ -5,15 +5,15 @@
 // - Facts by kind — «О себе», «Обещали», «Договорились» — each with its page and time; on a page the person works:
 //   «Открыть чат» (another account's chat in this tab), «Исправить» in place, «Удалить». An empty kind says «не знаю»:
 //   a deliberate exception to the panel's «what no source knows is not drawn» (the roadmap's rule for the facts).
-// - «Кастомы» (Chat Memory week 4): the open first, the order's code beside what it is, its step as the hub names it
-//   («У модели 2 д», «Снят 5 ч»; from an older hub: how long since the payment); on a page the person works
-//   «Оплачен» by a tip Hub suggests, «Отдали» by media the page sent since («это он? 1 медиа · вчера»), «Отменить»;
-//   «Записать кастом» — what, the price, and one of the suggested tips if it is the payment. Hub sets nothing itself.
+// - «Кастомы» (products package R5: Workboard's orders, one implementation): the open first, the order's code beside
+//   what it is, in Workboard's words — the step («У модели 2 д»), who has it now, the deadline (red when it passed);
+//   «Отдан» when the board lets the person press it, «В Workboard ↗» — the order's card. «Записать кастом» and
+//   «Спросить» open Workboard's own form and question window over the site, with the page and the fan filled in.
 
 import { type JSX } from 'preact';
 import { useState } from 'preact/hooks';
 
-import { type FanCustomPaymentVM, type FanCustomStepVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemoryVM, type I18n } from '@cg/contracts/vm';
+import { type FanCustomStepVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemoryVM, type I18n } from '@cg/contracts/vm';
 
 import { chatClick, Button, ErrorCard, ViewState, useDispatch, useI18n } from '../kit';
 
@@ -95,12 +95,6 @@ function FactQuote({ quote }: { readonly quote: NonNullable<FanMemoryFactVM['quo
   );
 }
 
-/** «$120 · 2 дн назад · «for my video»». */
-function tipText(i18n: I18n, payment: FanCustomPaymentVM): string {
-  const line = i18n.t('fanPanel.memory.custom.tip', { amount: i18n.formatMoneyMills(payment.amount), age: i18n.formatAge(payment.at) });
-  return payment.note === null || payment.note === '' ? line : `${line} · «${payment.note}»`;
-}
-
 /** The order's real step as the hub names it, with how long it is on it («У модели 2 д»). */
 export function customStepText(i18n: I18n, step: FanCustomStepVM): string {
   return step.at === null ? step.label : i18n.t('fanPanel.memory.custom.step', { step: step.label, age: i18n.formatAge(step.at) });
@@ -129,9 +123,7 @@ function customState(i18n: I18n, custom: FanCustomVM): string {
 function CustomRow({ custom }: { readonly custom: FanCustomVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const money = custom.paid ?? custom.price;
-  const meta = [customState(i18n, custom), money === null ? null : i18n.formatMoneyMills(money), custom.pageLabel, i18n.t('fanPanel.memory.custom.by', { name: custom.createdBy })].filter((part) => part !== null).join(' · ');
-  const busy = custom.busy ? i18n.t('common.loading') : null;
+  const meta = [customState(i18n, custom), custom.leader === null ? null : i18n.t('fanPanel.memory.custom.leader', { name: custom.leader }), custom.price === null ? null : i18n.formatMoneyMills(custom.price), custom.pageLabel].filter((part) => part !== null).join(' · ');
   return (
     <div class={`cg-mem__custom is-${custom.state ?? 'unknown'}`} data-cg-custom={custom.id} aria-busy={custom.busy ? 'true' : 'false'}>
       <div class="cg-mem__text">
@@ -139,92 +131,35 @@ function CustomRow({ custom }: { readonly custom: FanCustomVM }): JSX.Element {
         {custom.description}
       </div>
       <div class="cg-mem__meta">{meta}</div>
-      {custom.payWith.length === 0 ? null : (
-        <div class="cg-mem__ask">
-          <span>{i18n.t('fanPanel.memory.custom.isPayment')}</span>
-          {custom.payWith.map((payment) => (
-            <Button key={payment.ref} label={tipText(i18n, payment)} variant="line" size="sm" reason={busy} onClick={() => void dispatch(payment.action)} />
-          ))}
+      {custom.deadline === null ? null : (
+        <div class={`cg-mem__meta${custom.deadline.late ? ' is-late' : ''}`} data-cg-custom-deadline={custom.deadline.late ? 'late' : 'ok'}>
+          {custom.deadline.text}
         </div>
       )}
-      {custom.deliveredBy.length === 0 ? null : (
-        <div class="cg-mem__ask">
-          <span>{i18n.t('fanPanel.memory.custom.isDelivery')}</span>
-          {custom.deliveredBy.map((message) => (
-            <Button key={message.ref} label={i18n.t('fanPanel.memory.custom.media', { count: message.mediaCount, age: i18n.formatAge(message.at) })} variant="line" size="sm" reason={busy} onClick={() => void dispatch(message.action)} />
-          ))}
-        </div>
-      )}
-      {custom.cancel === null ? null : (
+      {custom.give === null && custom.open === null ? null : (
         <div class="cg-fp__acts">
-          <Button label={i18n.t('fanPanel.memory.custom.cancel')} variant="quiet" size="sm" reason={busy} onClick={() => void dispatch(custom.cancel!)} />
+          {custom.give === null ? null : <Button label={i18n.t('fanPanel.memory.custom.give')} variant="line" size="sm" reason={custom.busy ? i18n.t('common.loading') : null} onClick={() => void dispatch(custom.give!)} />}
+          {custom.open === null ? null : <Button label={i18n.t('fanPanel.memory.custom.open')} variant="quiet" size="sm" onClick={() => void dispatch(custom.open!)} />}
         </div>
       )}
     </div>
   );
 }
 
-/**
- * The typed price of a custom in mills: empty — none; dollars with at most cents («120», «$49.99», «1 000», «49,5»);
- * anything else — not a price, said on «Сохранить» instead of saving the custom without it. Whole cents, no float.
- */
-export function customPriceMills(typed: string): number | null | 'bad' {
-  const text = typed.replace(/\s+/g, '').replace(/^\$/, '');
-  if (text === '') return null;
-  const match = /^(\d{1,6})(?:[.,](\d{1,2}))?$/.exec(text);
-  if (match === null) return 'bad';
-  return (Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0'))) * 10;
-}
-
-/** «Записать кастом»: what was ordered, the price in dollars, and a suggested tip if it is the payment. */
-function RecordCustom({ customs, fanRef }: { readonly customs: FanMemoryCustomsVM; readonly fanRef: string | null }): JSX.Element | null {
+function Customs({ customs }: { readonly customs: FanMemoryCustomsVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const [draft, setDraft] = useState<{ readonly what: string; readonly price: string; readonly payment: string | null } | null>(null);
   const record = customs.record;
-  if (record === null || fanRef === null) return null;
-  if (draft === null) {
-    return (
-      <div class="cg-fp__acts">
-        <Button label={i18n.t('fanPanel.memory.custom.record')} variant="line" reason={record.busy ? i18n.t('common.loading') : null} onClick={() => setDraft({ what: '', price: '', payment: null })} />
-      </div>
-    );
-  }
-  const price = customPriceMills(draft.price);
-  const save = (): void => {
-    const description = draft.what.trim();
-    if (description === '' || price === 'bad') return;
-    setDraft(null);
-    void dispatch({ type: 'RecordFanCustom', fanRef, description, ...(price === null ? {} : { priceMills: price }), ...(draft.payment === null ? {} : { paymentRef: draft.payment }) });
-  };
-  return (
-    <div class="cg-mem__record" data-cg-custom-record="1">
-      <textarea class="cg-mem__fix" maxLength={500} placeholder={i18n.t('fanPanel.memory.custom.what')} aria-label={i18n.t('fanPanel.memory.custom.what')} value={draft.what} onInput={(event) => setDraft({ ...draft, what: event.currentTarget.value })} />
-      <input class="cg-mem__price cg-num" inputMode="decimal" placeholder={i18n.t('fanPanel.memory.custom.price')} aria-label={i18n.t('fanPanel.memory.custom.price')} aria-invalid={price === 'bad' ? 'true' : 'false'} value={draft.price} onInput={(event) => setDraft({ ...draft, price: event.currentTarget.value })} />
-      {price === 'bad' ? <div class="cg-mem__bad" role="status">{i18n.t('fanPanel.memory.custom.badPrice')}</div> : null}
-      {customs.payments.length === 0 ? null : (
-        <div class="cg-mem__ask">
-          <span>{i18n.t('fanPanel.memory.custom.payment')}</span>
-          {customs.payments.map((payment) => (
-            <Button key={payment.ref} label={tipText(i18n, payment)} variant="line" size="sm" pressed={draft.payment === payment.ref} onClick={() => setDraft({ ...draft, payment: draft.payment === payment.ref ? null : payment.ref })} />
-          ))}
-        </div>
-      )}
-      <div class="cg-fp__acts">
-        <Button label={i18n.t('common.save')} variant="quiet" reason={draft.what.trim() === '' ? i18n.t('fanPanel.memory.custom.what') : price === 'bad' ? i18n.t('fanPanel.memory.custom.badPrice') : null} onClick={save} />
-        <Button label={i18n.t('common.cancel')} variant="quiet" onClick={() => setDraft(null)} />
-      </div>
-    </div>
-  );
-}
-
-function Customs({ customs, fanRef }: { readonly customs: FanMemoryCustomsVM; readonly fanRef: string | null }): JSX.Element {
-  const i18n = useI18n();
   return (
     <div class="cg-fp__sec" data-cg-customs="1">
       <div class="cg-fp__cap">{i18n.t('fanPanel.memory.customs')}</div>
       {customs.items.length === 0 ? <div class="cg-fp__none">{i18n.t('fanPanel.memory.custom.none')}</div> : customs.items.map((custom) => <CustomRow key={custom.id} custom={custom} />)}
-      <RecordCustom customs={customs} fanRef={fanRef} />
+      {record === null ? null : (
+        <div class="cg-fp__acts" data-cg-custom-record="1">
+          <Button label={i18n.t('fanPanel.memory.custom.record')} variant="line" onClick={() => void dispatch(record.record)} />
+          <Button label={i18n.t('fanPanel.memory.custom.ask')} variant="line" onClick={() => void dispatch(record.ask)} />
+        </div>
+      )}
     </div>
   );
 }
@@ -248,7 +183,7 @@ export function MemoryTab({ memory }: { readonly memory: FanMemoryVM }): JSX.Ele
           ))}
         </div>
       )}
-      {memory.customs === undefined ? null : <Customs customs={memory.customs} fanRef={memory.fanRef ?? null} />}
+      {memory.customs === undefined ? null : <Customs customs={memory.customs} />}
       {memory.suggestions.map((suggestion) => (
         <div key={suggestion.key} class="cg-fp__sec cg-mem__suggest" data-cg-suggestion={suggestion.key}>
           <div class="cg-fp__cap">{i18n.t('fanPanel.memory.suggest')}</div>
@@ -296,12 +231,7 @@ export const MEMORY_CSS = `
 .cg-mem__custom > .cg-fp__acts { margin-left: -6px; }
 .cg-mem__custom.is-delivered .cg-mem__text, .cg-mem__custom.is-cancelled .cg-mem__text { color: var(--cg-ink-2); }
 .cg-mem__code { margin-right: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-mem__ask { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
-.cg-mem__ask > span { margin-right: 2px; }
-.cg-mem__record { display: grid; gap: 6px; margin-top: 8px; }
-.cg-mem__bad { font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
-.cg-mem__price[aria-invalid="true"] { border-color: var(--cg-ink-2); }
-.cg-mem__price { box-sizing: border-box; width: 120px; font: inherit; color: var(--cg-ink); background: var(--cg-raised); border: 1px solid var(--cg-rule-3); border-radius: var(--cg-r-md); padding: 4px 8px; }
+.cg-mem__meta.is-late { color: var(--cg-bad-ink); }
 .cg-mem__page { padding: 6px 0; }
 .cg-mem__page + .cg-mem__page { border-top: 1px dashed var(--cg-rule); }
 .cg-mem__line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }

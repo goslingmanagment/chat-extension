@@ -245,11 +245,11 @@ declare const shiftReviewSaleSchema: z.ZodObject<{
         kind: z.ZodEnum<{
             unknown: "unknown";
             shift: "shift";
-            waiting: "waiting";
-            visit: "visit";
             pot: "pot";
-            decide: "decide";
             nobody: "nobody";
+            waiting: "waiting";
+            decide: "decide";
+            visit: "visit";
             before_rule: "before_rule";
         }>;
         text: z.ZodString;
@@ -406,11 +406,11 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             kind: z.ZodEnum<{
                 unknown: "unknown";
                 shift: "shift";
-                waiting: "waiting";
-                visit: "visit";
                 pot: "pot";
-                decide: "decide";
                 nobody: "nobody";
+                waiting: "waiting";
+                decide: "decide";
+                visit: "visit";
                 before_rule: "before_rule";
             }>;
             text: z.ZodString;
@@ -457,11 +457,11 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             kind: z.ZodEnum<{
                 unknown: "unknown";
                 shift: "shift";
-                waiting: "waiting";
-                visit: "visit";
                 pot: "pot";
-                decide: "decide";
                 nobody: "nobody";
+                waiting: "waiting";
+                decide: "decide";
+                visit: "visit";
                 before_rule: "before_rule";
             }>;
             text: z.ZodString;
@@ -508,11 +508,11 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             kind: z.ZodEnum<{
                 unknown: "unknown";
                 shift: "shift";
-                waiting: "waiting";
-                visit: "visit";
                 pot: "pot";
-                decide: "decide";
                 nobody: "nobody";
+                waiting: "waiting";
+                decide: "decide";
+                visit: "visit";
                 before_rule: "before_rule";
             }>;
             text: z.ZodString;
@@ -559,11 +559,11 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             kind: z.ZodEnum<{
                 unknown: "unknown";
                 shift: "shift";
-                waiting: "waiting";
-                visit: "visit";
                 pot: "pot";
-                decide: "decide";
                 nobody: "nobody";
+                waiting: "waiting";
+                decide: "decide";
+                visit: "visit";
                 before_rule: "before_rule";
             }>;
             text: z.ZodString;
@@ -613,7 +613,7 @@ export type ShiftReviewSaleOrigin = (typeof SHIFT_REVIEW_SALE_ORIGINS)[number];
 export declare const shiftReviewRouteSchemas: {
     readonly teamShiftReview: {
         readonly auth: {
-            readonly kind: "owner-session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "One chatter's shift opened up: its pulse, every chat, and where each message's text came from";
@@ -774,11 +774,11 @@ export declare const shiftReviewRouteSchemas: {
                         kind: z.ZodEnum<{
                             unknown: "unknown";
                             shift: "shift";
-                            waiting: "waiting";
-                            visit: "visit";
                             pot: "pot";
-                            decide: "decide";
                             nobody: "nobody";
+                            waiting: "waiting";
+                            decide: "decide";
+                            visit: "visit";
                             before_rule: "before_rule";
                         }>;
                         text: z.ZodString;
@@ -825,11 +825,11 @@ export declare const shiftReviewRouteSchemas: {
                         kind: z.ZodEnum<{
                             unknown: "unknown";
                             shift: "shift";
-                            waiting: "waiting";
-                            visit: "visit";
                             pot: "pot";
-                            decide: "decide";
                             nobody: "nobody";
+                            waiting: "waiting";
+                            decide: "decide";
+                            visit: "visit";
                             before_rule: "before_rule";
                         }>;
                         text: z.ZodString;
@@ -876,11 +876,11 @@ export declare const shiftReviewRouteSchemas: {
                         kind: z.ZodEnum<{
                             unknown: "unknown";
                             shift: "shift";
-                            waiting: "waiting";
-                            visit: "visit";
                             pot: "pot";
-                            decide: "decide";
                             nobody: "nobody";
+                            waiting: "waiting";
+                            decide: "decide";
+                            visit: "visit";
                             before_rule: "before_rule";
                         }>;
                         text: z.ZodString;
@@ -927,11 +927,11 @@ export declare const shiftReviewRouteSchemas: {
                         kind: z.ZodEnum<{
                             unknown: "unknown";
                             shift: "shift";
-                            waiting: "waiting";
-                            visit: "visit";
                             pot: "pot";
-                            decide: "decide";
                             nobody: "nobody";
+                            waiting: "waiting";
+                            decide: "decide";
+                            visit: "visit";
                             before_rule: "before_rule";
                         }>;
                         text: z.ZodString;

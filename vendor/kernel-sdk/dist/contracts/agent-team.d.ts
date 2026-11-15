@@ -4,9 +4,10 @@ import { z } from "zod";
  * docs/plans/2026-11-09-release-2.md in the ledger repo): every piece of the
  * team's work and every sale on the key's pages in a window, with the facts the
  * ledger's split rules read — who held the page, who sent the bought PPV, a tip
- * under a post or to a Campaign, who wrote to the fan last, the chatters' marks
- * and the owner's split. Facts only: whose a sale is, and what anyone is paid,
- * is the ledger's (owner, 2026-11-08). Needs `read:team` and `read:money`.
+ * under a post or to a Campaign, who wrote to the fan last, and the owner's
+ * decision of the sale (`marks`, the chatters' own of Hub's old shift report, is
+ * always empty now). Facts only: whose a sale is, and what anyone is paid, is
+ * the ledger's (owner, 2026-11-08). Needs `read:team` and `read:money`.
  */
 /** The longest window of one read, days. */
 export declare const AGENT_TEAM_SALES_MAX_DAYS = 31;
@@ -78,8 +79,8 @@ declare const agentTeamSaleSchema: z.ZodObject<{
         userId: z.ZodNumber;
         mark: z.ZodEnum<{
             mine: "mine";
-            share: "share";
             not_mine: "not_mine";
+            share: "share";
         }>;
         shareWithUserId: z.ZodNullable<z.ZodNumber>;
         amountMills: z.ZodNullable<z.ZodNumber>;
@@ -164,8 +165,8 @@ export declare const agentTeamSalesResponseSchema: z.ZodObject<{
             userId: z.ZodNumber;
             mark: z.ZodEnum<{
                 mine: "mine";
-                share: "share";
                 not_mine: "not_mine";
+                share: "share";
             }>;
             shareWithUserId: z.ZodNullable<z.ZodNumber>;
             amountMills: z.ZodNullable<z.ZodNumber>;
@@ -303,8 +304,8 @@ export declare const agentTeamRouteSchemas: {
                         userId: z.ZodNumber;
                         mark: z.ZodEnum<{
                             mine: "mine";
-                            share: "share";
                             not_mine: "not_mine";
+                            share: "share";
                         }>;
                         shareWithUserId: z.ZodNullable<z.ZodNumber>;
                         amountMills: z.ZodNullable<z.ZodNumber>;

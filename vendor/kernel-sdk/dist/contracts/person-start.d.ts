@@ -14,7 +14,9 @@ import { z } from "zod";
  * working yet (state invited or set up) and holds a login. The person reads it
  * on Workboard's «Начало», the owner on the person's card («Ввод: 3 из 5»).
  * Where payouts go is money-adjacent: the person's own session and the owner's
- * only, never a team lead's, another chatter's, or an agent key's.
+ * only, never a team lead's, another chatter's, or an agent key's. The person's
+ * narrow session (from the extension, no password) learns only whether it is
+ * written, never the text (`ownPayoutDetailsSchema`).
  */
 export declare const PERSON_START_STEPS: readonly ["install", "extension", "pages", "activity", "payout"];
 export type PersonStartStepId = (typeof PERSON_START_STEPS)[number];
@@ -24,16 +26,16 @@ export declare const PERSON_START_STUCK_HOURS = 48;
 export declare const PAYOUT_DETAILS_MAX_LENGTH = 500;
 export declare const personStartStepEnum: z.ZodEnum<{
     pages: "pages";
-    install: "install";
     extension: "extension";
+    install: "install";
     activity: "activity";
     payout: "payout";
 }>;
 export declare const personStartStepSchema: z.ZodObject<{
     step: z.ZodEnum<{
         pages: "pages";
-        install: "install";
         extension: "extension";
+        install: "install";
         activity: "activity";
         payout: "payout";
     }>;
@@ -46,8 +48,8 @@ export declare const personStartSchema: z.ZodObject<{
     steps: z.ZodArray<z.ZodObject<{
         step: z.ZodEnum<{
             pages: "pages";
-            install: "install";
             extension: "extension";
+            install: "install";
             activity: "activity";
             payout: "payout";
         }>;
@@ -58,8 +60,8 @@ export declare const personStartSchema: z.ZodObject<{
     total: z.ZodNumber;
     current: z.ZodNullable<z.ZodEnum<{
         pages: "pages";
-        install: "install";
         extension: "extension";
+        install: "install";
         activity: "activity";
         payout: "payout";
     }>>;
@@ -89,6 +91,15 @@ export declare const payoutDetailsSchema: z.ZodNullable<z.ZodObject<{
     text: z.ZodString;
     updatedAt: z.ZodString;
 }, z.core.$strip>>;
+/**
+ * The same, as the person's own session reads it. A narrow session (opened from the extension, no password:
+ * web-session-scopes.ts) learns only WHETHER they are written and when: Hub leaves the text out of its answer
+ * (`text` null), and the screen shows the way to the password instead. Null as a whole — not written.
+ */
+export declare const ownPayoutDetailsSchema: z.ZodNullable<z.ZodObject<{
+    text: z.ZodNullable<z.ZodString>;
+    updatedAt: z.ZodString;
+}, z.core.$strip>>;
 export declare const accountStartResponseSchema: z.ZodObject<{
     person: z.ZodNullable<z.ZodObject<{
         code: z.ZodString;
@@ -101,8 +112,8 @@ export declare const accountStartResponseSchema: z.ZodObject<{
         steps: z.ZodArray<z.ZodObject<{
             step: z.ZodEnum<{
                 pages: "pages";
-                install: "install";
                 extension: "extension";
+                install: "install";
                 activity: "activity";
                 payout: "payout";
             }>;
@@ -113,8 +124,8 @@ export declare const accountStartResponseSchema: z.ZodObject<{
         total: z.ZodNumber;
         current: z.ZodNullable<z.ZodEnum<{
             pages: "pages";
-            install: "install";
             extension: "extension";
+            install: "install";
             activity: "activity";
             payout: "payout";
         }>>;
@@ -140,7 +151,7 @@ export declare const accountStartResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
     }, z.core.$strip>>;
     payoutDetails: z.ZodNullable<z.ZodObject<{
-        text: z.ZodString;
+        text: z.ZodNullable<z.ZodString>;
         updatedAt: z.ZodString;
     }, z.core.$strip>>;
     submitsShift: z.ZodBoolean;
@@ -158,6 +169,7 @@ export declare const accountPayoutDetailsResponseSchema: z.ZodObject<{
 export type PersonStart = z.infer<typeof personStartSchema>;
 export type PersonStartStep = z.infer<typeof personStartStepSchema>;
 export type PayoutDetails = z.infer<typeof payoutDetailsSchema>;
+export type OwnPayoutDetails = z.infer<typeof ownPayoutDetailsSchema>;
 export type AccountStartResponse = z.infer<typeof accountStartResponseSchema>;
 export type AccountPayoutDetailsBody = z.infer<typeof accountPayoutDetailsBodySchema>;
 export type AccountPayoutDetailsResponse = z.infer<typeof accountPayoutDetailsResponseSchema>;

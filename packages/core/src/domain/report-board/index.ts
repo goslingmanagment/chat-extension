@@ -31,6 +31,16 @@ export const FRAME_ALLOW_LISTS: Readonly<Record<WorkboardFrameScreen, readonly F
     { methods: ALL, path: '/api/v1/sale-claims/:claimId/answer' },
     { methods: ['GET'], path: '/api/v1/auth/me' },
   ],
+  // «Записать кастом» (package R5): the board's own form records one order (`customOrderCreate`), nothing else.
+  custom: [
+    { methods: ['POST'], path: '/api/v1/custom-orders' },
+    { methods: ['GET'], path: '/api/v1/auth/me' },
+  ],
+  // «Спросить» (package R5): Workboard's question window asks one question about the fan (`teamQuestionAsk`).
+  ask: [
+    { methods: ['POST'], path: '/api/v1/team/questions' },
+    { methods: ['GET'], path: '/api/v1/auth/me' },
+  ],
 };
 
 /** A query string of plain characters only (no `#`, no second `?`, no spaces or quotes). */

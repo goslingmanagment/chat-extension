@@ -12,13 +12,17 @@ import { z } from "zod";
 /** Lowercase words and hyphens: `traffic`, `customs-board`. */
 export declare const AGENT_REPORT_SLUG_PATTERN: RegExp;
 export declare const agentReportSlugSchema: z.ZodString;
-/** Where a report belongs in the owner's place. */
-export declare const AGENT_REPORT_SECTIONS: readonly ["traffic", "team", "content", "system"];
+/**
+ * Where a report belongs in the owner's place; `learn` — a page of «Обучение» in Workboard (products plan §2.3), read by
+ * the chat team once the owner approved it (`learnPages`).
+ */
+export declare const AGENT_REPORT_SECTIONS: readonly ["traffic", "team", "content", "system", "learn"];
 export declare const agentReportSectionSchema: z.ZodEnum<{
     content: "content";
     system: "system";
     team: "team";
     traffic: "traffic";
+    learn: "learn";
 }>;
 export type AgentReportSection = z.infer<typeof agentReportSectionSchema>;
 /** The body's ceiling, in UTF-8 bytes (the database repeats it). */
@@ -33,6 +37,7 @@ export declare const agentReportPutBodySchema: z.ZodObject<{
         system: "system";
         team: "team";
         traffic: "traffic";
+        learn: "learn";
     }>;
     body: z.ZodString;
     teamLeads: z.ZodOptional<z.ZodBoolean>;
@@ -48,6 +53,7 @@ export declare const agentReportMetaSchema: z.ZodObject<{
         system: "system";
         team: "team";
         traffic: "traffic";
+        learn: "learn";
     }>;
     teamLeads: z.ZodBoolean;
     validHours: z.ZodNullable<z.ZodNumber>;
@@ -71,6 +77,7 @@ export declare const agentReportPutResponseSchema: z.ZodObject<{
             system: "system";
             team: "team";
             traffic: "traffic";
+            learn: "learn";
         }>;
         teamLeads: z.ZodBoolean;
         validHours: z.ZodNullable<z.ZodNumber>;
@@ -96,6 +103,7 @@ export declare const agentReportListResponseSchema: z.ZodObject<{
             system: "system";
             team: "team";
             traffic: "traffic";
+            learn: "learn";
         }>;
         teamLeads: z.ZodBoolean;
         validHours: z.ZodNullable<z.ZodNumber>;
@@ -121,6 +129,7 @@ export declare const reportsListResponseSchema: z.ZodObject<{
             system: "system";
             team: "team";
             traffic: "traffic";
+            learn: "learn";
         }>;
         teamLeads: z.ZodBoolean;
         validHours: z.ZodNullable<z.ZodNumber>;
@@ -146,6 +155,7 @@ export declare const reportGetResponseSchema: z.ZodObject<{
             system: "system";
             team: "team";
             traffic: "traffic";
+            learn: "learn";
         }>;
         teamLeads: z.ZodBoolean;
         validHours: z.ZodNullable<z.ZodNumber>;

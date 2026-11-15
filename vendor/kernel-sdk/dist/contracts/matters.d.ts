@@ -18,9 +18,9 @@ export declare function matterKindOfKey(key: string): string;
  * The kinds Hub's server keeps from today's sources, each the one writer of its
  * kind: an agent key opens or closes none of them.
  */
-export declare const MATTER_MIRROR_KINDS: readonly ["publication.draft", "publication.unknown", "ledger.sale_question", "ledger.report_post", "ledger.paid_day_changed", "custom.paid_not_delivered", "send.held", "page.login_needed", "incident.open", "extension.critical", "history.request"];
+export declare const MATTER_MIRROR_KINDS: readonly ["publication.draft", "publication.unknown", "ledger.sale_question", "ledger.report_post", "ledger.paid_day_changed", "send.held", "page.login_needed", "incident.open", "extension.critical", "history.request"];
 export type MatterMirrorKind = (typeof MATTER_MIRROR_KINDS)[number];
-/** Whom a mirrored kind waits for: the owner's role, or the team lead's (customs paid and not given, held sends). */
+/** Whom a mirrored kind waits for: the owner's role, or the team lead's (held sends). */
 export declare const MATTER_MIRROR_KIND_ROLES: Readonly<Record<MatterMirrorKind, "owner" | "team_lead">>;
 export declare function isMatterMirrorKind(kind: string): kind is MatterMirrorKind;
 /**
@@ -36,7 +36,7 @@ export declare function isMatterServerKind(kind: string): kind is MatterServerKi
  * after the ledger paid its day (the owner's). Kept apart from MATTER_SERVER_KINDS: «Состояние» closes every open
  * matter of those that its own pass did not find.
  */
-export declare const SHIFT_REPORT_MATTER_KINDS: readonly ["shift.report.missing", "shift.reports.missing", "shift.report.after_paid"];
+export declare const SHIFT_REPORT_MATTER_KINDS: readonly ["shift.report.missing", "shift.reports.missing", "shift.report.after_paid", "shift.report.confirm", "shift.report.late_proposals", "shift.report.sighting_unmatched", "shift.report.post_changed", "shift.report.shift_cancelled"];
 export declare function isShiftReportMatterKind(kind: string): boolean;
 /**
  * A newcomer's way to the first shift («Начало», package J), the kinds of its
@@ -70,10 +70,10 @@ export declare const matterSchema: z.ZodObject<{
     kind: z.ZodString;
     source: z.ZodEnum<{
         agent: "agent";
+        contentops: "contentops";
         person: "person";
         ledger: "ledger";
         server: "server";
-        contentops: "contentops";
     }>;
     state: z.ZodEnum<{
         open: "open";
@@ -134,10 +134,10 @@ export declare const mattersListResponseSchema: z.ZodObject<{
         kind: z.ZodString;
         source: z.ZodEnum<{
             agent: "agent";
+            contentops: "contentops";
             person: "person";
             ledger: "ledger";
             server: "server";
-            contentops: "contentops";
         }>;
         state: z.ZodEnum<{
             open: "open";
@@ -191,7 +191,7 @@ export declare const mattersListResponseSchema: z.ZodObject<{
 /** «Ждут вас» is never cut by page: no parameters. */
 export declare const mattersWaitingQuerySchema: z.ZodObject<{}, z.core.$strict>;
 export declare const mattersWaitingResponseSchema: z.ZodObject<{
-    active: z.ZodBoolean;
+    active: z.ZodLiteral<true>;
     groups: z.ZodArray<z.ZodObject<{
         id: z.ZodEnum<{
             other: "other";
@@ -201,9 +201,11 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
             content: "content";
             system: "system";
             publications: "publications";
+            asks: "asks";
+            people: "people";
+            newcomers: "newcomers";
             held: "held";
             ledger: "ledger";
-            people: "people";
             questions: "questions";
         }>;
         title: z.ZodString;
@@ -214,6 +216,30 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
             bad: "bad";
         }>>;
         to: z.ZodString;
+        product: z.ZodEnum<{
+            hub: "hub";
+            workboard: "workboard";
+            contentops: "contentops";
+        }>;
+    }, z.core.$strip>>;
+    products: z.ZodArray<z.ZodObject<{
+        id: z.ZodEnum<{
+            hub: "hub";
+            workboard: "workboard";
+            contentops: "contentops";
+        }>;
+        title: z.ZodString;
+        count: z.ZodNumber;
+        checked: z.ZodBoolean;
+        tone: z.ZodNullable<z.ZodEnum<{
+            warn: "warn";
+            bad: "bad";
+        }>>;
+        oldest: z.ZodNullable<z.ZodObject<{
+            title: z.ZodString;
+            since: z.ZodString;
+            link: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
     }, z.core.$strip>>;
     total: z.ZodNumber;
     failed: z.ZodArray<z.ZodEnum<{
@@ -224,9 +250,11 @@ export declare const mattersWaitingResponseSchema: z.ZodObject<{
         content: "content";
         system: "system";
         publications: "publications";
+        asks: "asks";
+        people: "people";
+        newcomers: "newcomers";
         held: "held";
         ledger: "ledger";
-        people: "people";
         questions: "questions";
     }>>;
     customOrders: z.ZodNumber;

@@ -1,11 +1,15 @@
 import { type CustomOrderAction, type CustomOrderCard, type CustomOrderState } from "./custom-orders";
-/** The board's steps, and the readers' own: a delivery message, a revision fixed, another message, a delivery taken back. */
-export type CustomStepName = CustomOrderAction | "delivery" | "revision_done" | "message" | "retract";
+/**
+ * The board's steps, and the readers' own: a delivery message, a revision fixed, another message, a delivery taken
+ * back; and the server's own `settle` — the order put where its kept messages say (an import stores messages
+ * without a step).
+ */
+export type CustomStepName = CustomOrderAction | "delivery" | "revision_done" | "message" | "retract" | "settle";
 export declare function isBoardAction(step: CustomStepName): step is CustomOrderAction;
-/** The states each step may be taken from. A step that moves the order names its new state in `STEP_TO`. */
-export declare const STEP_FROM: Readonly<Record<CustomStepName, readonly CustomOrderState[]>>;
 /** The states a delivery moves the order from (to «сдан частично», «снят» or back to «правка»). */
 export declare const DELIVERY_MOVES_FROM: readonly CustomOrderState[];
+/** The states each step may be taken from. A step that moves the order names its new state in `STEP_TO`. */
+export declare const STEP_FROM: Readonly<Record<CustomStepName, readonly CustomOrderState[]>>;
 export declare const STEP_TO: Partial<Readonly<Record<CustomOrderAction, CustomOrderState>>>;
 /**
  * Each state in people's words: the one table for every door that names an order's step — the board «Кастомы»
@@ -16,10 +20,33 @@ export declare const CUSTOM_STATE_WORDS: Readonly<Record<CustomOrderState, strin
 export interface CustomViewer {
     userId: number;
     role: "owner" | "team_lead" | "chatter";
-    /** The pages the person reaches (user_page_assignments). */
+    /** The pages whose orders the viewer READS: the team's cut (services/teams.ts) and the login's own pages. */
     pageIds: readonly number[];
-    /** «Ведёт кастомы». */
+    /**
+     * The pages the viewer WORKS: the login's own pages (user_page_assignments). A write of the chat's side — «оплата»,
+     * «отдан», «Записать кастом» — goes by these (and the step's leader, the owner), never by the team's read cut:
+     * «видит команду» of another model reads its orders and changes none. Absent — `pageIds`, as before the cut.
+     */
+    workPageIds?: readonly number[];
+    /** «Ведёт кастомы» (the person right): the steps of an order of no known page. */
     lead: boolean;
+    /**
+     * The pages whose orders' steps the viewer leads, by phase (products plan §4.5; the one rule is the server's,
+     * services/custom-orders/leaders.ts): `check` — «Проверен» and the card's fixes, `shoot` — the content side's steps.
+     * Absent: every lead's step by `lead` and the role, as before the rule.
+     */
+    leads?: {
+        check: readonly number[];
+        shoot: readonly number[];
+    };
+    /**
+     * The test realm (0414, apps/runtime/src/services/sandbox/realm.ts): whether the viewer is a test person's login, and
+     * the test pages. A live viewer never sees a test page's order, a test viewer only those. Absent: no test realm.
+     */
+    realm?: {
+        test: boolean;
+        testPageIds: readonly number[];
+    };
 }
 /** The lead's steps belong to the lead, the owner and a team lead. */
 export declare function leadsSteps(viewer: CustomViewer): boolean;
@@ -30,6 +57,24 @@ export declare function leadsSteps(viewer: CustomViewer): boolean;
 export declare function seesOrder(viewer: CustomViewer, order: {
     pageId: number | null;
 }): boolean;
+/**
+ * The side of an order's step: `check` — recorded, the card checked and given to shooting (the chat's side, Workboard);
+ * `shoot` — handed to the model, delivered, revision, refusal, shot (ContentOps «Съёмка»); `give` — given to the fan
+ * (the chatter, Workboard). Null — an ended order.
+ */
+export type CustomPhase = "check" | "shoot" | "give";
+export declare function customPhaseOf(state: CustomOrderState): CustomPhase | null;
+/** Where a phase is done. */
+export declare function customPhaseProduct(phase: CustomPhase): "workboard" | "contentops";
+/** Whether the viewer leads a phase of the order (the owner always; an order of no page: the person right, a team lead). */
+export declare function leadsPhase(viewer: CustomViewer, order: {
+    pageId: number | null;
+}, phase: "check" | "shoot"): boolean;
+/**
+ * Whether the viewer works a page: the owner every page; else the login's own pages (`workPageIds`), or a page whose
+ * order's step they lead. An order of no known page: the lead's steps' holders.
+ */
+export declare function worksOnPage(viewer: CustomViewer, pageId: number | null): boolean;
 /** Whether the viewer may take `step` on the order now (its state included). */
 export declare function mayTakeStep(viewer: CustomViewer, order: {
     pageId: number | null;
@@ -44,6 +89,11 @@ export declare function stepsFor(viewer: CustomViewer, order: {
 }): CustomOrderAction[];
 /** The parts the card orders: a video unless it says none, and photos when it names how many. */
 export declare function wantedParts(card: CustomOrderCard): Array<"video" | "photos">;
+/** The parts the order still waits for: the card orders them and they are not ready in the current round. */
+export declare function waitedParts(order: {
+    card: CustomOrderCard;
+    partsDone: ReadonlyArray<"video" | "photos">;
+}): Array<"video" | "photos">;
 /** Days past the deadline while the model has not delivered it whole (as ContentOps counts «просрочено»); null — not overdue. */
 export declare function overdueDaysOf(order: {
     state: CustomOrderState;

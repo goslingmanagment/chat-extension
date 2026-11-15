@@ -12,19 +12,24 @@ import { z } from "zod";
  * that wait to be tied to a sale (`sale.decisions.unlinked`). Kept apart from MATTER_SERVER_KINDS (as the shift report's):
  * «Состояние» closes every open matter of those that its own pass did not find. An agent key may open none of them.
  */
-export declare const SALE_CLAIM_MATTER_KINDS: readonly ["sale.claim", "sale.dispute", "sale.nobody_week", "off_platform.pending", "sale.decisions.unlinked"];
+export declare const SALE_CLAIM_MATTER_KINDS: readonly ["sale.claim", "sale.dispute", "sale.nobody_week", "off_platform.pending", "sale.decisions.unlinked", "sale.pot_offer"];
 export declare function isSaleClaimMatterKind(kind: string): boolean;
 export declare const SALE_CLAIM_STATES: readonly ["asked", "agreed", "owner", "decided", "withdrawn"];
 export declare const SALE_CLAIM_ANSWERS: readonly ["agree", "disagree"];
 export declare const SALE_DISPUTE_OUTCOMES: readonly ["first", "second", "half", "nobody"];
 /** «Закрыть без решения»: only a question carried over from the ledger whose people Hub could not tell. */
-export declare const SALE_DISPUTE_OUTCOMES_WITH_DISMISS: readonly ["first", "second", "half", "nobody", "dismiss"];
+export declare const SALE_DISPUTE_OUTCOMES_WITH_DISMISS: readonly ["first", "second", "half", "nobody", "dismiss", "pot", "return"];
+/**
+ * The answers to a sale its holder gave to the pot («<имя> отдаёт продажу в общак», the board): «В общак» (`pot`: the
+ * owner's decision of kind pot), «Вернуть <имени>» (`return`: the sale is the person's again) and «Никому» (`nobody`).
+ */
+export declare const POT_OFFER_OUTCOMES: readonly ["pot", "return", "nobody"];
 export declare const saleClaimStateEnum: z.ZodEnum<{
     owner: "owner";
     withdrawn: "withdrawn";
-    decided: "decided";
     asked: "asked";
     agreed: "agreed";
+    decided: "decided";
 }>;
 export declare const saleClaimAnswerEnum: z.ZodEnum<{
     agree: "agree";
@@ -59,9 +64,9 @@ export declare const saleClaimSchema: z.ZodObject<{
     state: z.ZodEnum<{
         owner: "owner";
         withdrawn: "withdrawn";
-        decided: "decided";
         asked: "asked";
         agreed: "agreed";
+        decided: "decided";
     }>;
     answer: z.ZodNullable<z.ZodEnum<{
         agree: "agree";
@@ -72,8 +77,8 @@ export declare const saleClaimSchema: z.ZodObject<{
     escalatedWhy: z.ZodNullable<z.ZodEnum<{
         imported: "imported";
         silence: "silence";
-        question: "question";
         disagree: "disagree";
+        question: "question";
         double: "double";
         no_side: "no_side";
     }>>;
@@ -121,9 +126,9 @@ export declare const shiftReportClaimSchema: z.ZodObject<{
     state: z.ZodEnum<{
         owner: "owner";
         withdrawn: "withdrawn";
-        decided: "decided";
         asked: "asked";
         agreed: "agreed";
+        decided: "decided";
     }>;
     answer: z.ZodNullable<z.ZodEnum<{
         agree: "agree";
@@ -134,8 +139,8 @@ export declare const shiftReportClaimSchema: z.ZodObject<{
     escalatedWhy: z.ZodNullable<z.ZodEnum<{
         imported: "imported";
         silence: "silence";
-        question: "question";
         disagree: "disagree";
+        question: "question";
         double: "double";
         no_side: "no_side";
     }>>;

@@ -24,6 +24,7 @@ import { hasCapability, type Dossier, type FanCard, type SpenderDetail } from '@
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { CHAT_IS_FAN, chatKeyOf, type ChatRef } from '@cg/contracts/ids';
 import { type CoverageLevel } from '@cg/contracts/ops';
+import { workboardCustomPath, type WorkboardFormFor, type WorkboardFormScreen } from '@cg/contracts/report-board';
 import { type ActionReceipt, type FanPanelVM, type I18n, type PartialGap, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { memoryModel } from '../../domain/fanpanel/memory';
@@ -81,7 +82,17 @@ interface MemoryCard {
   actionError: CgErrorWire | null;
 }
 
+/**
+ * Products package R5: Workboard's windows over the site — its form «Записать кастом» and its question window
+ * «Спросить» — for one fan (the tab's frame host). Resolves when the window closes: `done` — it recorded or asked.
+ */
+export interface WorkboardFormsPort {
+  open(screen: WorkboardFormScreen, form: WorkboardFormFor): Promise<{ readonly done: boolean }>;
+}
+
 export interface FanPanelControllerDeps {
+  /** Package R5: the tab's frame host of Workboard's windows; absent — «Записать кастом» and «Спросить» are not offered. */
+  readonly workboard?: WorkboardFormsPort;
   readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
   readonly rpc: TabRpc;
   readonly host: HostPort;
@@ -269,6 +280,23 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     return answer.ok ? done(type) : refused(type, errorOf(answer.error, i18n));
   }
 
+  /**
+   * Workboard's form or question window for the open chat's fan (package R5): its page and the fan filled in; what the
+   * form records shows in «Кастомы» at once (the card is read again when the window says it is done).
+   */
+  async function openForm(type: 'RecordFanCustom' | 'AskAboutFan', fanRef: string): Promise<ActionReceipt> {
+    const chat = openChat();
+    const card = chat === null ? null : cardOf(chat).memory.card;
+    if (deps.workboard === undefined || chat === null || card === null || chat.platformFanId !== fanRef || card.fanRef !== fanRef || !customsServed()) return done(type, 'noop');
+    const account = card.accounts.find((one) => one.fanRef === fanRef) ?? null;
+    const fanName = account?.displayName ?? (account?.username === null || account?.username === undefined ? null : `@${account.username}`);
+    const outcome = await deps.workboard.open(type === 'RecordFanCustom' ? 'custom' : 'ask', { pageLabel: card.pageLabel, fanRef, fanName });
+    if (disposed || !outcome.done) return done(type, 'noop');
+    const now = openChat();
+    if (type === 'RecordFanCustom' && now !== null && now.platformFanId === fanRef) await loadMemory(now);
+    return done(type);
+  }
+
   /** Reads the open chat's card when the panel is open and has none, or an old one. */
   function ensure(): void {
     if (!surfaces.current().fanPanel || !usable()) return;
@@ -305,7 +333,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       return { ...nothing, view: loadingView(memory?.since ?? null), error: null };
     }
     const card = memory.card;
-    const model = memoryModel({ card, busy: memory.busy, openOf: (pageLabel) => openOf(card, pageLabel), customs: customsServed() });
+    const model = memoryModel({ card, busy: memory.busy, openOf: (pageLabel) => openOf(card, pageLabel), customs: customsServed(), forms: deps.workboard !== undefined });
     // A fan Hub holds nothing about yet: said once, not as three «не знаю».
     const view: VmView = !card.known ? { s: 'empty', why: msg('fanPanel.memory.nobody') } : memory.error !== null ? failureView(memory.error, i18n, retry, memory.loadedAt) : dataView(memory.loading ? [{ kind: 'stale-cache', asOf: new Date(memory.loadedAt ?? clock.now()).toISOString() }] : []);
     return { ...model, view, error };
@@ -431,29 +459,16 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
         rpc.request('fan.memory.fact', action.action === 'delete' ? { pageId, fanRef, factId, action: 'delete' } : { pageId, fanRef, factId, action: 'correct', text }),
       );
     }
-    // Chat Memory week 4: «Записать кастом»; «Оплачен» / «Отдали» by the card's suggestion, «Отменить».
-    if (action.type === 'RecordFanCustom') {
-      const description = action.description.trim();
-      // Written for another fan than the chat open now (the chat changed under the form): nobody's custom.
-      if (description === '' || !customsServed() || openChat()?.platformFanId !== action.fanRef) return Promise.resolve(done(action.type, 'noop'));
-      const { priceMills, paymentRef } = action;
-      return changeMemory(action.type, 'custom:new', (pageId, fanRef) =>
-        rpc.request('fan.memory.custom', { pageId, fanRef, action: 'create', description, ...(priceMills === undefined ? {} : { priceMills }), ...(paymentRef === undefined ? {} : { paymentRef }) }),
-      );
+    // Products package R5: «Записать кастом» and «Спросить» — Workboard's own windows over the site; «Отдан» —
+    // Workboard's own step; the order's card in Workboard.
+    if (action.type === 'RecordFanCustom' || action.type === 'AskAboutFan') return openForm(action.type, action.fanRef);
+    if (action.type === 'GiveFanCustom') {
+      const { customId, code } = action;
+      if (!customsServed()) return Promise.resolve(done(action.type, 'noop'));
+      return changeMemory(action.type, `custom:${String(customId)}`, (pageId, fanRef) => rpc.request('fan.memory.give', { pageId, fanRef, code }));
     }
-    if (action.type === 'ChangeFanCustom') {
-      const { customId, ref } = action;
-      if (!customsServed() || (action.action !== 'cancel' && ref === undefined)) return Promise.resolve(done(action.type, 'noop'));
-      return changeMemory(action.type, `custom:${String(customId)}`, (pageId, fanRef) =>
-        rpc.request(
-          'fan.memory.custom',
-          action.action === 'cancel'
-            ? { pageId, fanRef, customId, action: 'cancel' }
-            : action.action === 'paid'
-              ? { pageId, fanRef, customId, action: 'paid', paymentRef: ref ?? '' }
-              : { pageId, fanRef, customId, action: 'delivered', messageRef: ref ?? '' },
-        ),
-      );
+    if (action.type === 'OpenWorkboardCustom') {
+      return rpc.request('workboard.open', { next: workboardCustomPath(action.code) }).then((answer) => (answer.ok ? done(action.type) : refused(action.type, errorOf(answer.error, i18n))));
     }
     if (action.type === 'ReloadView') {
       if (action.selector.of !== 'fan-panel') return null;

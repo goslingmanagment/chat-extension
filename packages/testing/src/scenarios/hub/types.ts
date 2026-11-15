@@ -81,8 +81,7 @@ export const HUB_ROUTE_PATHS = {
   clientOutreachSave: '/api/v1/client/pages/:pageLabel/outreaches/:outreachId',
   clientOutreachSend: '/api/v1/client/pages/:pageLabel/outreaches/:outreachId/sends',
   clientOutreachTouches: '/api/v1/client/pages/:pageLabel/outreach-touches',
-  clientFanCustomCreate: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs',
-  clientFanCustomChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs/:customId',
+  customOrderAct: '/api/v1/custom-orders/:code',
   // 1.47.0: the voice-notes lane (`:id` is the note's integer id).
   voiceNoteCreate: '/api/v1/pages/:pageLabel/voice-notes',
   voiceNoteStatus: '/api/v1/pages/:pageLabel/voice-notes/:id',

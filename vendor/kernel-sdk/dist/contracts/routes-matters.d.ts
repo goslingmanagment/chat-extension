@@ -51,10 +51,10 @@ export declare const matterRouteSchemas: {
                     kind: import("zod").ZodString;
                     source: import("zod").ZodEnum<{
                         agent: "agent";
+                        contentops: "contentops";
                         person: "person";
                         ledger: "ledger";
                         server: "server";
-                        contentops: "contentops";
                     }>;
                     state: import("zod").ZodEnum<{
                         open: "open";
@@ -109,7 +109,7 @@ export declare const matterRouteSchemas: {
     };
     readonly mattersWaiting: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["admin"];
         readonly summary: "«Ждут вас» read from matters, by the list's groups (waiting-groups.ts): the chips, the menu's number and the list's counts";
@@ -145,7 +145,7 @@ export declare const matterRouteSchemas: {
                 statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strip>;
             readonly 200: import("zod").ZodObject<{
-                active: import("zod").ZodBoolean;
+                active: import("zod").ZodLiteral<true>;
                 groups: import("zod").ZodArray<import("zod").ZodObject<{
                     id: import("zod").ZodEnum<{
                         other: "other";
@@ -155,9 +155,11 @@ export declare const matterRouteSchemas: {
                         content: "content";
                         system: "system";
                         publications: "publications";
+                        asks: "asks";
+                        people: "people";
+                        newcomers: "newcomers";
                         held: "held";
                         ledger: "ledger";
-                        people: "people";
                         questions: "questions";
                     }>;
                     title: import("zod").ZodString;
@@ -168,6 +170,30 @@ export declare const matterRouteSchemas: {
                         bad: "bad";
                     }>>;
                     to: import("zod").ZodString;
+                    product: import("zod").ZodEnum<{
+                        hub: "hub";
+                        workboard: "workboard";
+                        contentops: "contentops";
+                    }>;
+                }, import("zod/v4/core").$strip>>;
+                products: import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodEnum<{
+                        hub: "hub";
+                        workboard: "workboard";
+                        contentops: "contentops";
+                    }>;
+                    title: import("zod").ZodString;
+                    count: import("zod").ZodNumber;
+                    checked: import("zod").ZodBoolean;
+                    tone: import("zod").ZodNullable<import("zod").ZodEnum<{
+                        warn: "warn";
+                        bad: "bad";
+                    }>>;
+                    oldest: import("zod").ZodNullable<import("zod").ZodObject<{
+                        title: import("zod").ZodString;
+                        since: import("zod").ZodString;
+                        link: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
                 }, import("zod/v4/core").$strip>>;
                 total: import("zod").ZodNumber;
                 failed: import("zod").ZodArray<import("zod").ZodEnum<{
@@ -178,9 +204,11 @@ export declare const matterRouteSchemas: {
                     content: "content";
                     system: "system";
                     publications: "publications";
+                    asks: "asks";
+                    people: "people";
+                    newcomers: "newcomers";
                     held: "held";
                     ledger: "ledger";
-                    people: "people";
                     questions: "questions";
                 }>>;
                 customOrders: import("zod").ZodNumber;

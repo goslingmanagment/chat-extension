@@ -224,11 +224,11 @@ export declare const agentShiftReviewResponseSchema: z.ZodObject<{
                 kind: z.ZodEnum<{
                     unknown: "unknown";
                     shift: "shift";
-                    waiting: "waiting";
-                    visit: "visit";
                     pot: "pot";
-                    decide: "decide";
                     nobody: "nobody";
+                    waiting: "waiting";
+                    decide: "decide";
+                    visit: "visit";
                     before_rule: "before_rule";
                 }>;
                 text: z.ZodString;
@@ -275,11 +275,11 @@ export declare const agentShiftReviewResponseSchema: z.ZodObject<{
                 kind: z.ZodEnum<{
                     unknown: "unknown";
                     shift: "shift";
-                    waiting: "waiting";
-                    visit: "visit";
                     pot: "pot";
-                    decide: "decide";
                     nobody: "nobody";
+                    waiting: "waiting";
+                    decide: "decide";
+                    visit: "visit";
                     before_rule: "before_rule";
                 }>;
                 text: z.ZodString;
@@ -326,11 +326,11 @@ export declare const agentShiftReviewResponseSchema: z.ZodObject<{
                 kind: z.ZodEnum<{
                     unknown: "unknown";
                     shift: "shift";
-                    waiting: "waiting";
-                    visit: "visit";
                     pot: "pot";
-                    decide: "decide";
                     nobody: "nobody";
+                    waiting: "waiting";
+                    decide: "decide";
+                    visit: "visit";
                     before_rule: "before_rule";
                 }>;
                 text: z.ZodString;
@@ -377,11 +377,11 @@ export declare const agentShiftReviewResponseSchema: z.ZodObject<{
                 kind: z.ZodEnum<{
                     unknown: "unknown";
                     shift: "shift";
-                    waiting: "waiting";
-                    visit: "visit";
                     pot: "pot";
-                    decide: "decide";
                     nobody: "nobody";
+                    waiting: "waiting";
+                    decide: "decide";
+                    visit: "visit";
                     before_rule: "before_rule";
                 }>;
                 text: z.ZodString;
@@ -805,11 +805,11 @@ export declare const agentDoorRouteSchemas: {
                             kind: z.ZodEnum<{
                                 unknown: "unknown";
                                 shift: "shift";
-                                waiting: "waiting";
-                                visit: "visit";
                                 pot: "pot";
-                                decide: "decide";
                                 nobody: "nobody";
+                                waiting: "waiting";
+                                decide: "decide";
+                                visit: "visit";
                                 before_rule: "before_rule";
                             }>;
                             text: z.ZodString;
@@ -856,11 +856,11 @@ export declare const agentDoorRouteSchemas: {
                             kind: z.ZodEnum<{
                                 unknown: "unknown";
                                 shift: "shift";
-                                waiting: "waiting";
-                                visit: "visit";
                                 pot: "pot";
-                                decide: "decide";
                                 nobody: "nobody";
+                                waiting: "waiting";
+                                decide: "decide";
+                                visit: "visit";
                                 before_rule: "before_rule";
                             }>;
                             text: z.ZodString;
@@ -907,11 +907,11 @@ export declare const agentDoorRouteSchemas: {
                             kind: z.ZodEnum<{
                                 unknown: "unknown";
                                 shift: "shift";
-                                waiting: "waiting";
-                                visit: "visit";
                                 pot: "pot";
-                                decide: "decide";
                                 nobody: "nobody";
+                                waiting: "waiting";
+                                decide: "decide";
+                                visit: "visit";
                                 before_rule: "before_rule";
                             }>;
                             text: z.ZodString;
@@ -958,11 +958,11 @@ export declare const agentDoorRouteSchemas: {
                             kind: z.ZodEnum<{
                                 unknown: "unknown";
                                 shift: "shift";
-                                waiting: "waiting";
-                                visit: "visit";
                                 pot: "pot";
-                                decide: "decide";
                                 nobody: "nobody";
+                                waiting: "waiting";
+                                decide: "decide";
+                                visit: "visit";
                                 before_rule: "before_rule";
                             }>;
                             text: z.ZodString;

@@ -68,7 +68,6 @@ scenario(
             { id: 3, kind: 'promise', text: 'Видео в красном белье к пятнице', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '9003', messageAt: at(5), source: 'chatter', author: 'Nikita', createdAt: at(4), quote: { text: 'the red set is for you, i will send it on friday 😘', from: 'model', at: at(5), media: false } },
           ],
           customs: [],
-          customPayments: [],
           serverNow: new Date().toISOString(),
         },
       });

@@ -86,52 +86,51 @@ export interface FanMemoryFactVM {
 }
 
 /** Chat Memory week 4: a tip of the fan Hub suggests as a custom's payment — «$120 · 2 дня назад · «for my video»». */
-export interface FanCustomPaymentVM {
-  readonly ref: string;
-  readonly amount: MoneyMills;
-  readonly at: IsoTimestamp;
-  readonly note: string | null;
-}
-
 /** A custom order's step as the hub names it, to show as it is, and since when (null: not said). */
 export interface FanCustomStepVM {
   readonly label: string;
   readonly at: IsoTimestamp | null;
 }
 
-/** Chat Memory week 4: a custom of the person. Buttons only on a page the person works, while it is open. */
+/**
+ * A custom of the person, as Workboard says it (products package R5: one implementation, Workboard's): the code, what,
+ * the step in Workboard's words («Записан» … «Отдан»), who has it now, the deadline; «Отдан» when the board lets this
+ * person press it; the order's card in Workboard.
+ */
 export interface FanCustomVM {
   readonly id: number;
   readonly description: string;
   readonly pageLabel: string;
-  /** null — a state this build does not know. */
+  /** null — a state this build does not know (an older hub without a step says the four states). */
   readonly state: 'ordered' | 'paid' | 'delivered' | 'cancelled' | null;
   readonly price: MoneyMills | null;
-  /** What the payment the chatter took for it was. */
-  readonly paid: MoneyMills | null;
   readonly paidAt: IsoTimestamp | null;
   readonly deliveredAt: IsoTimestamp | null;
   readonly createdBy: string;
   readonly createdAt: IsoTimestamp;
   /** The order's code, `K-123`; null from an older hub. */
   readonly code: string | null;
-  /** The order's real step in the hub's words («У модели», «Снят») and since when; null from an older hub: the state's words instead. */
+  /** The order's step in Workboard's words and since when; null from an older hub: the state's words instead. */
   readonly step: FanCustomStepVM | null;
-  /** «Оплачен»: a suggested tip each. */
-  readonly payWith: readonly (FanCustomPaymentVM & { readonly action: UiAction })[];
-  /** «Отдали»: «это он? 1 видео · вчера» — a suggested message each. */
-  readonly deliveredBy: readonly { readonly ref: string; readonly at: IsoTimestamp; readonly mediaCount: number; readonly price: MoneyMills | null; readonly action: UiAction }[];
-  readonly cancel: UiAction | null;
+  /** «у кого сейчас» in Workboard's words (`customLeaderWords`); null — not said. */
+  readonly leader: string | null;
+  /** The deadline in Workboard's words (`customDeadlineWords`); `late` — overdue. null — none. */
+  readonly deadline: { readonly text: string; readonly late: boolean } | null;
+  /** «Отдан»: Workboard's own step, offered only when the board lets this person take it now. */
+  readonly give: UiAction | null;
+  /** The order's card in Workboard, in a tab by the one-time link; null — no code. */
+  readonly open: UiAction | null;
   readonly busy: boolean;
 }
 
 export interface FanMemoryCustomsVM {
-  /** The open first (ordered, then paid, the oldest payment first), then the ended ones of 30 days. */
+  /** The open first, then the ended ones of 30 days. */
   readonly items: readonly FanCustomVM[];
-  /** Tips of the fan on this page no custom took: what «Записать кастом» may name as the payment. */
-  readonly payments: readonly FanCustomPaymentVM[];
-  /** «Записать кастом» is offered: a page the person works; a record is on its way — it rests. */
-  readonly record: { readonly busy: boolean } | null;
+  /**
+   * «Записать кастом» and «Спросить» — Workboard's form and question window over the site, for this fan: a page the
+   * person works; null — not offered (the page is not theirs, or this tab has no frame of Workboard).
+   */
+  readonly record: { readonly record: UiAction; readonly ask: UiAction } | null;
 }
 
 export interface FanMemoryVM {

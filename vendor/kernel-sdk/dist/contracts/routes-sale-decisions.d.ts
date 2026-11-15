@@ -261,9 +261,9 @@ export declare const agentSaleQuestionSchema: z.ZodObject<{
     sourceLink: z.ZodNullable<z.ZodString>;
     status: z.ZodEnum<{
         open: "open";
+        decided: "decided";
         closed: "closed";
         answered: "answered";
-        decided: "decided";
     }>;
     decisionId: z.ZodNullable<z.ZodNumber>;
     answer: z.ZodNullable<z.ZodString>;
@@ -290,9 +290,9 @@ export declare const agentSaleQuestionsResponseSchema: z.ZodObject<{
         sourceLink: z.ZodNullable<z.ZodString>;
         status: z.ZodEnum<{
             open: "open";
+            decided: "decided";
             closed: "closed";
             answered: "answered";
-            decided: "decided";
         }>;
         decisionId: z.ZodNullable<z.ZodNumber>;
         answer: z.ZodNullable<z.ZodString>;
@@ -322,9 +322,9 @@ export declare const agentSaleQuestionWriteResponseSchema: z.ZodObject<{
         sourceLink: z.ZodNullable<z.ZodString>;
         status: z.ZodEnum<{
             open: "open";
+            decided: "decided";
             closed: "closed";
             answered: "answered";
-            decided: "decided";
         }>;
         decisionId: z.ZodNullable<z.ZodNumber>;
         answer: z.ZodNullable<z.ZodString>;
@@ -336,7 +336,10 @@ export declare const agentSaleDecisionsFeedQuerySchema: z.ZodObject<{
     since: z.ZodOptional<z.ZodString>;
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strip>;
-/** A decision as the feed carries it: as it is now, no fan's name. */
+/**
+ * A decision as the feed carries it: as it is now. Its structured fields carry no fan's name (the sale is Hub's id and
+ * its page); `note` is the team's free text, served as written — it may name the fan, and a fan's erasure clears it.
+ */
 export declare const agentSaleDecisionFeedDecisionSchema: z.ZodObject<{
     id: z.ZodNumber;
     transactionId: z.ZodNullable<z.ZodNumber>;
@@ -437,6 +440,7 @@ export declare const agentSaleDecisionsFeedResponseSchema: z.ZodObject<{
         }>;
     }, z.core.$strip>>>;
     next: z.ZodString;
+    more: z.ZodBoolean;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export type AgentSaleDecision = z.infer<typeof agentSaleDecisionSchema>;
@@ -577,7 +581,7 @@ export declare const saleDecisionRouteSchemas: {
             readonly kind: "agentKey";
         };
         readonly tags: readonly ["agent"];
-        readonly summary: "Cancel a decision «со слов», with why (needs write:shift_reports)";
+        readonly summary: "Cancel a decision recorded «со слов» or carried over, with why (needs write:shift_reports)";
         readonly description: string;
         readonly body: z.ZodObject<{
             telegramUserId: z.ZodNumber;
@@ -793,7 +797,7 @@ export declare const saleDecisionRouteSchemas: {
         };
         readonly tags: readonly ["agent"];
         readonly summary: "The decisions about sales on the key's pages, as a list or as the memory file has them (needs write:shift_reports or read:team)";
-        readonly description: "Database only. Every source: the owner's disputes, the ones carried over from the ledger, the ones recorded «со слов».";
+        readonly description: string;
         readonly querystring: z.ZodObject<{
             open: z.ZodPipe<z.ZodDefault<z.ZodEnum<{
                 true: "true";
@@ -1012,6 +1016,7 @@ export declare const saleDecisionRouteSchemas: {
                     }>;
                 }, z.core.$strip>>>;
                 next: z.ZodString;
+                more: z.ZodBoolean;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };
@@ -1106,9 +1111,9 @@ export declare const saleDecisionRouteSchemas: {
                     sourceLink: z.ZodNullable<z.ZodString>;
                     status: z.ZodEnum<{
                         open: "open";
+                        decided: "decided";
                         closed: "closed";
                         answered: "answered";
-                        decided: "decided";
                     }>;
                     decisionId: z.ZodNullable<z.ZodNumber>;
                     answer: z.ZodNullable<z.ZodString>;
@@ -1195,9 +1200,9 @@ export declare const saleDecisionRouteSchemas: {
                     sourceLink: z.ZodNullable<z.ZodString>;
                     status: z.ZodEnum<{
                         open: "open";
+                        decided: "decided";
                         closed: "closed";
                         answered: "answered";
-                        decided: "decided";
                     }>;
                     decisionId: z.ZodNullable<z.ZodNumber>;
                     answer: z.ZodNullable<z.ZodString>;
@@ -1284,9 +1289,9 @@ export declare const saleDecisionRouteSchemas: {
                     sourceLink: z.ZodNullable<z.ZodString>;
                     status: z.ZodEnum<{
                         open: "open";
+                        decided: "decided";
                         closed: "closed";
                         answered: "answered";
-                        decided: "decided";
                     }>;
                     decisionId: z.ZodNullable<z.ZodNumber>;
                     answer: z.ZodNullable<z.ZodString>;
@@ -1377,9 +1382,9 @@ export declare const saleDecisionRouteSchemas: {
                     sourceLink: z.ZodNullable<z.ZodString>;
                     status: z.ZodEnum<{
                         open: "open";
+                        decided: "decided";
                         closed: "closed";
                         answered: "answered";
-                        decided: "decided";
                     }>;
                     decisionId: z.ZodNullable<z.ZodNumber>;
                     answer: z.ZodNullable<z.ZodString>;

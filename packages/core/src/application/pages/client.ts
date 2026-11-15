@@ -25,6 +25,7 @@
 
 import { type CgCode, type CgErrorWire, type SettingsSection } from '@cg/contracts/errors';
 import { type HostKind } from '@cg/contracts/hosts';
+import { WORKBOARD_MY_SHIFTS_PATH } from '@cg/contracts/hub';
 import { type Locale } from '@cg/contracts/i18n/keys';
 import { type SessionIdentity } from '@cg/contracts/ids';
 import { LOG_LIMITS } from '@cg/contracts/limits';
@@ -67,7 +68,7 @@ export const SOUND_STATE_POLL_MS = 10_000;
 /** The hub's sign-in answers within 20 s (§8.2); the page waits a little longer for the background's answer. */
 export const SIGN_IN_TIMEOUT_MS = 25_000;
 /** «Мои смены» (hub #1213): the path of the team's place its one-time link opens. */
-export const WORKBOARD_SHIFTS_PATH = '/workboard/my/shifts';
+export const WORKBOARD_SHIFTS_PATH = WORKBOARD_MY_SHIFTS_PATH;
 /** «Мои смены»: how long the popup waits for the hub's one-time link before it opens Workboard's plain address. */
 export const WEB_LINK_TIMEOUT_MS = 10_000;
 /** The popup's count of new subscribers: the default window of «Новые», hours. */

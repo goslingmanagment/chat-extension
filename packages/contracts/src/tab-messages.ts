@@ -44,7 +44,7 @@ import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
 import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema, OnlyfansPollPassSchema, OnlyfansPollResultSchema } from './hub/onlyfans-feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
-import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
+import { FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
 import { HandoffSchema } from './hub/queue';
 import { ONLINE_ATTEMPT_ACTIONS, ONLINE_PRESENCE_MAX, ONLINE_SENT_ACTS, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceResultSchema, OnlineProbeResultSchema } from './hub/online';
 import { FAN_QUEUE_PORTION_MAX, FAN_QUEUE_SENT_ACTS, FAN_QUEUE_SKIP_REASONS, FanQueueItemDoneSchema, FanQueueReleaseSchema, FanQueuesSchema, FanQueueTakeSchema } from './hub/fan-queues';
@@ -56,7 +56,7 @@ import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchem
 import { FANSLY_NOTES_VIEWS } from './settings-ext';
 import { NotesFillOpViewSchema, NotesFillStartSchema } from './notes-fill';
 import { NOTE_ATTRIBUTION_ACTIONS } from './hub/note-attribution';
-import { ReportFetchAnswerSchema, ReportFetchRequestSchema, ReportFindRouteSchema, ReportPulseSchema, ReportSaleSchema, ReportStatementRequestSchema, SaleSightingsRequestSchema } from './report-board';
+import { CUSTOM_ORDER_CODE, ReportFetchAnswerSchema, ReportFetchRequestSchema, ReportFindRouteSchema, ReportPulseSchema, ReportSaleSchema, ReportStatementRequestSchema, SaleSightingsRequestSchema } from './report-board';
 import { TabRegisterRequestSchema, TabRegisterResponseSchema, senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { VOICE_LIMITS, VoiceAllowanceSchema, VoiceAudioSchema, VoiceScriptStartSchema, VoiceSessionSchema, VoiceWriteResultSchema } from './voice';
 import { JOURNAL_KINDS } from './vm/selectors';
@@ -523,7 +523,7 @@ export const TAB_REQUESTS = {
    * The pulse's `report` as the background last heard it: null — the person has no board (the fifth row is not drawn).
    * `origin`: the team origin the frames come from (null — nobody signed in).
    */
-  'report.state': { req: Empty, res: z.strictObject({ report: z.nullable(ReportPulseSchema), origin: z.nullable(HubOriginSchema) }), from: TAB },
+  'report.state': { req: Empty, res: z.strictObject({ report: z.nullable(ReportPulseSchema), origin: z.nullable(HubOriginSchema), fanStandIn: z.optional(NativeIdSchema) }), from: TAB },
   /**
    * One API request of a frame screen, relayed by the background with the device token, only when the screen's
    * allow-list has it (core domain/report-board.ts); the token never leaves the background.
@@ -819,19 +819,19 @@ export const TAB_REQUESTS = {
     from: TAB,
   },
   /**
-   * Chat Memory week 4: a custom written into the fan's card (`create`, paid by a suggested tip or not yet), or marked
-   * paid / delivered by the card's suggestion, or cancelled. One call, never repeated; answered with the card as it stands.
+   * Package R5: «Отдан» of the fan panel — Workboard's own step of the order (`customOrderAct`, the board's rule decides).
+   * One call, never repeated; answered with the card as it stands.
    */
-  'fan.memory.custom': {
-    req: z.union([
-      z.strictObject({ ...PageFan, action: z.literal('create'), description: z.string().check(z.trim(), z.minLength(1), z.maxLength(FAN_CUSTOM_MAX_CHARS)), priceMills: z.optional(z.int().check(z.gte(0))), paymentRef: z.optional(NativeIdSchema) }),
-      z.strictObject({ ...PageFan, customId: HubIntIdSchema, action: z.literal('paid'), paymentRef: NativeIdSchema }),
-      z.strictObject({ ...PageFan, customId: HubIntIdSchema, action: z.literal('delivered'), messageRef: NativeIdSchema }),
-      z.strictObject({ ...PageFan, customId: HubIntIdSchema, action: z.literal('cancel') }),
-    ]),
+  'fan.memory.give': {
+    req: z.strictObject({ ...PageFan, code: z.string().check(z.regex(CUSTOM_ORDER_CODE)) }),
     res: FanFactChangeResultSchema,
     from: TAB,
   },
+  /**
+   * Package R5: a screen of Workboard in a new tab, signed in by the hub's one-time link (`web-link-v1`): the order's card
+   * from the fan panel. A hub without the link: Workboard's plain address, where the person signs in.
+   */
+  'workboard.open': { req: z.strictObject({ next: boundedText(512).check(z.regex(/^\/workboard\/[A-Za-z0-9/_-]{1,200}$/)) }), res: Ack, from: TAB },
   /** Tabs, and the popup for its newcomer count (§9.9). */
   'newcomers.list': {
     req: z.strictObject({ pageId: HubIntIdSchema, windowHours: z.int().check(z.gte(1), z.lte(720)), cursor: CursorSchema }),
