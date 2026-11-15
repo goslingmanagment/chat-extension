@@ -222,6 +222,8 @@ export interface HubFacade {
   activityBeat(request: ActivityBeatRequest): Promise<ActivityBeatResult>;
   /** «Ждут вас» (hub #1210): the person's open matters — how many and the longest waiting; asked when the popup opens, never repeated. */
   matters(): Promise<ClientMatters>;
+  /** Products package R5: `me`'s `ownMoney` (the popup's «Мои деньги»); null — the Hub does not say. */
+  ownMoney(): Promise<boolean | null>;
   /** Chat Memory week 1: «в разговоре» of a page — refused without `in-conversation-v1` and for a page not granted. */
   inConversation(query: InConversationQuery): Promise<InConversationResult>;
   /** Chat Memory week 2: the fan's card across pages — refused without `fan-card-v1` and for a page not granted. */

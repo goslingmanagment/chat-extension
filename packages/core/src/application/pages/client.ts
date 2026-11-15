@@ -210,6 +210,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let addressWrite: Promise<WriteOutcome> | null = null;
   let newcomers: number | null = null;
   let waiting: NonNullable<PagesModel['waiting']> | null = null;
+  let ownMoney: boolean | null = null;
   let reloadingHost = false;
   let fanLabels: ReadonlyMap<string, string> = new Map();
   let fanUsernames: ReadonlyMap<string, string> = new Map();
@@ -361,6 +362,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       systemScheme: ports.systemScheme.value,
       newcomers,
       waiting,
+      ownMoney,
       reloadingHost,
       fanLabels,
       fanUsernames,
@@ -636,6 +638,15 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     emit();
   }
 
+  /** «Мои деньги» (products package R5): whether Hub shows the person their own money, asked when the popup opens. */
+  async function loadOwnMoney(): Promise<void> {
+    const generation = sessionGeneration;
+    const answer = await ask('session.ownMoney', {});
+    if (disposed || generation !== sessionGeneration || !answer.ok) return;
+    ownMoney = answer.payload.ownMoney;
+    emit();
+  }
+
   /** A binding not answered yet, or the open chat's account not seen yet: the persona cannot be named. */
   function bindingsPending(): boolean {
     if (valueOf(session) === null) return false;
@@ -752,6 +763,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       checkAccess(),
       signedIn && env.page === 'popup' ? loadAiLimit() : Promise.resolve(),
       signedIn && env.page === 'popup' ? loadWaiting() : Promise.resolve(),
+      signedIn && env.page === 'popup' ? loadOwnMoney() : Promise.resolve(),
       signedIn
         ? loadBootstrap(force).then(() => {
             if (force && bootstrap.s === 'ok') check = { ...check, latencyMs: Math.max(0, clock.now() - askedAt) };

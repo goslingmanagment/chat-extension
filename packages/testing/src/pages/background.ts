@@ -75,6 +75,8 @@ export interface BackgroundState {
   webLink?: string | null;
   /** «Ждут вас» (hub #1232): what `matters.get` answers; absent or null — the hub did not say. */
   waiting?: { count: number; title: string | null; handIn: string | null } | null;
+  /** «Мои деньги» (products package R5): what `session.ownMoney` answers; absent or null — the hub does not say. */
+  ownMoney?: boolean | null;
   ops: OpView[];
   journals: Partial<Record<JournalKind, JournalFixture>>;
   prompts: Record<string, PromptSnapshotView>;
@@ -347,6 +349,8 @@ export class FakePageBackground implements PageRpc {
         return needsSession() ?? (state.webLink === undefined || state.webLink === null ? refuse('CG-HUB-CAPABILITY') : { ok: true, payload: { url: state.webLink } });
       case 'matters.get':
         return needsSession() ?? { ok: true, payload: { waiting: state.waiting ?? null } };
+      case 'session.ownMoney':
+        return needsSession() ?? { ok: true, payload: { ownMoney: state.ownMoney ?? null } };
       case 'bootstrap.get':
         return needsSession() ?? { ok: true, payload: state.bootstrap };
       case 'catalog.get':

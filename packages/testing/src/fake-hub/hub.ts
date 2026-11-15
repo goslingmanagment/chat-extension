@@ -1248,7 +1248,11 @@ export class FakeHub {
         return {
           kind: 'json',
           status: 200,
-          body: { authMethod: 'device_token', user: { id: user.userId, username: user.username, role: user.role, mustChangePassword: false, assignedPages: this.grantedPages(user.userId).filter(inClosedResponses).map(pageRefOf) } },
+          body: {
+            authMethod: 'device_token',
+            user: { id: user.userId, username: user.username, role: user.role, mustChangePassword: false, assignedPages: this.grantedPages(user.userId).filter(inClosedResponses).map(pageRefOf) },
+            ...(s.config.ownMoney === null ? {} : { ownMoney: s.config.ownMoney }),
+          },
         };
       }
       case 'clientBootstrap': {

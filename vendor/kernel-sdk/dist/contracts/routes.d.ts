@@ -328,6 +328,7 @@ export declare const authStateSchema: z.ZodObject<{
         lead: z.ZodArray<z.ZodNumber>;
     }, z.core.$strip>>;
     test: z.ZodOptional<z.ZodLiteral<true>>;
+    ownMoney: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 export declare const syncUxSummarySchema: z.ZodObject<{
     state: z.ZodEnum<{
@@ -24468,6 +24469,7 @@ declare const baseRouteSchemas: {
                     lead: z.ZodArray<z.ZodNumber>;
                 }, z.core.$strip>>;
                 test: z.ZodOptional<z.ZodLiteral<true>>;
+                ownMoney: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
@@ -24552,6 +24554,7 @@ declare const baseRouteSchemas: {
                     lead: z.ZodArray<z.ZodNumber>;
                 }, z.core.$strip>>;
                 test: z.ZodOptional<z.ZodLiteral<true>>;
+                ownMoney: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;

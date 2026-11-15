@@ -108,6 +108,8 @@ export interface PopupVM {
    * screen of Workboard (`/workboard/my/shifts/<id>`). Absent or null — «Мои смены» as it is.
    */
   readonly handIn?: string | null;
+  /** Products package R5: «Мои деньги» shows — Hub says the person sees their own money. Absent or false — no line. */
+  readonly ownMoney?: boolean;
   /** Spenders, «Новые», «Клавиши ?», «Настройки». */
   readonly buttons: readonly ActionButtonVM[];
   readonly links: { readonly whatsNew: UiAction; readonly changelog: UiAction };

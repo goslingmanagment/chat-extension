@@ -90,6 +90,8 @@ export interface FakeHubConfigPatch {
    * the oldest).
    */
   readonly matters?: readonly FakeMatter[] | null;
+  /** `me`'s `ownMoney` (products package R5); null — a Hub that does not say. */
+  readonly ownMoney?: boolean | null;
   /**
    * 2026-11-15 (hub package R): the pulse's `report` — the board «Отчёт» of the person (the launcher's fifth row and its
    * dot). null — no board (the default): the beat answers `report: null` and the row is not drawn.

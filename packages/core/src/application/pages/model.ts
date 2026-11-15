@@ -143,6 +143,8 @@ export interface PagesModel {
    * screen to hand in; absent or null — not asked yet, or the hub did not say.
    */
   readonly waiting?: { readonly count: number; readonly title: string | null; readonly handIn: string | null } | null;
+  /** Products package R5: `me`'s `ownMoney` (the popup's «Мои деньги»); null — not said (yet). */
+  readonly ownMoney?: boolean | null;
   /** Popup (X61): «Перезагрузить вкладку» is running — the background reloads the old build's tabs, the popup waits for them. */
   readonly reloadingHost: boolean;
   /**

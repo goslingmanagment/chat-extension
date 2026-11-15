@@ -223,6 +223,7 @@ export declare const shiftReportProposalSchema: z.ZodObject<{
         declined: "declined";
         late: "late";
     }>;
+    superseded: z.ZodOptional<z.ZodBoolean>;
     afterCounted: z.ZodBoolean;
     by: z.ZodString;
 }, z.core.$strip>;
@@ -495,6 +496,7 @@ export declare const shiftReportRowSchema: z.ZodObject<{
             declined: "declined";
             late: "late";
         }>;
+        superseded: z.ZodOptional<z.ZodBoolean>;
         afterCounted: z.ZodBoolean;
         by: z.ZodString;
     }, z.core.$strip>>;
@@ -774,6 +776,7 @@ export declare const shiftReportColumnSchema: z.ZodObject<{
                 declined: "declined";
                 late: "late";
             }>;
+            superseded: z.ZodOptional<z.ZodBoolean>;
             afterCounted: z.ZodBoolean;
             by: z.ZodString;
         }, z.core.$strip>>;
@@ -1058,6 +1061,7 @@ export declare const shiftReportColumnSchema: z.ZodObject<{
                     declined: "declined";
                     late: "late";
                 }>;
+                superseded: z.ZodOptional<z.ZodBoolean>;
                 afterCounted: z.ZodBoolean;
                 by: z.ZodString;
             }, z.core.$strip>>;
@@ -1424,6 +1428,7 @@ export declare const shiftReportBoardSchema: z.ZodObject<{
                     declined: "declined";
                     late: "late";
                 }>;
+                superseded: z.ZodOptional<z.ZodBoolean>;
                 afterCounted: z.ZodBoolean;
                 by: z.ZodString;
             }, z.core.$strip>>;
@@ -1708,6 +1713,7 @@ export declare const shiftReportBoardSchema: z.ZodObject<{
                         declined: "declined";
                         late: "late";
                     }>;
+                    superseded: z.ZodOptional<z.ZodBoolean>;
                     afterCounted: z.ZodBoolean;
                     by: z.ZodString;
                 }, z.core.$strip>>;

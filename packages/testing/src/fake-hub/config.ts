@@ -135,6 +135,8 @@ export interface FakeHubConfig {
   readonly personalAiLimit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number; readonly poolMicroUsd?: number } | null;
   /** «Ждут вас»: the person's open matters (types.ts `matters`); null — a hub before them. */
   readonly matters: readonly FakeMatter[] | null;
+  /** `me`'s `ownMoney` (products package R5, the popup's «Мои деньги»); null — a Hub that does not say. */
+  readonly ownMoney: boolean | null;
   /** The board «Отчёт» (hub package R): the pulse's `report` (types.ts `report`); null — the person has no board. */
   readonly report: { readonly shiftId: number | null; readonly phase: string; readonly needsMe: boolean } | null;
   readonly generationVisibleAfterMs: number;
@@ -177,6 +179,7 @@ const BASE = {
   quotaRequestsToday: 120,
   personalAiLimit: null,
   matters: [],
+  ownMoney: true,
   report: null,
   fanslyProxies: null,
   generationVisibleAfterMs: 0,
@@ -295,6 +298,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.quotaRequestsToday === undefined ? {} : { quotaRequestsToday: patch.quotaRequestsToday }),
     ...(patch.fanslyProxies === undefined ? {} : { fanslyProxies: patch.fanslyProxies }),
     ...(patch.personalAiLimit === undefined ? {} : { personalAiLimit: patch.personalAiLimit }),
+    ...(patch.ownMoney === undefined ? {} : { ownMoney: patch.ownMoney }),
     ...(patch.matters === undefined ? {} : { matters: patch.matters === null ? null : patch.matters.map((matter) => ({ ...matter })) }),
     ...(patch.report === undefined ? {} : { report: patch.report === null ? null : { ...patch.report } }),
     ...(patch.generationVisibleAfterMs === undefined ? {} : { generationVisibleAfterMs: patch.generationVisibleAfterMs }),

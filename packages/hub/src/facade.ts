@@ -1088,6 +1088,18 @@ export class ChatExtensionHub implements HubFacade {
    * «Ждут вас» (hub #1210): the person's open matters — the count and the longest waiting, no evidence. No capability
    * and no page: a hub without the route answers 404 and the popup shows nothing. Never repeated by itself.
    */
+  async ownMoney(): Promise<boolean | null> {
+    const connection = this.ctx.connection('me');
+    await this.ready;
+    if (!this.ctx.isCurrent(connection)) throw this.ctx.failure('me', transportFailure('aborted'), connection);
+    const me = (await this.ctx.sdk('me', {}, {}, connection)) as HubAuthState;
+    return me.ownMoney ?? null;
+  }
+
+  /**
+   * «Ждут вас» (hub #1210): the person's open matters — the count and the longest waiting, no evidence. No capability
+   * and no page: a hub without the route answers 404 and the popup shows nothing. Never repeated by itself.
+   */
   async matters(): Promise<ClientMatters> {
     const connection = this.ctx.connection('clientMatters');
     await this.ready;
