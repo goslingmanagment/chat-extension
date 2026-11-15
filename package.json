@@ -15,6 +15,7 @@
     "build:test": "pnpm --filter @cg/extension build:test",
     "webext-lint": "web-ext lint --self-hosted --source-dir apps/extension/.output/firefox-mv3",
     "gates": "node tools/gates/index.ts",
+    "vendor:pin": "node tools/vendor-pin/index.ts",
     "gates:bytes": "node tools/gates/pin-bytes.ts",
     "archive-check": "node tools/archive-check/index.ts",
     "e2e": "pnpm build && pnpm build:test && pnpm --filter @cg/testing e2e",

@@ -1,12 +1,12 @@
 {
   "kernelSdk": {
-    "contractHash": "04d7ed612612e262b03a636f4145d14a9cff807353fb1eeabbf9a020198e64f6",
-    "sourceCommit": "a7b32bb84463d4b83f1dcb917e35b0b3244fc1a9",
-    "note": "Vendored on 2026-11-12 from hub main a7b32bb8 (review trains #1281 and #1283, merged) with scripts/vendor-sdk.mjs: a custom order's `code`, `stepLabel` and `stepAt` in the fan card's and the handoff's customs (hub #1275). Re-vendor with the same script and update this pin together: only the release gate reads it."
+    "contractHash": "04347e484006ace022bfdf2c8942093917b6b0dafc41db2a298d395fbe6452d0",
+    "sourceCommit": "dcebe830a141ffcc0f41d1f9aab53b97905e9359",
+    "note": "Vendored from hub dcebe830a141 with the hub's scripts/vendor-sdk.mjs; written by pnpm vendor:pin. A release is vendored only from a hub commit on main that production runs."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",
     "sourceCommit": "48b2cc69035502e273a1e812932fe49a898b4022",
-    "note": "Scheme 2, vendored on 2026-10-28 from hub main 48b2cc69 (#906, deployed) with scripts/vendor-hotkeys.mjs for #429: Notes on ⌘⇧K / Ctrl+Alt+K now serve this client (hotkey client `extension`), on both sites. fansly-chat and onlyfans-chat stay on 0a96105d (#569). Re-vendor with the same script and update this pin together: only the release gate reads it."
+    "note": "Vendored from hub 48b2cc690355 with the hub's scripts/vendor-hotkeys.mjs; written by pnpm vendor:pin."
   }
 }
