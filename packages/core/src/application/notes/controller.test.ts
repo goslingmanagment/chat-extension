@@ -367,6 +367,68 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(w.notes.panel().name).toMatchObject({ value: 'Саша', status: 'saved' });
   });
 
+  it('[2026-11-16] a questionnaire write that leaves a name in «Имя» names a fan who has no name for oneself, once; a named fan keeps his; «Отменить» of that ✓ takes the name back', async () => {
+    // A fan with a name for oneself: a field written never touches it.
+    const named = await opened();
+    named.notes.dispatch({ type: 'field-open', label: 'Имя' });
+    named.notes.dispatch({ type: 'field-input', value: 'Саша' });
+    named.notes.dispatch({ type: 'field-save' });
+    await named.settle();
+    expect(named.port.edit).toHaveBeenCalledTimes(1);
+    expect(named.port.name).not.toHaveBeenCalled();
+
+    // A fan with none: the ✓ that creates his questionnaire names him by its «Имя», without the Goose's month.
+    const w = world();
+    w.go(B);
+    w.notes.toggle();
+    await w.settle();
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    w.notes.fillDone(w.answer('op1', { Имя: 'Blasko (11.2026)', Работа: 'чинит игровые автоматы' }));
+    expect(w.port.name).not.toHaveBeenCalled();
+    w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
+    await w.settle();
+    expect(w.port.name).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '92' }, 'Blasko', null);
+    expect(w.notes.panel().name).toMatchObject({ value: 'Blasko', status: 'pulled' });
+    // He has a name now: the next write leaves it alone.
+    w.notes.dispatch({ type: 'suggestion-accept', index: 1 });
+    await w.settle();
+    expect(w.port.name).toHaveBeenCalledTimes(1);
+
+    // «Отменить» of the ✓ that named him: the questionnaire it created is deleted and the name goes with it.
+    const u = world();
+    u.go(B);
+    u.notes.toggle();
+    await u.settle();
+    u.notes.dispatch({ type: 'fill' });
+    await u.settle();
+    u.notes.fillDone(u.answer('op1', { Имя: 'Blasko' }));
+    u.notes.dispatch({ type: 'suggestion-accept', index: 0 });
+    await u.settle();
+    u.notes.dispatch({ type: 'suggestion-undo' });
+    await u.settle();
+    expect(u.port.remove).toHaveBeenCalledTimes(1);
+    expect(u.port.name).toHaveBeenLastCalledWith({ accountId: '7', fanId: '92' }, '', { noteId: '5', name: 'Blasko' });
+    expect(u.notes.panel().name).toMatchObject({ value: '', status: 'idle' });
+
+    // A sentence in «Имя» is no name; a name being typed in the head is the chatter's own.
+    const s = world();
+    s.go(B);
+    s.notes.toggle();
+    await s.settle();
+    s.notes.dispatch({ type: 'field-open', label: 'Имя' });
+    s.notes.dispatch({ type: 'field-input', value: 'не называет, просит звать его по нику из профиля' });
+    s.notes.dispatch({ type: 'field-save' });
+    await s.settle();
+    s.notes.dispatch({ type: 'name-input', value: 'Мой' });
+    s.notes.dispatch({ type: 'field-open', label: 'Имя' });
+    s.notes.dispatch({ type: 'field-input', value: 'Марк' });
+    s.notes.dispatch({ type: 'field-save' });
+    await s.settle();
+    expect(s.port.edit).toHaveBeenCalledTimes(1);
+    expect(s.port.name).not.toHaveBeenCalled();
+  });
+
   it('[FX-012] another account of the tab drops what was read and typed under the previous one', async () => {
     const w = await opened();
     w.notes.dispatch({ type: 'quick-input', text: 'x' });
