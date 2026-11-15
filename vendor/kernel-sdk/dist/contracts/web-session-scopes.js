@@ -19,14 +19,24 @@
  * anything else. Never on it: a route of the account's credentials (devices,
  * password), where a person is paid, any owner or team-lead route, the
  * hand-off's own mint (a narrow session never travels to another name).
- * Services read a narrow session as a chatter whatever the role.
+ * A read on it that could carry where a person is paid leaves it out for a
+ * narrow session (the hand-off's integration test walks every read of the
+ * list for it). Services read a narrow session as a chatter whatever the role.
  */
 export const NARROW_WEB_SESSION_OPERATIONS = [
     "me",
     "accountChatterStats",
+    // «Мои смены»: the person's own shift numbers and the team's average (package N).
+    "accountShiftNumbers",
     "accountReports",
-    // The chatter's strip «Ждут вас» above «Мои смены»: a narrow session reads as a chatter (their own, never money).
+    // «Ждут вас» of a chatter (products package W: a menu item of their own): a narrow session reads as a chatter (their
+    // own, never money), the list and its groups' count.
     "mattersList",
+    "mattersWaiting",
+    // «Сегодня» and «Мои смены» (products package W): the person's shifts with their reports, paired on the server; the
+    // previous shift's comment and the customs to give (the team part is never a narrow session's).
+    "accountShifts",
+    "workboardToday",
     // Отчёт смены (ecosystem package F): the shift screen the extension opens, «Сдать смену» on it.
     "shiftReport",
     "shiftReportsList",
@@ -36,12 +46,25 @@ export const NARROW_WEB_SESSION_OPERATIONS = [
     "shiftReportOffPlatformAdd",
     "shiftReportOffPlatformWithdraw",
     "shiftReportSubmit",
+    // The «Отчёт» board (package R): the same board in a Workboard tab, by the session.
+    "shiftReportCurrent",
+    "shiftReportConfirm",
+    "shiftReportReopen",
+    "shiftReportReopenCancel",
+    "shiftReportResend",
+    "shiftReportAsk",
+    "shiftReportAskWithdraw",
+    "shiftReportProposalAnswer",
+    "shiftReportSightingAdd",
+    "shiftReportPostCopied",
     // Заявки (ecosystem package G): the other side answers a claim on their shift report.
     "saleClaimAnswer",
     // Цепочка продажи (package T): from a sale of the shift screen, whose it is down to its payout, as the person may see it.
     "saleChain",
     // «Мои деньги» on «Мои смены» (ecosystem package H1): the person's own sums, behind their switch.
     "accountPay",
+    // «Мои смены»: what stands between the person's own shifts and their reports; a narrow session reads as a chatter.
+    "shiftReportNotes",
     // «Кастомы» (package I): the board, an order and the steps a chatter takes on their pages' orders (the lead all of
     // them); «Ждут вас» of the extension leads to an order page.
     "customOrdersBoard",
@@ -51,8 +74,57 @@ export const NARROW_WEB_SESSION_OPERATIONS = [
     "customSaleDismiss",
     // The page filter of «Кастомы»: the pages the person reaches.
     "pages",
-    // «Начало» (package J): a newcomer's way, read; where payouts go is shown, never written from here.
+    // «Начало» (package J): a newcomer's way, read. Of where payouts go it carries only whether it is written and when:
+    // Hub leaves the text out for a narrow session (`ownPayoutDetailsSchema`), and nothing is written from here.
     "accountStart",
+    // «Команда» (products package T): the team reads a chatter may, cut to their teams on the server (services/teams.ts).
+    // Reads only: granting team records and a lead's notes and decisions need the password.
+    "teamPeople",
+    "teamShifts",
+    "teamShiftSales",
+    "teamChatterStats",
+    "teamChatterNumbers",
+    "teamAuthorship",
+    "teamSalesPpv",
+    "teamSalesReplies",
+    // «Продажи → Список продаж»: the team's sales, whose and why; the chain decides itself what it shows.
+    "teamSalesList",
+    // Questions to whoever decides (products plan §4.6): the extension's fan panel asks and reads through these two.
+    "teamQuestions",
+    "teamQuestionAsk",
+    // «График»'s swaps (products package W): a chatter reads the team's; taking one back is a decision (password).
+    "teamSwaps",
+    "teamQuestionClose",
+    // «Обучение» (products plan §2.3): the approved pages, read.
+    "learnPages",
+    "learnPage",
+    "teamEmptyHours",
+    "teamGreetings",
+    "teamWinBackResults",
+    "teamShiftReview",
+    "reviewNotes",
+    // «Фаны» (products package M): the fans of the pages of the person's teams, cut on the server (services/fan-reads.ts).
+    // Reads only: a fan's note and flags need the password.
+    "spenders",
+    "spenderDetail",
+    "spenderSeries",
+    "spenderBatch",
+    "pageSpenderAutoLists",
+    "pageSpenderAutoListDetail",
+    "pageSubscribers",
+    "pageFollowers",
+    "pageDeletedFans",
+    "pageFanCard",
+    "pageFanDetail",
+    "pageFanProfile",
+    "pageFanProfileVersions",
+    "pageFanProfileVersion",
+    "pageFanTransactions",
+    "pageFanWorkedWith",
+    "crossPageFanDetail",
+    "crossPageFanTransactions",
+    "pageConversationPreview",
+    "fanPages",
 ];
 /**
  * What a screen of the chatter's part calls and a narrow session must NOT do:
@@ -70,6 +142,16 @@ export const NARROW_WEB_SESSION_PASSWORD_ONLY = [
     "authRevokeAllDevices",
     "authChangePassword",
     "authMyUsage",
+    // «Разбор смены»: a lead's note to the chatter (products package T).
+    "reviewNoteAdd",
+    // «Подмена»: taking an approved swap back is the decider's decision (products package W).
+    "teamSwapRevoke",
+    // «Фаны» (products package M): a note on a fan's card.
+    "createFanNote",
+    // A question's answer is a decision (products plan §4.6).
+    "teamQuestionAnswer",
+    // «Обучение»: the owner's approval of a page for the team.
+    "learnPageApprove",
 ];
 /** Whether a narrow web session may call the route with this key. */
 export function narrowWebSessionAllows(operationKey) {

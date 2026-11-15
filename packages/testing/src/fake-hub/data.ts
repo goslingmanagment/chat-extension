@@ -55,8 +55,6 @@ import {
   type FanLinkDecideRequest,
   type FanLinkDecideResult,
   type FanCardCustom,
-  type FanCustomChangeRequest,
-  type FanCustomCreateRequest,
   type Handoff,
   type FanQueueItemDone,
   type FanQueueItemDoneRequest,
@@ -106,6 +104,61 @@ export interface Refusal {
 export type Read<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly refusal: Refusal };
 
 const ok = <T>(body: T): Read<T> => ({ ok: true, body });
+/**
+ * Workboard's order after a step, as Hub answers `customOrderAct` (`customOrderDetailResponseSchema`): the vendored SDK
+ * checks it, so the stand answers the whole shape, empty where the stand knows nothing.
+ */
+function orderDetail(custom: FanCardCustom, fanRef: string, now: number): Record<string, unknown> {
+  const at = iso(now);
+  return {
+    order: {
+      id: custom.id,
+      code: custom.code ?? `K-${String(custom.id)}`,
+      pageLabel: custom.pageLabel,
+      platform: null,
+      model: null,
+      modelSlug: null,
+      fan: { platform: 'onlyfans', fanRef, username: null, displayName: null },
+      buyer: null,
+      fanErased: false,
+      card: { task: custom.description },
+      what: custom.description,
+      deadlineOn: custom.deadlineOn ?? null,
+      state: custom.orderState ?? 'given',
+      stateWord: custom.stepLabel ?? 'Отдан',
+      leader: null,
+      stateAt: at,
+      stateNote: null,
+      stateRef: null,
+      paidGrossMills: 0,
+      paidNetMills: 0,
+      payments: 0,
+      givenAt: at,
+      givenMessageRef: null,
+      acceptedBy: null,
+      acceptedByName: null,
+      telegramRefs: [],
+      contentopsRef: null,
+      origin: 'extension',
+      overdueDays: null,
+      partsDone: [],
+      openRevisions: 0,
+      version: 2,
+      createdAt: custom.createdAt,
+      updatedAt: at,
+    },
+    cardText: custom.description,
+    sourceText: null,
+    messages: [],
+    payments: [],
+    paymentSuggestions: [],
+    deliverySuggestions: [],
+    history: [],
+    actions: [],
+    serverNow: at,
+  };
+}
+
 const no = (error: HubErrorCode, reason?: string): Read<never> => ({ ok: false, refusal: reason === undefined ? { error } : { error, reason } });
 
 const DAY_MS = 86_400_000;
@@ -1682,66 +1735,57 @@ export class DataModel {
     };
   }
 
-  /** As the hub's `clientFanCustomCreate`: paid by a tip of `customPayments` (else 409 `not_suggested`) or waiting for it. */
-  fanCustomCreate(page: FakePage, request: FanCustomCreateRequest, by: string, now: number): Read<FanFactChangeResult> {
-    const card = this.fanCard(page, request.fanRef, now);
-    const payments = card.customPayments ?? [];
-    const payment = request.paymentRef === undefined ? null : (payments.find((item) => item.paymentRef === request.paymentRef) ?? null);
-    if (request.paymentRef !== undefined && payment === null) return no('conflict', 'not_suggested');
+  /**
+   * As Workboard's own form in the frame (`customOrderCreate`, products package R5): an order of the fan on the page,
+   * «Записан», the person's to give; its code. null — the page has no such fan card yet: one is made.
+   */
+  recordOrder(page: FakePage, fanRef: string, description: string, priceMills: number | null, by: string, now: number): string {
+    const card = this.fanCard(page, fanRef, now);
     const customs = card.customs ?? [];
-    const id = Math.max(0, ...customs.map((item) => item.id)) + 1;
+    const id = Math.max(0, ...[...this.cards.values()].flatMap((one) => (one.customs ?? []).map((item) => item.id))) + 1;
     const custom: FanCardCustom = {
       id,
       pageLabel: page.pageLabel,
       granted: true,
-      description: request.description.trim(),
-      priceMills: request.priceMills ?? null,
-      state: payment === null ? 'ordered' : 'paid',
-      paymentMills: payment?.amountMills ?? null,
-      paidAt: payment?.at ?? null,
+      description: description.trim(),
+      priceMills,
+      state: 'ordered',
+      paymentMills: null,
+      paidAt: null,
       deliveredMessageRef: null,
       deliveredAt: null,
       createdBy: by,
       createdAt: iso(now),
-      deliveryCandidates: [],
-      // The order's real step, as the hub's board words it.
       code: `K-${String(id)}`,
-      stepLabel: payment === null ? 'Записан' : 'Оплачен',
+      stepLabel: 'Записан',
       stepAt: iso(now),
+      orderState: 'recorded',
+      deadlineOn: null,
+      overdueDays: null,
+      leader: null,
+      mayGive: false,
+      // Hub's own schema still carries the old suggestions; the extension reads past them.
+      ...({ deliveryCandidates: [] } as object),
     };
-    const next = { ...card, customs: [custom, ...customs], customPayments: payments.filter((item) => item !== payment) };
-    this.setFanCard(page.pageLabel, request.fanRef, next);
-    return ok({ changed: true, card: next });
+    // Hub's card always carries the tips no custom took (its own schema); the extension reads past them.
+    this.setFanCard(page.pageLabel, fanRef, { customPayments: [], ...card, known: true, customs: [custom, ...customs] } as FanCard);
+    return custom.code ?? '';
   }
 
-  /** As the hub's `clientFanCustomChange`: only by the card's suggestions (409 `not_suggested`); delivered or cancelled is final. */
-  fanCustomChange(page: FakePage, request: FanCustomChangeRequest, now: number): Read<FanFactChangeResult> {
-    const card = this.fanCard(page, request.fanRef, now);
-    const customs = card.customs ?? [];
-    const custom = customs.find((item) => item.id === request.customId);
-    if (custom === undefined) return no('not_found', 'custom_not_found');
-    if (!custom.granted) return no('client_feature_disabled', 'not_granted');
-    if (custom.state === 'delivered' || custom.state === 'cancelled') return ok({ changed: false, card });
-    const payments = card.customPayments ?? [];
-    // A custom the scenario gave a step moves on it as the hub's order does; one without (an older hub) stays without.
-    const step = (label: string) => (custom.stepLabel === undefined ? {} : { stepLabel: label, stepAt: iso(now) });
-    let changed: FanCardCustom;
-    let left = payments;
-    if (request.action === 'paid') {
-      const payment = payments.find((item) => item.paymentRef === request.paymentRef);
-      if (payment === undefined) return no('conflict', 'not_suggested');
-      // Only a recorded order becomes «Оплачен»; one further on keeps its step.
-      changed = { ...custom, state: 'paid', paymentMills: payment.amountMills, paidAt: payment.at, ...(custom.stepLabel === 'Записан' ? step('Оплачен') : {}) };
-      left = payments.filter((item) => item !== payment);
-    } else if (request.action === 'delivered') {
-      const candidate = custom.deliveryCandidates.find((item) => item.messageRef === request.messageRef);
-      if (candidate === undefined) return no('conflict', 'not_suggested');
-      changed = { ...custom, state: 'delivered', deliveredMessageRef: candidate.messageRef, deliveredAt: candidate.at, deliveryCandidates: [], ...step('Отдан фану') };
-    } else if (request.action === 'cancel') changed = { ...custom, state: 'cancelled', deliveryCandidates: [], ...step('Отменён') };
-    else changed = { ...custom, description: request.description.trim(), priceMills: request.priceMills };
-    const next = { ...card, customs: customs.map((item) => (item === custom ? changed : item)), customPayments: left };
-    this.setFanCard(page.pageLabel, request.fanRef, next);
-    return ok({ changed: true, card: next });
+  /**
+   * As Workboard's `customOrderAct` `given` (the fan panel's «Отдан»): only an order the board lets this person give
+   * (`mayGive`), else 409 `not_allowed`; an order nobody holds — 404.
+   */
+  giveOrder(code: string, now: number): Read<Record<string, unknown>> {
+    for (const [key, card] of this.cards) {
+      const custom = (card.customs ?? []).find((item) => item.code === code);
+      if (custom === undefined) continue;
+      if (custom.mayGive !== true) return no('conflict', 'not_allowed');
+      const given: FanCardCustom = { ...custom, state: 'delivered', deliveredAt: iso(now), stepLabel: 'Отдан', stepAt: iso(now), orderState: 'given', overdueDays: null, leader: null, mayGive: false };
+      this.cards.set(key, { ...card, customs: (card.customs ?? []).map((item) => (item === custom ? given : item)) });
+      return ok(orderDetail(given, card.fanRef, now));
+    }
+    return no('not_found', 'custom_not_found');
   }
 
   /** A scenario's «в разговоре»: `name` (another chatter) wrote to the fan `agoMs` before now. */

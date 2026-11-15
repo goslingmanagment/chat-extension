@@ -33,7 +33,22 @@ describe('frameRequestAllowed: what a Workboard frame may ask of Hub with the de
     expect(frameRequestAllowed('report', 'GET', '/api/v1/shift-reports/current?x=1#y')).toBe(false);
     expect(frameRequestAllowed('report', 'GET', '/api/v1/shift-reports/current?a=1?b')).toBe(false);
     expect(frameRequestAllowed('report', 'PATCH', '/api/v1/shift-reports/current')).toBe(false);
-    expect(frameRequestAllowed('custom' as 'report', 'GET', '/api/v1/shift-reports/current')).toBe(false);
+    expect(frameRequestAllowed('nope' as 'report', 'GET', '/api/v1/shift-reports/current')).toBe(false);
+  });
+
+  it('lets the fan panel\'s windows record one order or ask one question, and nothing of the board', () => {
+    expect(frameRequestAllowed('custom', 'POST', '/api/v1/custom-orders')).toBe(true);
+    expect(frameRequestAllowed('custom', 'GET', '/api/v1/auth/me')).toBe(true);
+    expect(frameRequestAllowed('ask', 'POST', '/api/v1/team/questions')).toBe(true);
+    expect(frameRequestAllowed('ask', 'GET', '/api/v1/auth/me')).toBe(true);
+    // A step of an order, the board's list, another person's question: not these windows' matter.
+    expect(frameRequestAllowed('custom', 'POST', '/api/v1/custom-orders/K-12')).toBe(false);
+    expect(frameRequestAllowed('custom', 'GET', '/api/v1/custom-orders')).toBe(false);
+    expect(frameRequestAllowed('custom', 'GET', '/api/v1/shift-reports/current')).toBe(false);
+    expect(frameRequestAllowed('ask', 'GET', '/api/v1/team/questions')).toBe(false);
+    expect(frameRequestAllowed('ask', 'POST', '/api/v1/team/questions/7/answer')).toBe(false);
+    expect(frameRequestAllowed('ask', 'POST', '/api/v1/custom-orders')).toBe(false);
+    expect(frameRequestAllowed('report', 'POST', '/api/v1/custom-orders')).toBe(false);
   });
 });
 

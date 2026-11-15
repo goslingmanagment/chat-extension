@@ -53,6 +53,7 @@ export declare const agentKeyCapabilityEnum: z.ZodEnum<{
     "introspect:agent_keys": "introspect:agent_keys";
     "write:customs": "write:customs";
     "write:shift_reports": "write:shift_reports";
+    "review:shift_reports": "review:shift_reports";
 }>;
 /** The sliding default; the hard ceiling lives with the repository. */
 export declare const AGENT_KEY_DEFAULT_LIFETIME_DAYS = 90;
@@ -116,6 +117,7 @@ export declare const agentKeyItemSchema: z.ZodObject<{
         "introspect:agent_keys": "introspect:agent_keys";
         "write:customs": "write:customs";
         "write:shift_reports": "write:shift_reports";
+        "review:shift_reports": "review:shift_reports";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresAt: z.ZodString;
@@ -123,6 +125,7 @@ export declare const agentKeyItemSchema: z.ZodObject<{
     revokedAt: z.ZodNullable<z.ZodString>;
     lastUsedAt: z.ZodNullable<z.ZodString>;
     isActive: z.ZodBoolean;
+    replacedAt: z.ZodNullable<z.ZodString>;
     agent: z.ZodNullable<z.ZodObject<{
         code: z.ZodString;
         displayName: z.ZodString;
@@ -167,6 +170,7 @@ export declare const agentKeyCreateBodySchema: z.ZodObject<{
         "introspect:agent_keys": "introspect:agent_keys";
         "write:customs": "write:customs";
         "write:shift_reports": "write:shift_reports";
+        "review:shift_reports": "review:shift_reports";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -203,6 +207,7 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
             "introspect:agent_keys": "introspect:agent_keys";
             "write:customs": "write:customs";
             "write:shift_reports": "write:shift_reports";
+            "review:shift_reports": "review:shift_reports";
         }>>;
         pageLabels: z.ZodArray<z.ZodString>;
         expiresAt: z.ZodString;
@@ -210,6 +215,7 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
         revokedAt: z.ZodNullable<z.ZodString>;
         lastUsedAt: z.ZodNullable<z.ZodString>;
         isActive: z.ZodBoolean;
+        replacedAt: z.ZodNullable<z.ZodString>;
         agent: z.ZodNullable<z.ZodObject<{
             code: z.ZodString;
             displayName: z.ZodString;
@@ -230,11 +236,135 @@ export declare const agentKeyParamsSchema: z.ZodObject<{
     id: z.ZodCoercedNumber<unknown>;
 }, z.core.$strict>;
 /**
+ * A key issued AS THE REPLACEMENT of the agent's live key (`:id`). An agent holds one live key at a time, so a key
+ * is not replaced by issuing a second one beside it; and revoking first means downtime (a key a service also signs
+ * in with would close every session of that service at once). The new key is the same agent's and takes the old
+ * key's pages and capabilities EXACTLY — nothing of the grant is in this body — and the old key is not revoked: it
+ * works one more day (the repository's AGENT_KEY_REPLACEMENT_GRACE_HOURS) and ends by itself. Until then neither
+ * key changes in place.
+ */
+export declare const agentKeyReplaceBodySchema: z.ZodObject<{
+    name: z.ZodString;
+    expiresInDays: z.ZodDefault<z.ZodNumber>;
+}, z.core.$strict>;
+export declare const agentKeyReplaceResponseSchema: z.ZodObject<{
+    token: z.ZodString;
+    key: z.ZodObject<{
+        id: z.ZodNumber;
+        name: z.ZodString;
+        keyPrefix: z.ZodString;
+        capabilities: z.ZodArray<z.ZodEnum<{
+            "read:messages": "read:messages";
+            "read:money": "read:money";
+            "read:observations_envelope": "read:observations_envelope";
+            "read:datasets": "read:datasets";
+            "request:hydration": "request:hydration";
+            "write:publication_drafts": "write:publication_drafts";
+            "approve:publications": "approve:publications";
+            "approve:vault_albums": "approve:vault_albums";
+            "write:fan_queues": "write:fan_queues";
+            "read:content": "read:content";
+            "read:team": "read:team";
+            "withdraw:publications": "withdraw:publications";
+            "delete:posts": "delete:posts";
+            "look:media": "look:media";
+            "write:matters": "write:matters";
+            "read:pay_terms": "read:pay_terms";
+            "propose:people": "propose:people";
+            "signin:contentops": "signin:contentops";
+            "signin:taskindex": "signin:taskindex";
+            "signin:monitor": "signin:monitor";
+            "write:reports": "write:reports";
+            "write:system_state": "write:system_state";
+            "introspect:agent_keys": "introspect:agent_keys";
+            "write:customs": "write:customs";
+            "write:shift_reports": "write:shift_reports";
+            "review:shift_reports": "review:shift_reports";
+        }>>;
+        pageLabels: z.ZodArray<z.ZodString>;
+        expiresAt: z.ZodString;
+        createdAt: z.ZodString;
+        revokedAt: z.ZodNullable<z.ZodString>;
+        lastUsedAt: z.ZodNullable<z.ZodString>;
+        isActive: z.ZodBoolean;
+        replacedAt: z.ZodNullable<z.ZodString>;
+        agent: z.ZodNullable<z.ZodObject<{
+            code: z.ZodString;
+            displayName: z.ZodString;
+            state: z.ZodEnum<{
+                left: "left";
+                invited: "invited";
+                set_up: "set_up";
+                working: "working";
+            }>;
+        }, z.core.$strict>>;
+        lastCall: z.ZodNullable<z.ZodObject<{
+            at: z.ZodString;
+            operation: z.ZodString;
+        }, z.core.$strict>>;
+    }, z.core.$strict>;
+    replaced: z.ZodObject<{
+        id: z.ZodNumber;
+        name: z.ZodString;
+        keyPrefix: z.ZodString;
+        capabilities: z.ZodArray<z.ZodEnum<{
+            "read:messages": "read:messages";
+            "read:money": "read:money";
+            "read:observations_envelope": "read:observations_envelope";
+            "read:datasets": "read:datasets";
+            "request:hydration": "request:hydration";
+            "write:publication_drafts": "write:publication_drafts";
+            "approve:publications": "approve:publications";
+            "approve:vault_albums": "approve:vault_albums";
+            "write:fan_queues": "write:fan_queues";
+            "read:content": "read:content";
+            "read:team": "read:team";
+            "withdraw:publications": "withdraw:publications";
+            "delete:posts": "delete:posts";
+            "look:media": "look:media";
+            "write:matters": "write:matters";
+            "read:pay_terms": "read:pay_terms";
+            "propose:people": "propose:people";
+            "signin:contentops": "signin:contentops";
+            "signin:taskindex": "signin:taskindex";
+            "signin:monitor": "signin:monitor";
+            "write:reports": "write:reports";
+            "write:system_state": "write:system_state";
+            "introspect:agent_keys": "introspect:agent_keys";
+            "write:customs": "write:customs";
+            "write:shift_reports": "write:shift_reports";
+            "review:shift_reports": "review:shift_reports";
+        }>>;
+        pageLabels: z.ZodArray<z.ZodString>;
+        expiresAt: z.ZodString;
+        createdAt: z.ZodString;
+        revokedAt: z.ZodNullable<z.ZodString>;
+        lastUsedAt: z.ZodNullable<z.ZodString>;
+        isActive: z.ZodBoolean;
+        replacedAt: z.ZodNullable<z.ZodString>;
+        agent: z.ZodNullable<z.ZodObject<{
+            code: z.ZodString;
+            displayName: z.ZodString;
+            state: z.ZodEnum<{
+                left: "left";
+                invited: "invited";
+                set_up: "set_up";
+                working: "working";
+            }>;
+        }, z.core.$strict>>;
+        lastCall: z.ZodNullable<z.ZodObject<{
+            at: z.ZodString;
+            operation: z.ZodString;
+        }, z.core.$strict>>;
+    }, z.core.$strict>;
+}, z.core.$strict>;
+/**
  * The WHOLE new capability set of a live key, not a diff: what the owner sees
  * ticked is what the key holds afterwards. Empty is allowed (a key that keeps
  * its pages but may read nothing); a repeated name is a 400 rather than folded,
- * like an unknown one. The page grant is not part of this body: pages are still
- * widened only by issuing a new key.
+ * like an unknown one. The page grant is not part of this body: a key's pages
+ * change in place too, from the CLI (`agent-keys:pages`); a new key is issued
+ * only to replace one (agentKeyReplace).
  */
 export declare const agentKeyUpdateBodySchema: z.ZodObject<{
     capabilities: z.ZodArray<z.ZodEnum<{
@@ -263,6 +393,7 @@ export declare const agentKeyUpdateBodySchema: z.ZodObject<{
         "introspect:agent_keys": "introspect:agent_keys";
         "write:customs": "write:customs";
         "write:shift_reports": "write:shift_reports";
+        "review:shift_reports": "review:shift_reports";
     }>>;
 }, z.core.$strict>;
 export declare const agentKeyRevokeResponseSchema: z.ZodObject<{
@@ -397,6 +528,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "introspect:agent_keys": "introspect:agent_keys";
                 "write:customs": "write:customs";
                 "write:shift_reports": "write:shift_reports";
+                "review:shift_reports": "review:shift_reports";
             }>>;
             pageLabels: z.ZodArray<z.ZodString>;
             expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -434,6 +566,7 @@ export declare const agentKeyAdminRouteSchemas: {
                         "introspect:agent_keys": "introspect:agent_keys";
                         "write:customs": "write:customs";
                         "write:shift_reports": "write:shift_reports";
+                        "review:shift_reports": "review:shift_reports";
                     }>>;
                     pageLabels: z.ZodArray<z.ZodString>;
                     expiresAt: z.ZodString;
@@ -441,6 +574,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     revokedAt: z.ZodNullable<z.ZodString>;
                     lastUsedAt: z.ZodNullable<z.ZodString>;
                     isActive: z.ZodBoolean;
+                    replacedAt: z.ZodNullable<z.ZodString>;
                     agent: z.ZodNullable<z.ZodObject<{
                         code: z.ZodString;
                         displayName: z.ZodString;
@@ -531,6 +665,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "introspect:agent_keys": "introspect:agent_keys";
                     "write:customs": "write:customs";
                     "write:shift_reports": "write:shift_reports";
+                    "review:shift_reports": "review:shift_reports";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;
@@ -538,6 +673,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 revokedAt: z.ZodNullable<z.ZodString>;
                 lastUsedAt: z.ZodNullable<z.ZodString>;
                 isActive: z.ZodBoolean;
+                replacedAt: z.ZodNullable<z.ZodString>;
                 agent: z.ZodNullable<z.ZodObject<{
                     code: z.ZodString;
                     displayName: z.ZodString;
@@ -605,6 +741,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "introspect:agent_keys": "introspect:agent_keys";
                 "write:customs": "write:customs";
                 "write:shift_reports": "write:shift_reports";
+                "review:shift_reports": "review:shift_reports";
             }>>;
         }, z.core.$strict>;
         readonly response: {
@@ -638,6 +775,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "introspect:agent_keys": "introspect:agent_keys";
                     "write:customs": "write:customs";
                     "write:shift_reports": "write:shift_reports";
+                    "review:shift_reports": "review:shift_reports";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;
@@ -645,6 +783,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 revokedAt: z.ZodNullable<z.ZodString>;
                 lastUsedAt: z.ZodNullable<z.ZodString>;
                 isActive: z.ZodBoolean;
+                replacedAt: z.ZodNullable<z.ZodString>;
                 agent: z.ZodNullable<z.ZodObject<{
                     code: z.ZodString;
                     displayName: z.ZodString;
@@ -659,6 +798,169 @@ export declare const agentKeyAdminRouteSchemas: {
                     at: z.ZodString;
                     operation: z.ZodString;
                 }, z.core.$strict>>;
+            }, z.core.$strict>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentKeyReplace: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: "Issue a key as the replacement of an agent's live key: the same agent, pages and capabilities; the old key works one more day";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            id: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strict>;
+        readonly body: z.ZodObject<{
+            name: z.ZodString;
+            expiresInDays: z.ZodDefault<z.ZodNumber>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                token: z.ZodString;
+                key: z.ZodObject<{
+                    id: z.ZodNumber;
+                    name: z.ZodString;
+                    keyPrefix: z.ZodString;
+                    capabilities: z.ZodArray<z.ZodEnum<{
+                        "read:messages": "read:messages";
+                        "read:money": "read:money";
+                        "read:observations_envelope": "read:observations_envelope";
+                        "read:datasets": "read:datasets";
+                        "request:hydration": "request:hydration";
+                        "write:publication_drafts": "write:publication_drafts";
+                        "approve:publications": "approve:publications";
+                        "approve:vault_albums": "approve:vault_albums";
+                        "write:fan_queues": "write:fan_queues";
+                        "read:content": "read:content";
+                        "read:team": "read:team";
+                        "withdraw:publications": "withdraw:publications";
+                        "delete:posts": "delete:posts";
+                        "look:media": "look:media";
+                        "write:matters": "write:matters";
+                        "read:pay_terms": "read:pay_terms";
+                        "propose:people": "propose:people";
+                        "signin:contentops": "signin:contentops";
+                        "signin:taskindex": "signin:taskindex";
+                        "signin:monitor": "signin:monitor";
+                        "write:reports": "write:reports";
+                        "write:system_state": "write:system_state";
+                        "introspect:agent_keys": "introspect:agent_keys";
+                        "write:customs": "write:customs";
+                        "write:shift_reports": "write:shift_reports";
+                        "review:shift_reports": "review:shift_reports";
+                    }>>;
+                    pageLabels: z.ZodArray<z.ZodString>;
+                    expiresAt: z.ZodString;
+                    createdAt: z.ZodString;
+                    revokedAt: z.ZodNullable<z.ZodString>;
+                    lastUsedAt: z.ZodNullable<z.ZodString>;
+                    isActive: z.ZodBoolean;
+                    replacedAt: z.ZodNullable<z.ZodString>;
+                    agent: z.ZodNullable<z.ZodObject<{
+                        code: z.ZodString;
+                        displayName: z.ZodString;
+                        state: z.ZodEnum<{
+                            left: "left";
+                            invited: "invited";
+                            set_up: "set_up";
+                            working: "working";
+                        }>;
+                    }, z.core.$strict>>;
+                    lastCall: z.ZodNullable<z.ZodObject<{
+                        at: z.ZodString;
+                        operation: z.ZodString;
+                    }, z.core.$strict>>;
+                }, z.core.$strict>;
+                replaced: z.ZodObject<{
+                    id: z.ZodNumber;
+                    name: z.ZodString;
+                    keyPrefix: z.ZodString;
+                    capabilities: z.ZodArray<z.ZodEnum<{
+                        "read:messages": "read:messages";
+                        "read:money": "read:money";
+                        "read:observations_envelope": "read:observations_envelope";
+                        "read:datasets": "read:datasets";
+                        "request:hydration": "request:hydration";
+                        "write:publication_drafts": "write:publication_drafts";
+                        "approve:publications": "approve:publications";
+                        "approve:vault_albums": "approve:vault_albums";
+                        "write:fan_queues": "write:fan_queues";
+                        "read:content": "read:content";
+                        "read:team": "read:team";
+                        "withdraw:publications": "withdraw:publications";
+                        "delete:posts": "delete:posts";
+                        "look:media": "look:media";
+                        "write:matters": "write:matters";
+                        "read:pay_terms": "read:pay_terms";
+                        "propose:people": "propose:people";
+                        "signin:contentops": "signin:contentops";
+                        "signin:taskindex": "signin:taskindex";
+                        "signin:monitor": "signin:monitor";
+                        "write:reports": "write:reports";
+                        "write:system_state": "write:system_state";
+                        "introspect:agent_keys": "introspect:agent_keys";
+                        "write:customs": "write:customs";
+                        "write:shift_reports": "write:shift_reports";
+                        "review:shift_reports": "review:shift_reports";
+                    }>>;
+                    pageLabels: z.ZodArray<z.ZodString>;
+                    expiresAt: z.ZodString;
+                    createdAt: z.ZodString;
+                    revokedAt: z.ZodNullable<z.ZodString>;
+                    lastUsedAt: z.ZodNullable<z.ZodString>;
+                    isActive: z.ZodBoolean;
+                    replacedAt: z.ZodNullable<z.ZodString>;
+                    agent: z.ZodNullable<z.ZodObject<{
+                        code: z.ZodString;
+                        displayName: z.ZodString;
+                        state: z.ZodEnum<{
+                            left: "left";
+                            invited: "invited";
+                            set_up: "set_up";
+                            working: "working";
+                        }>;
+                    }, z.core.$strict>>;
+                    lastCall: z.ZodNullable<z.ZodObject<{
+                        at: z.ZodString;
+                        operation: z.ZodString;
+                    }, z.core.$strict>>;
+                }, z.core.$strict>;
             }, z.core.$strict>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
@@ -740,6 +1042,8 @@ export type AgentKeyItem = z.infer<typeof agentKeyItemSchema>;
 export type AgentKeyCreateBody = z.infer<typeof agentKeyCreateBodySchema>;
 export type AgentKeyCreateResponse = z.infer<typeof agentKeyCreateResponseSchema>;
 export type AgentKeyUpdateBody = z.infer<typeof agentKeyUpdateBodySchema>;
+export type AgentKeyReplaceBody = z.infer<typeof agentKeyReplaceBodySchema>;
+export type AgentKeyReplaceResponse = z.infer<typeof agentKeyReplaceResponseSchema>;
 export type AgentKeyRevokeResponse = z.infer<typeof agentKeyRevokeResponseSchema>;
 export type AgentKeyAgent = z.infer<typeof agentKeyAgentSchema>;
 export type AgentKeyIntrospectBody = z.infer<typeof agentKeyIntrospectBodySchema>;

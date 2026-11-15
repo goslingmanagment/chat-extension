@@ -25,6 +25,7 @@ import {
   WebLinkRequestSchema,
   hasCapability,
   narrowPlatform,
+  narrowRole,
   type AbortSignalLike,
   type AcceptanceEvent,
   type AiLimitReport,
@@ -94,8 +95,8 @@ import {
   type OtherPagesRequest,
   type FanBadgesReport,
   type FanBadgesReportResult,
-  type FanCustomChangeRequest,
-  type FanCustomCreateRequest,
+  CustomOrderGiveRequestSchema,
+  type CustomOrderGiveRequest,
   type Handoff,
   type HandoffQuery,
   type OnlineAttemptRequest,
@@ -508,7 +509,7 @@ export class ChatExtensionHub implements HubFacade {
         session = await this.custody.commitSignIn({
           token: issued.token,
           hubOrigin,
-          user: { userId: me.user.id, login: me.user.username, role: me.user.role },
+          user: { userId: me.user.id, login: me.user.username, role: narrowRole(me.user.role) },
           narrow,
           tokenMeta: { keyPrefix: issued.keyPrefix, issuedAt: new Date(this.ctx.clock.now()).toISOString(), expiresAt: issued.expiresAt, label: issued.label, version: env.extensionVersion },
         });
@@ -1140,14 +1141,17 @@ export class ChatExtensionHub implements HubFacade {
     return (await this.client('clientFanFactChange', request, request.pageLabel)) as FanFactChangeResult;
   }
 
-  /** Chat Memory week 4: a custom written into the fan's card. Never repeated here. */
-  async fanCustomCreate(request: FanCustomCreateRequest): Promise<FanFactChangeResult> {
-    return (await this.client('clientFanCustomCreate', request, request.pageLabel)) as FanFactChangeResult;
-  }
-
-  /** A custom marked paid, delivered, cancelled or edited. Never repeated here. */
-  async fanCustomChange(request: FanCustomChangeRequest): Promise<FanFactChangeResult> {
-    return (await this.client('clientFanCustomChange', request, request.pageLabel)) as FanFactChangeResult;
+  /** Package R5: «Отдан» — Workboard's own step of the order, by the device token. Never repeated here. */
+  async customOrderGive(request: CustomOrderGiveRequest, pageLabel: string): Promise<void> {
+    await this.ready;
+    const route = 'customOrderAct';
+    const connection = this.ctx.connection(route);
+    if (!CustomOrderGiveRequestSchema.safeParse(request).success) throw this.ctx.failure(route, transportFailure('contract'), connection);
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    const missing = HUB_ROUTES[route].capabilities.filter((capability) => !hasCapability(entry.bootstrap.capabilities, capability));
+    if (missing.length > 0) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, missing.join(','));
+    if (pageOf(entry.bootstrap, pageLabel) === null) throw new FacadeCheckError('pageNotGranted', route, connection.epoch);
+    await this.ctx.sdk(route, { params: { code: request.code }, body: { action: request.action } }, { facts: { pageLabel } }, connection);
   }
 
   /** Chat Memory week 3: the shift handoff of a page granted by this bootstrap; refused without `handoff-v1`. */

@@ -23,6 +23,9 @@ export const WORKBOARD_PATH_PREFIX = '/workboard/';
 export const WORKBOARD_REPORT_PATH = '/workboard/report';
 /** The popup's «Workboard» (2026-11-15): the person's day in Workboard; until Hub has it, its app's home answers. */
 export const WORKBOARD_TODAY_PATH = '/workboard/today';
+/** Products package R5: «Мои смены» and «Мои деньги» of the popup, Workboard's own screens of the person. */
+export const WORKBOARD_MY_SHIFTS_PATH = '/workboard/shifts/mine';
+export const WORKBOARD_MY_MONEY_PATH = '/workboard/money/mine';
 
 export const ClientMattersSchema = z.object({
   count: CountSchema,

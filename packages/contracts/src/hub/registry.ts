@@ -43,7 +43,7 @@ import { HandoffQuerySchema, HandoffSchema } from './queue';
 import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineProbeRequestSchema, OnlineProbeResultSchema, OnlineQuerySchema } from './online';
 import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema, OnlyfansPollRequestSchema, OnlyfansPollResultSchema } from './onlyfans-feed';
 import { ServerTabStateRequestSchema, ServerTabStateResultSchema } from './server-tab';
-import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
+import { CustomOrderActedSchema, CustomOrderGiveRequestSchema, FanCardQuerySchema, FanCardSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema, OtherPagesAnswerSchema, OtherPagesRequestSchema } from './fan-marks';
 import { FanBadgesReportResultSchema, FanBadgesReportSchema } from './fan-badges';
 import { DeletedMessagesQuerySchema, DeletedMessagesSchema } from './deleted';
@@ -119,8 +119,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientOutreachSave: { request: OutreachStoreSaveRequestSchema, response: OutreachStoreSavedSchema },
   clientOutreachSend: { request: OutreachStoreSendRequestSchema, response: OutreachStoreSendAnswerSchema },
   clientOutreachTouches: { request: OutreachStoreListQuerySchema, response: OutreachStoreTouchesSchema },
-  clientFanCustomCreate: { request: FanCustomCreateRequestSchema, response: FanFactChangeResultSchema },
-  clientFanCustomChange: { request: FanCustomChangeRequestSchema, response: FanFactChangeResultSchema },
+  customOrderAct: { request: CustomOrderGiveRequestSchema, response: CustomOrderActedSchema },
   voiceNoteCreate: { request: VoiceNoteCreateRequestSchema, response: VoiceNoteViewSchema },
   voiceNoteStatus: { request: VoiceNoteRefSchema, response: VoiceNoteViewSchema },
   voiceNoteAudio: { request: VoiceNoteRefSchema, response: VoiceNoteAudioBytesSchema },

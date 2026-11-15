@@ -26,6 +26,7 @@ import type { AppRouter } from '@cg/core/application';
 import type { GreetHereState, GreetedChat } from '@cg/core/application/newcomers';
 import type { GreetRun } from '@cg/core/application/shell';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
+import type { WorkboardFormsPort } from '@cg/core/application/fanpanel';
 import { toastKindOf } from '@cg/core/domain/errors';
 import type { OnlineSiteSource } from '@cg/core/application/online/source';
 import type { Logger } from '@cg/core/domain/logging';
@@ -416,6 +417,8 @@ export interface BoardsDock {
   readonly talking?: NavigationChunk.TalkingController;
   /** 2026-11-02: the dock's own read of the queues: the strip over the bar, and whether the person holds a portion. */
   readonly queuesCount?: AiChunk.QueuesCount;
+  /** Products package R5: Workboard's form and question window over the site, for the fan panel. */
+  readonly workboard?: WorkboardFormsPort;
   /**
    * 2026-10-26: a greeting reminder's «Hi» goes on in the fan's chat it opened. The dock's handle of `chat` once its dock
    * can start a generation there; null — not within `ms`.
@@ -618,7 +621,7 @@ export async function startBoards(
   queues.attachBatch(preview);
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
-  const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
+  const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(dock.workboard === undefined ? {} : { workboard: dock.workboard }), ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   // R12's order: the preview first — it answers for the parts of its own results.
   const controllers = [preview, spenders, newcomers, fanPanel, outreach, online, queues];

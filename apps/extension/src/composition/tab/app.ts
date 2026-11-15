@@ -918,6 +918,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
           bind: (results) => ai.workspace.bindBoards(results),
           talking: navigation.talking,
           queuesCount: ai.queues,
+          // Products package R5: «Записать кастом» and «Спросить» of the fan panel — Workboard's windows over the site.
+          workboard: { open: (screen, form) => frames.form(screen, form) },
           // §6.5: the chat is open — its dock goes on with the result. What the dock could not take is said aloud.
           handover(handover) {
             void ai.workspace.adoptBoardResult(handover).then(

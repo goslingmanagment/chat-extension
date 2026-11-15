@@ -489,11 +489,11 @@ export declare const teamShiftSalesResponseSchema: z.ZodObject<{
             visitBy: z.ZodNullable<z.ZodString>;
             home: z.ZodOptional<z.ZodEnum<{
                 person: "person";
-                waiting: "waiting";
-                visit: "visit";
                 pot: "pot";
-                decide: "decide";
                 nobody: "nobody";
+                waiting: "waiting";
+                decide: "decide";
+                visit: "visit";
             }>>;
         }, z.core.$strip>>;
         personNetMills: z.ZodOptional<z.ZodNumber>;

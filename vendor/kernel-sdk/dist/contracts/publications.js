@@ -250,15 +250,59 @@ export const publicationDetailSchema = publicationSchema.extend({
         approvedAt: z.string(),
     }).nullable(),
 });
+/**
+ * The card through the person's door (ContentOps' «Публикации», products package C2): the detail with the names of
+ * who drafted, approved and moved the post — a person by the registry's display name, an agent by its key's name.
+ * A login without a person in the registry has no name here: never the login itself.
+ */
+/**
+ * Hub's words of a publication's codes, for the person's door (publication-words.ts, the one table): ContentOps shows
+ * these and keeps no table of its own.
+ */
+export const publicationWordsSchema = z.object({
+    /** The status's reason; null — none. */
+    statusReason: z.string().nullable(),
+    /** A vault album's reason, part by part with the files each names; null — not an album's. */
+    statusReasonParts: z.array(z.object({ text: z.string(), names: z.array(z.string()) })).nullable(),
+    /** Each check of the draft, in the order of `findings`. */
+    findings: z.array(z.string()),
+    /** What happened to the withdrawal or the deletion Hub sent, when the status does not say it; null — nothing. */
+    command: z.string().nullable(),
+});
+export const personPublicationSchema = publicationSchema.extend({ words: publicationWordsSchema });
+export const personPublicationListResponseSchema = z.object({ publications: z.array(personPublicationSchema) });
+/** A vault album's run in words: progress, files left out, why the uploads stopped, the price, the day's ceiling. */
+export const albumRunWordsSchema = z.object({
+    landed: z.string(),
+    current: z.string().nullable(),
+    missing: z.string().nullable(),
+    stop: z.string().nullable(),
+    price: z.string(),
+    ceiling: z.string().nullable(),
+    files: z.array(z.object({ name: z.string(), size: z.string(), state: z.string() })),
+});
+export const personPublicationDetailSchema = publicationDetailSchema.extend({
+    names: z.object({
+        users: z.array(z.object({ id: z.number().int(), name: z.string() })),
+        agentKeys: z.array(z.object({ id: z.number().int(), name: z.string() })),
+    }),
+    words: publicationWordsSchema.extend({
+        /** Each journal row's reason, in the order of `events`. */
+        events: z.array(z.string().nullable()),
+        album: albumRunWordsSchema.nullable(),
+    }),
+});
 export const publicationListQuerySchema = z.object({
     pageLabel: z.string().min(1).optional(),
+    /** Only the pages of this model (Hub's slug, any case): ContentOps' «Публикации» shows one model (products plan §2.4). */
+    modelSlug: z.string().min(1).max(100).optional(),
     status: publicationStatusSchema.optional(),
     /** Publish time window, `from` inclusive, `to` exclusive. */
     from: isoDateTime({ offset: true }).optional(),
     to: isoDateTime({ offset: true }).optional(),
     limit: z.coerce.number().int().min(1).max(1000).default(500),
 });
-export const agentPublicationListQuerySchema = publicationListQuerySchema.omit({ pageLabel: true });
+export const agentPublicationListQuerySchema = publicationListQuerySchema.omit({ pageLabel: true, modelSlug: true });
 export const publicationListResponseSchema = z.object({ publications: z.array(publicationSchema) });
 /**
  * The key's own publications whose `updatedAt` is at or after `since`, oldest
@@ -297,6 +341,16 @@ export const publicationApproveResponseSchema = z.object({
         publication: publicationSchema.nullable(),
     })),
 });
+/** Approval through the person's door: a refusal's reason in Hub's words. */
+export const personPublicationApproveResponseSchema = z.object({
+    results: z.array(z.object({
+        id: intId,
+        outcome: z.enum(["approved", "refused"]),
+        reason: z.string().nullable(),
+        words: z.string().nullable(),
+        publication: publicationSchema.nullable(),
+    })),
+});
 /** The person's answer to "unknown" (spec §8.2). A post that went out names
  *  its id and where it is; a vault album (either platform) has no post: it
  *  goes out with neither, and becomes published. */
@@ -330,6 +384,11 @@ export const publicationSettingsListResponseSchema = z.object({
     globalEnabled: z.boolean(),
     pages: z.array(publicationSettingsSchema),
 });
+/** The settings through the person's door: why Hub stopped a page, in words. */
+export const personPublicationSettingsListResponseSchema = z.object({
+    globalEnabled: z.boolean(),
+    pages: z.array(publicationSettingsSchema.extend({ autostopReasonWords: z.string().nullable() })),
+});
 export const publicationSettingsUpdateBodySchema = z.strictObject({
     enabled: z.boolean(),
     paidPriceMinMills: mills.positive().nullable(),
@@ -361,6 +420,10 @@ export const publicationWithdrawResultSchema = z.object({
     publication: publicationSchema.nullable(),
 });
 export const publicationWithdrawResponseSchema = z.object({ results: z.array(publicationWithdrawResultSchema) });
+/** A withdrawal's or a deletion's outcome with Hub's words (the person's door). */
+export const personPublicationWithdrawResponseSchema = z.object({
+    results: z.array(publicationWithdrawResultSchema.extend({ words: z.string() })),
+});
 export const publicationWithdrawPageBodySchema = z.strictObject({ pageLabel: z.string().min(1) });
 export const publicationQueueEntrySchema = z.object({
     queueId: z.string(),

@@ -127,9 +127,11 @@ export const HUB_ROUTES = {
   clientOutreachSend: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['outreach-store-v1'], narrowToken: true },
   clientOutreachTouches: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['outreach-store-v1'], narrowToken: true },
   clientHandoff: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['handoff-v1'], narrowToken: true },
-  /** Chat Memory week 4: a custom written into the fan's card, and its paid / delivered / cancel / edit. No owner switch. */
-  clientFanCustomCreate: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-customs-v1'], narrowToken: true },
-  clientFanCustomChange: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-customs-v1'], narrowToken: true },
+  /**
+   * Products package R5: «Отдан» of the fan panel — Workboard's own step of the order (the board's rule decides; the
+   * device token reads as a chatter). A custom is recorded by Workboard's own form in the frame, not by a route here.
+   */
+  customOrderAct: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-customs-v1'], narrowToken: true },
   /**
    * 1.47.0: the voice notes (the hub's voice-notes lane, HF-4б), on both sites: the paid create (idempotent per
    * `clientRequestId`, never repeated by itself), its status, its MP3 (`fetchVoiceNoteAudio` of the SDK, raw bytes).

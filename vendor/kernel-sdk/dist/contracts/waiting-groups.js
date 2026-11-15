@@ -7,22 +7,38 @@
  */
 import { MATTER_INFO_KINDS } from "./matter-checks";
 export const WAITING_GROUP_IDS = [
-    "questions", "reports", "customs", "held", "publications", "content", "people", "ledger", "system", "other", "info",
+    "questions", "asks", "reports", "customs", "newcomers", "held", "publications", "content", "people", "ledger", "system", "other", "info",
+];
+/**
+ * The product a matter is decided in (products plan §4.4): Hub (the owner's: people and access, the ledger's checks,
+ * the system), Workboard (the chat team's: whose a sale is, shifts' reports, customs, held sends) or ContentOps
+ * (publications and content). The owner's «Ждут вас» in Hub lists them all, grouped by product; Workboard's list is
+ * its product's cut (a team lead's and a chatter's whole list: they have no Hub).
+ */
+export const WAITING_PRODUCT_IDS = ["hub", "workboard", "contentops"];
+export const WAITING_PRODUCTS = [
+    { id: "hub", title: "Hub" },
+    { id: "workboard", title: "Workboard" },
+    { id: "contentops", title: "ContentOps" },
 ];
 /** The groups in the list's order: the old sections of «Решения» first (their anchors still open them), what only informs last. */
 export const WAITING_GROUPS = [
-    { id: "questions", title: "Чья продажа" },
-    { id: "reports", title: "Отчёты смен" },
-    { id: "customs", title: "Кастомы" },
-    { id: "held", title: "Зависшие отправки" },
-    { id: "publications", title: "Публикации" },
+    { id: "questions", title: "Чья продажа", product: "workboard" },
+    // A chatter's question to whoever decides (products plan §4.6): the decider's to answer, the asker's answer back.
+    { id: "asks", title: "Вопросы", product: "workboard" },
+    { id: "reports", title: "Отчёты смен", product: "workboard" },
+    { id: "customs", title: "Кастомы", product: "workboard" },
+    // A newcomer standing on one step of «Начало» two days: the team lead's (products package W), watched in «Команда».
+    { id: "newcomers", title: "Новички", product: "workboard" },
+    { id: "held", title: "Зависшие отправки", product: "workboard" },
+    { id: "publications", title: "Публикации", product: "contentops" },
     // ContentOps' findings (`contentops.*`) and the content routines' (`content.*`): each line opens where it is decided.
-    { id: "content", title: "Контент" },
-    { id: "people", title: "Люди и доступ" },
-    { id: "ledger", title: "Проверки ledger" },
-    { id: "system", title: "Сбор, сбои и рутины" },
-    { id: "other", title: "Другие дела" },
-    { id: "info", title: "Для сведения" },
+    { id: "content", title: "Контент", product: "contentops" },
+    { id: "people", title: "Люди и доступ", product: "hub" },
+    { id: "ledger", title: "Проверки ledger", product: "hub" },
+    { id: "system", title: "Сбор, сбои и рутины", product: "hub" },
+    { id: "other", title: "Другие дела", product: "hub" },
+    { id: "info", title: "Для сведения", product: "hub" },
 ];
 const INFO = new Set(MATTER_INFO_KINDS);
 const SYSTEM_KINDS = new Set(["page.login_needed", "incident.open", "extension.critical", "history.request"]);
@@ -35,11 +51,16 @@ export function waitingGroupOf(kind) {
     // Whose a sale is: the ledger's questions and the claims' disputes (package G).
     if (kind === "ledger.sale_question" || kind.startsWith("sale."))
         return "questions";
+    // A question to whoever decides and its answer (routes-team-questions.ts).
+    if (kind.startsWith("question."))
+        return "asks";
     // The shift's report: the ledger's posts and paid days, the author's post to fix, «мимо площадки», the hand-in (F).
     if (REPORT_KINDS.has(kind) || kind.startsWith("shift.report"))
         return "reports";
     if (kind.startsWith("custom."))
         return "customs";
+    if (kind === "person.onboarding_stuck")
+        return "newcomers";
     if (kind === "send.held")
         return "held";
     if (kind.startsWith("publication."))
@@ -56,6 +77,19 @@ export function waitingGroupOf(kind) {
     if (SYSTEM_KINDS.has(kind) || kind.startsWith("routine.") || kind.startsWith("copy.") || kind.startsWith("reporter."))
         return "system";
     return "other";
+}
+/**
+ * The kinds ContentOps' «Ждут вас» shows of what Hub holds for a person (products plan §2.4, §4.4): its product's
+ * groups in the table above (content, publications), and a custom order's shooting late at the model — the customs
+ * group is Workboard's (the chat's side of an order), its shooting is ContentOps'.
+ */
+const CONTENTOPS_CUSTOM_KINDS = new Set([
+    "custom.overdue", "custom.overdue_owner",
+    // «Проверен и сутки не у модели», the model's refusal: the shooting's leader (the content manager) decides (C4).
+    "custom.checked_not_at_model",
+]);
+export function waitsInContentops(kind) {
+    return waitingProductOf(kind) === "contentops" || CONTENTOPS_CUSTOM_KINDS.has(kind);
 }
 /**
  * The tone of what waits, beside its group (the one place): `bad` — something is broken (an open failure, a critical
@@ -87,9 +121,21 @@ export function worstWaitingTone(tones) {
     }
     return worst;
 }
-/** The list filtered to one group: `/workboard/decisions#<group>`. */
-export function waitingGroupLink(id) {
-    return `/workboard/decisions#${id}`;
+/** The product a matter's kind is decided in: its group's. */
+export function waitingProductOf(kind) {
+    // A custom order's shooting steps are ContentOps' (the customs group holds both sides of an order).
+    if (CONTENTOPS_CUSTOM_KINDS.has(kind))
+        return "contentops";
+    const group = waitingGroupOf(kind);
+    return WAITING_GROUPS.find((one) => one.id === group)?.product ?? "hub";
+}
+/** The owner's combined list in Hub (`/waiting`). */
+export const HUB_WAITING_PATH = "/waiting";
+/** Workboard's list (`/workboard/waiting`): a team lead's and a chatter's whole, the owner's Workboard part. */
+export const WORKBOARD_WAITING_PATH = "/workboard/waiting";
+/** The list filtered to one group: Workboard's `/workboard/waiting#<group>`, or the owner's in Hub (`/waiting#<group>`). */
+export function waitingGroupLink(id, list = WORKBOARD_WAITING_PATH) {
+    return `${list}#${id}`;
 }
 /** The kinds whose finding names when their reason began under a word of its own (the system state's, a shift's report). */
 const SINCE_OF_KIND = {

@@ -55,7 +55,7 @@ import { type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollReq
 import { type ServerTabStateRequest, type ServerTabStateResult } from './server-tab';
 import { type FanQueueItemDone, type FanQueueItemDoneRequest, type FanQueueRelease, type FanQueueReleaseRequest, type FanQueues, type FanQueuesQuery, type FanQueueTake, type FanQueueTakeRequest } from './fan-queues';
 import { type OutreachStoreGetQuery, type OutreachStoreList, type OutreachStoreListQuery, type OutreachStoreOutreach, type OutreachStoreSaved, type OutreachStoreSaveRequest, type OutreachStoreSendAnswer, type OutreachStoreSendRequest, type OutreachStoreTouches } from './outreach-store';
-import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
+import { type CustomOrderGiveRequest, type FanCard, type FanCardQuery, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery, type OtherPagesAnswer, type OtherPagesRequest } from './fan-marks';
 import { type FanBadgesReport, type FanBadgesReportResult } from './fan-badges';
 import { type DeletedMessages, type DeletedMessagesQuery } from './deleted';
@@ -241,10 +241,11 @@ export interface HubFacade {
   fanslyProxies(): Promise<FanslyProxies | null>;
   /** The other pages of fans of a list the client made itself: refused without `other-pages-v1` and for a page not granted. */
   otherPages(request: OtherPagesRequest): Promise<OtherPagesAnswer>;
-  /** Chat Memory week 4: a custom written into the fan's card; refused without `fan-customs-v1`. Never repeated by itself. */
-  fanCustomCreate(request: FanCustomCreateRequest): Promise<FanFactChangeResult>;
-  /** A custom marked paid, delivered, cancelled or edited, by the card's suggestions; never repeated by itself. */
-  fanCustomChange(request: FanCustomChangeRequest): Promise<FanFactChangeResult>;
+  /**
+   * Package R5: «Отдан» of the fan panel — Workboard's step `given` of an order of `pageLabel` (a page granted by this
+   * bootstrap); refused without `fan-customs-v1`. Never repeated by itself.
+   */
+  customOrderGive(request: CustomOrderGiveRequest, pageLabel: string): Promise<void>;
   /** Chat Memory week 3: the shift handoff of a page; refused without `handoff-v1`. */
   handoff(query: HandoffQuery): Promise<Handoff>;
   /** «Онлайн»: the page's fans seen online within `minutes`, why to write now and with what; refused without `online-v1`. */

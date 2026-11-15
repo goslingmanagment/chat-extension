@@ -168,3 +168,25 @@ export function shiftReviewCounts(data, waits) {
         boughtPrices: bought.flatMap((message) => (message.priceMills === null ? [] : [message.priceMills])),
     };
 }
+/**
+ * A shift's quality from `teamChatterNumbers`. Hub counts all three by the
+ * review's rules (this file): the reply median, «без ответа к
+ * концу» and «ИИ без правки» agree with the shift's «Разбор смены» to the one.
+ */
+export function shiftQualityOf(numbers) {
+    return {
+        replyMedianSeconds: numbers.replies === 0 ? null : numbers.replyMedianSeconds,
+        unansweredAtEnd: numbers.waitingAtEnd,
+        aiUneditedShare: numbers.textMessages === 0 ? null : numbers.aiUnedited / numbers.textMessages,
+    };
+}
+export function averageShiftQuality(shifts) {
+    const mean = (values) => (values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length);
+    const replies = mean(shifts.flatMap((shift) => (shift.replyMedianSeconds === null ? [] : [shift.replyMedianSeconds])));
+    return {
+        shifts: shifts.length,
+        replyMedianSeconds: replies === null ? null : Math.round(replies),
+        unansweredAtEnd: mean(shifts.map((shift) => shift.unansweredAtEnd)),
+        aiUneditedShare: mean(shifts.flatMap((shift) => (shift.aiUneditedShare === null ? [] : [shift.aiUneditedShare]))),
+    };
+}

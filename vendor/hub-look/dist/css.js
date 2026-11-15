@@ -5,7 +5,7 @@
  * names. Pure functions over `tokens.ts`; `packages/look/generate.ts` writes the two
  * Hub copies with them, `scripts/vendor-look.mjs` ships them compiled.
  */
-import { COLORS, CONSOLE_TYPE_SIZES, CONTROL, FONT, FOCUS, LAYERS, MOTION, RADIUS, READING, SHADOW, SPACE, TYPE_SCALE, UI_TYPE_SIZES, } from "./tokens.js";
+import { COLORS, CONSOLE_TYPE_SIZES, CONTROL, FONT, FOCUS, LAYERS, MOTION, PRODUCT_ACCENTS, RADIUS, READING, SHADOW, SPACE, TYPE_SCALE, UI_TYPE_SIZES, } from "./tokens.js";
 /** `light-dark(light, dark)`, or the one value both themes share. */
 export function themeValue(value) {
     return typeof value === "string" ? value : `light-dark(${value[0]}, ${value[1]})`;
@@ -93,12 +93,27 @@ export function renderUiTokensCss() {
         "  :root[data-theme=\"dark\"] {",
         "    color-scheme: dark;",
         "  }",
+        ...productAccentBlocks(),
         "}",
         "",
     ].join("\n");
 }
+/** A product's own accent over the shared one: `:root[data-product="<product>"]` sets the accent's `--ui-*` names. */
+function productAccentBlocks() {
+    const blocks = [];
+    for (const [product, accents] of Object.entries(PRODUCT_ACCENTS)) {
+        blocks.push("", `  :root[data-product="${product}"] {`);
+        for (const [name, value] of Object.entries(accents)) {
+            const ui = COLORS[name]?.ui;
+            if (ui)
+                blocks.push(`    --ui-${ui}: ${themeValue(value)};`);
+        }
+        blocks.push("  }");
+    }
+    return blocks;
+}
 /**
- * The console's copy (`apps/dashboard/src/styles/tokens.css`): the colours as
+ * The console's copy (`packages/ui/src/styles/console-tokens.css`): the colours as
  * `--color-*` and the type scale, radii and bold weight under Tailwind's
  * `@theme static` (so its utilities and `var()` read them), the two shadows on `:root`.
  */

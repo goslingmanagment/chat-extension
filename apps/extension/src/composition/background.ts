@@ -1662,6 +1662,27 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const forced = stored[TEST_REPORT_PULSE_KEY] === undefined ? null : reportPulseOf(stored[TEST_REPORT_PULSE_KEY]);
     return ok({ report: forced ?? reportBoard.current(), origin });
   });
+  // Products package R5: a screen of Workboard asked by a tab (the order's card of the fan panel), in a new tab signed in
+  // by the one-time link; a hub without the link — Workboard's plain address, where the person signs in.
+  rpc.handle('workboard.open', async ({ next }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
+    const hubOrigin = hubInstance?.session()?.hubOrigin ?? null;
+    if (hubOrigin === null) return fail('CG-NAV-FAILED');
+    let url: string;
+    try {
+      url = (await hub().webLink({ next })).url;
+    } catch {
+      url = `${teamOriginOf(hubOrigin)}${next}`;
+    }
+    // The stand's fake hub is plain http on loopback; a release opens https only.
+    if (!url.startsWith('https://') && !(__CG_TEST_HOSTS__ && url.startsWith('http://'))) return fail('CG-NAV-FAILED');
+    try {
+      await api.tabs.create({ url, active: true });
+    } catch {
+      return fail('CG-NAV-FAILED');
+    }
+    return ok({ recorded: true });
+  });
   rpc.handle('frame.fetch', async (request) => ok(await reportBoard.fetch(request)));
   rpc.handle('report.find', async ({ sale }, sender) => (sender.kind === 'tab' ? ok(await reportBoard.find(sale, sender.tabSessionId)) : fail('CG-UNKNOWN', 'tab only')));
   rpc.handle('report.statement', ({ pages }) => {
@@ -1917,7 +1938,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('fan.memory', data['fan.memory']);
   rpc.handle('fan.memory.link', data['fan.memory.link']);
   rpc.handle('fan.memory.fact', data['fan.memory.fact']);
-  rpc.handle('fan.memory.custom', data['fan.memory.custom']);
+  rpc.handle('fan.memory.give', data['fan.memory.give']);
   rpc.handle('queue.handoff', data['queue.handoff']);
   rpc.handle('online.list', data['online.list']);
   rpc.handle('online.presence', data['online.presence']);

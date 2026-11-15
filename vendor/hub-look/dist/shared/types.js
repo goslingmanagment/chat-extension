@@ -89,12 +89,10 @@ export const ofapiCaptureJobStates = [
     "complete",
     "cancelled",
 ];
-// `content_manager` left the wire enum with the API-key lane —
-// the role had no credential path (no session, no bearer) and zero rows in
-// production. The PG enum value stays (migrations are forward-only), so a
-// historical row is still readable by raw SQL; it simply cannot be created,
-// authenticated or serialized any more.
-export const userRoles = ["owner", "team_lead", "chatter"];
+// The login roles. `content_manager` came back with the content manager's product (products plan §4.1): a session
+// that opens ContentOps alone — no console, no Workboard (runtime services/content-manager-operations.ts). A device
+// token never carries it into the extension's own screens: every operation outside that table is refused to it.
+export const userRoles = ["owner", "team_lead", "chatter", "content_manager"];
 export const creatableUserRoles = ["owner", "team_lead", "chatter"];
 export const fanFlagTypes = ["whale", "vip", "risky"];
 export const aiUsageFeatures = [

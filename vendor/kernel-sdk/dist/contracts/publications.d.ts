@@ -918,8 +918,665 @@ export declare const publicationDetailSchema: z.ZodObject<{
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export type PublicationDetail = z.infer<typeof publicationDetailSchema>;
+/**
+ * The card through the person's door (ContentOps' «Публикации», products package C2): the detail with the names of
+ * who drafted, approved and moved the post — a person by the registry's display name, an agent by its key's name.
+ * A login without a person in the registry has no name here: never the login itself.
+ */
+/**
+ * Hub's words of a publication's codes, for the person's door (publication-words.ts, the one table): ContentOps shows
+ * these and keeps no table of its own.
+ */
+export declare const publicationWordsSchema: z.ZodObject<{
+    statusReason: z.ZodNullable<z.ZodString>;
+    statusReasonParts: z.ZodNullable<z.ZodArray<z.ZodObject<{
+        text: z.ZodString;
+        names: z.ZodArray<z.ZodString>;
+    }, z.core.$strip>>>;
+    findings: z.ZodArray<z.ZodString>;
+    command: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
+export declare const personPublicationSchema: z.ZodObject<{
+    id: z.ZodNumber;
+    pageLabel: z.ZodString;
+    platform: z.ZodEnum<{
+        fansly: "fansly";
+        onlyfans: "onlyfans";
+        telegram: "telegram";
+    }>;
+    kind: z.ZodEnum<{
+        story: "story";
+        fyp_post: "fyp_post";
+        subscriber_post: "subscriber_post";
+        paid_post: "paid_post";
+        vault_album: "vault_album";
+    }>;
+    status: z.ZodEnum<{
+        unknown: "unknown";
+        cancelled: "cancelled";
+        scheduled: "scheduled";
+        draft: "draft";
+        approved: "approved";
+        submitting: "submitting";
+        processing: "processing";
+        published: "published";
+        not_published: "not_published";
+        rejected: "rejected";
+        missed: "missed";
+        withdrawn: "withdrawn";
+    }>;
+    version: z.ZodNumber;
+    text: z.ZodString;
+    publishAt: z.ZodString;
+    expiresAt: z.ZodNullable<z.ZodString>;
+    wallRefs: z.ZodArray<z.ZodString>;
+    tierRefs: z.ZodArray<z.ZodString>;
+    priceMills: z.ZodNullable<z.ZodNumber>;
+    repost: z.ZodBoolean;
+    pinWallRefs: z.ZodArray<z.ZodString>;
+    replyLock: z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>;
+    subscribersOnly: z.ZodBoolean;
+    extraAttachments: z.ZodArray<z.ZodObject<{
+        attachment: z.ZodNumber;
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        tierRefs: z.ZodArray<z.ZodString>;
+        priceMills: z.ZodNullable<z.ZodNumber>;
+        subscribersOnly: z.ZodBoolean;
+    }, z.core.$strip>>;
+    media: z.ZodArray<z.ZodObject<{
+        role: z.ZodEnum<{
+            media: "media";
+            preview: "preview";
+        }>;
+        position: z.ZodNumber;
+        source: z.ZodEnum<{
+            vault: "vault";
+            file: "file";
+        }>;
+        mediaRef: z.ZodNullable<z.ZodString>;
+        fileId: z.ZodNullable<z.ZodNumber>;
+        attachment: z.ZodNumber;
+        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+    }, z.core.$strip>>;
+    findings: z.ZodArray<z.ZodObject<{
+        code: z.ZodEnum<{
+            publish_time_past: "publish_time_past";
+            file_of_another_model: "file_of_another_model";
+            file_deleted: "file_deleted";
+            media_not_on_page: "media_not_on_page";
+            repost_within_threshold: "repost_within_threshold";
+            posted_before: "posted_before";
+            price_range_not_set: "price_range_not_set";
+            price_out_of_range: "price_out_of_range";
+            paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+            volume_high: "volume_high";
+            daily_limit_exceeded: "daily_limit_exceeded";
+            wall_not_on_page: "wall_not_on_page";
+            wall_default_unknown: "wall_default_unknown";
+            tier_not_on_page: "tier_not_on_page";
+            onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+            onlyfans_file_too_large: "onlyfans_file_too_large";
+            fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+            platform_schedule_incomplete: "platform_schedule_incomplete";
+        }>;
+        severity: z.ZodEnum<{
+            info: "info";
+            blocking: "blocking";
+            warning: "warning";
+        }>;
+        mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+    }, z.core.$strip>>;
+    blocked: z.ZodBoolean;
+    author: z.ZodObject<{
+        kind: z.ZodEnum<{
+            human: "human";
+            agent: "agent";
+        }>;
+        userId: z.ZodNullable<z.ZodNumber>;
+        agentKeyId: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>;
+    approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+    platformPostRef: z.ZodNullable<z.ZodString>;
+    vaultAlbumRef: z.ZodNullable<z.ZodString>;
+    statusReason: z.ZodNullable<z.ZodString>;
+    previousPublicationId: z.ZodNullable<z.ZodNumber>;
+    withdrawal: z.ZodNullable<z.ZodObject<{
+        state: z.ZodString;
+        errorCode: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+    }, z.core.$strip>>;
+    deletion: z.ZodNullable<z.ZodObject<{
+        state: z.ZodString;
+        errorCode: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+    }, z.core.$strip>>;
+    albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        step: z.ZodNullable<z.ZodEnum<{
+            uploads: "uploads";
+            read: "read";
+            done: "done";
+            album: "album";
+            contents: "contents";
+            add: "add";
+        }>>;
+        files: z.ZodNumber;
+        done: z.ZodNumber;
+        reused: z.ZodNumber;
+        refused: z.ZodNumber;
+        unknown: z.ZodNumber;
+        notTried: z.ZodNumber;
+        tooBig: z.ZodNumber;
+        currentFile: z.ZodNullable<z.ZodString>;
+        estimateCredits: z.ZodNumber;
+        spentCredits: z.ZodNumber;
+        stopReason: z.ZodNullable<z.ZodString>;
+        fileList: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            bytes: z.ZodNumber;
+            state: z.ZodEnum<{
+                pending: "pending";
+                unknown: "unknown";
+                failed: "failed";
+                too_big: "too_big";
+                reused: "reused";
+                in_album: "in_album";
+                uploading: "uploading";
+                uploaded: "uploaded";
+                not_tried: "not_tried";
+            }>;
+            credits: z.ZodNumber;
+        }, z.core.$strip>>;
+        account: z.ZodNullable<z.ZodObject<{
+            dailyCredits: z.ZodNumber;
+            spentToday: z.ZodNumber;
+            left: z.ZodNumber;
+            balance: z.ZodNullable<z.ZodNumber>;
+            centsPer1000: z.ZodNumber;
+        }, z.core.$strip>>;
+        linkMaxBytes: z.ZodNumber;
+    }, z.core.$strip>>>;
+    createdAt: z.ZodString;
+    updatedAt: z.ZodString;
+    statusChangedAt: z.ZodString;
+    words: z.ZodObject<{
+        statusReason: z.ZodNullable<z.ZodString>;
+        statusReasonParts: z.ZodNullable<z.ZodArray<z.ZodObject<{
+            text: z.ZodString;
+            names: z.ZodArray<z.ZodString>;
+        }, z.core.$strip>>>;
+        findings: z.ZodArray<z.ZodString>;
+        command: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+export declare const personPublicationListResponseSchema: z.ZodObject<{
+    publications: z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        pageLabel: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+            telegram: "telegram";
+        }>;
+        kind: z.ZodEnum<{
+            story: "story";
+            fyp_post: "fyp_post";
+            subscriber_post: "subscriber_post";
+            paid_post: "paid_post";
+            vault_album: "vault_album";
+        }>;
+        status: z.ZodEnum<{
+            unknown: "unknown";
+            cancelled: "cancelled";
+            scheduled: "scheduled";
+            draft: "draft";
+            approved: "approved";
+            submitting: "submitting";
+            processing: "processing";
+            published: "published";
+            not_published: "not_published";
+            rejected: "rejected";
+            missed: "missed";
+            withdrawn: "withdrawn";
+        }>;
+        version: z.ZodNumber;
+        text: z.ZodString;
+        publishAt: z.ZodString;
+        expiresAt: z.ZodNullable<z.ZodString>;
+        wallRefs: z.ZodArray<z.ZodString>;
+        tierRefs: z.ZodArray<z.ZodString>;
+        priceMills: z.ZodNullable<z.ZodNumber>;
+        repost: z.ZodBoolean;
+        pinWallRefs: z.ZodArray<z.ZodString>;
+        replyLock: z.ZodArray<z.ZodEnum<{
+            subscribers: "subscribers";
+            followers: "followers";
+        }>>;
+        subscribersOnly: z.ZodBoolean;
+        extraAttachments: z.ZodArray<z.ZodObject<{
+            attachment: z.ZodNumber;
+            access: z.ZodEnum<{
+                subscribers: "subscribers";
+                everyone: "everyone";
+                paid: "paid";
+            }>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            subscribersOnly: z.ZodBoolean;
+        }, z.core.$strip>>;
+        media: z.ZodArray<z.ZodObject<{
+            role: z.ZodEnum<{
+                media: "media";
+                preview: "preview";
+            }>;
+            position: z.ZodNumber;
+            source: z.ZodEnum<{
+                vault: "vault";
+                file: "file";
+            }>;
+            mediaRef: z.ZodNullable<z.ZodString>;
+            fileId: z.ZodNullable<z.ZodNumber>;
+            attachment: z.ZodNumber;
+            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        }, z.core.$strip>>;
+        findings: z.ZodArray<z.ZodObject<{
+            code: z.ZodEnum<{
+                publish_time_past: "publish_time_past";
+                file_of_another_model: "file_of_another_model";
+                file_deleted: "file_deleted";
+                media_not_on_page: "media_not_on_page";
+                repost_within_threshold: "repost_within_threshold";
+                posted_before: "posted_before";
+                price_range_not_set: "price_range_not_set";
+                price_out_of_range: "price_out_of_range";
+                paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                volume_high: "volume_high";
+                daily_limit_exceeded: "daily_limit_exceeded";
+                wall_not_on_page: "wall_not_on_page";
+                wall_default_unknown: "wall_default_unknown";
+                tier_not_on_page: "tier_not_on_page";
+                onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                onlyfans_file_too_large: "onlyfans_file_too_large";
+                fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                platform_schedule_incomplete: "platform_schedule_incomplete";
+            }>;
+            severity: z.ZodEnum<{
+                info: "info";
+                blocking: "blocking";
+                warning: "warning";
+            }>;
+            mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+            detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+        }, z.core.$strip>>;
+        blocked: z.ZodBoolean;
+        author: z.ZodObject<{
+            kind: z.ZodEnum<{
+                human: "human";
+                agent: "agent";
+            }>;
+            userId: z.ZodNullable<z.ZodNumber>;
+            agentKeyId: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+        platformPostRef: z.ZodNullable<z.ZodString>;
+        vaultAlbumRef: z.ZodNullable<z.ZodString>;
+        statusReason: z.ZodNullable<z.ZodString>;
+        previousPublicationId: z.ZodNullable<z.ZodNumber>;
+        withdrawal: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
+        deletion: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
+        albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            step: z.ZodNullable<z.ZodEnum<{
+                uploads: "uploads";
+                read: "read";
+                done: "done";
+                album: "album";
+                contents: "contents";
+                add: "add";
+            }>>;
+            files: z.ZodNumber;
+            done: z.ZodNumber;
+            reused: z.ZodNumber;
+            refused: z.ZodNumber;
+            unknown: z.ZodNumber;
+            notTried: z.ZodNumber;
+            tooBig: z.ZodNumber;
+            currentFile: z.ZodNullable<z.ZodString>;
+            estimateCredits: z.ZodNumber;
+            spentCredits: z.ZodNumber;
+            stopReason: z.ZodNullable<z.ZodString>;
+            fileList: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                bytes: z.ZodNumber;
+                state: z.ZodEnum<{
+                    pending: "pending";
+                    unknown: "unknown";
+                    failed: "failed";
+                    too_big: "too_big";
+                    reused: "reused";
+                    in_album: "in_album";
+                    uploading: "uploading";
+                    uploaded: "uploaded";
+                    not_tried: "not_tried";
+                }>;
+                credits: z.ZodNumber;
+            }, z.core.$strip>>;
+            account: z.ZodNullable<z.ZodObject<{
+                dailyCredits: z.ZodNumber;
+                spentToday: z.ZodNumber;
+                left: z.ZodNumber;
+                balance: z.ZodNullable<z.ZodNumber>;
+                centsPer1000: z.ZodNumber;
+            }, z.core.$strip>>;
+            linkMaxBytes: z.ZodNumber;
+        }, z.core.$strip>>>;
+        createdAt: z.ZodString;
+        updatedAt: z.ZodString;
+        statusChangedAt: z.ZodString;
+        words: z.ZodObject<{
+            statusReason: z.ZodNullable<z.ZodString>;
+            statusReasonParts: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                text: z.ZodString;
+                names: z.ZodArray<z.ZodString>;
+            }, z.core.$strip>>>;
+            findings: z.ZodArray<z.ZodString>;
+            command: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** A vault album's run in words: progress, files left out, why the uploads stopped, the price, the day's ceiling. */
+export declare const albumRunWordsSchema: z.ZodObject<{
+    landed: z.ZodString;
+    current: z.ZodNullable<z.ZodString>;
+    missing: z.ZodNullable<z.ZodString>;
+    stop: z.ZodNullable<z.ZodString>;
+    price: z.ZodString;
+    ceiling: z.ZodNullable<z.ZodString>;
+    files: z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        size: z.ZodString;
+        state: z.ZodString;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const personPublicationDetailSchema: z.ZodObject<{
+    id: z.ZodNumber;
+    pageLabel: z.ZodString;
+    platform: z.ZodEnum<{
+        fansly: "fansly";
+        onlyfans: "onlyfans";
+        telegram: "telegram";
+    }>;
+    kind: z.ZodEnum<{
+        story: "story";
+        fyp_post: "fyp_post";
+        subscriber_post: "subscriber_post";
+        paid_post: "paid_post";
+        vault_album: "vault_album";
+    }>;
+    status: z.ZodEnum<{
+        unknown: "unknown";
+        cancelled: "cancelled";
+        scheduled: "scheduled";
+        draft: "draft";
+        approved: "approved";
+        submitting: "submitting";
+        processing: "processing";
+        published: "published";
+        not_published: "not_published";
+        rejected: "rejected";
+        missed: "missed";
+        withdrawn: "withdrawn";
+    }>;
+    version: z.ZodNumber;
+    text: z.ZodString;
+    publishAt: z.ZodString;
+    expiresAt: z.ZodNullable<z.ZodString>;
+    wallRefs: z.ZodArray<z.ZodString>;
+    tierRefs: z.ZodArray<z.ZodString>;
+    priceMills: z.ZodNullable<z.ZodNumber>;
+    repost: z.ZodBoolean;
+    pinWallRefs: z.ZodArray<z.ZodString>;
+    replyLock: z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>;
+    subscribersOnly: z.ZodBoolean;
+    extraAttachments: z.ZodArray<z.ZodObject<{
+        attachment: z.ZodNumber;
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        tierRefs: z.ZodArray<z.ZodString>;
+        priceMills: z.ZodNullable<z.ZodNumber>;
+        subscribersOnly: z.ZodBoolean;
+    }, z.core.$strip>>;
+    media: z.ZodArray<z.ZodObject<{
+        role: z.ZodEnum<{
+            media: "media";
+            preview: "preview";
+        }>;
+        position: z.ZodNumber;
+        source: z.ZodEnum<{
+            vault: "vault";
+            file: "file";
+        }>;
+        mediaRef: z.ZodNullable<z.ZodString>;
+        fileId: z.ZodNullable<z.ZodNumber>;
+        attachment: z.ZodNumber;
+        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+    }, z.core.$strip>>;
+    findings: z.ZodArray<z.ZodObject<{
+        code: z.ZodEnum<{
+            publish_time_past: "publish_time_past";
+            file_of_another_model: "file_of_another_model";
+            file_deleted: "file_deleted";
+            media_not_on_page: "media_not_on_page";
+            repost_within_threshold: "repost_within_threshold";
+            posted_before: "posted_before";
+            price_range_not_set: "price_range_not_set";
+            price_out_of_range: "price_out_of_range";
+            paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+            volume_high: "volume_high";
+            daily_limit_exceeded: "daily_limit_exceeded";
+            wall_not_on_page: "wall_not_on_page";
+            wall_default_unknown: "wall_default_unknown";
+            tier_not_on_page: "tier_not_on_page";
+            onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+            onlyfans_file_too_large: "onlyfans_file_too_large";
+            fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+            platform_schedule_incomplete: "platform_schedule_incomplete";
+        }>;
+        severity: z.ZodEnum<{
+            info: "info";
+            blocking: "blocking";
+            warning: "warning";
+        }>;
+        mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+    }, z.core.$strip>>;
+    blocked: z.ZodBoolean;
+    author: z.ZodObject<{
+        kind: z.ZodEnum<{
+            human: "human";
+            agent: "agent";
+        }>;
+        userId: z.ZodNullable<z.ZodNumber>;
+        agentKeyId: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>;
+    approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+    platformPostRef: z.ZodNullable<z.ZodString>;
+    vaultAlbumRef: z.ZodNullable<z.ZodString>;
+    statusReason: z.ZodNullable<z.ZodString>;
+    previousPublicationId: z.ZodNullable<z.ZodNumber>;
+    withdrawal: z.ZodNullable<z.ZodObject<{
+        state: z.ZodString;
+        errorCode: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+    }, z.core.$strip>>;
+    deletion: z.ZodNullable<z.ZodObject<{
+        state: z.ZodString;
+        errorCode: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+    }, z.core.$strip>>;
+    albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        step: z.ZodNullable<z.ZodEnum<{
+            uploads: "uploads";
+            read: "read";
+            done: "done";
+            album: "album";
+            contents: "contents";
+            add: "add";
+        }>>;
+        files: z.ZodNumber;
+        done: z.ZodNumber;
+        reused: z.ZodNumber;
+        refused: z.ZodNumber;
+        unknown: z.ZodNumber;
+        notTried: z.ZodNumber;
+        tooBig: z.ZodNumber;
+        currentFile: z.ZodNullable<z.ZodString>;
+        estimateCredits: z.ZodNumber;
+        spentCredits: z.ZodNumber;
+        stopReason: z.ZodNullable<z.ZodString>;
+        fileList: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            bytes: z.ZodNumber;
+            state: z.ZodEnum<{
+                pending: "pending";
+                unknown: "unknown";
+                failed: "failed";
+                too_big: "too_big";
+                reused: "reused";
+                in_album: "in_album";
+                uploading: "uploading";
+                uploaded: "uploaded";
+                not_tried: "not_tried";
+            }>;
+            credits: z.ZodNumber;
+        }, z.core.$strip>>;
+        account: z.ZodNullable<z.ZodObject<{
+            dailyCredits: z.ZodNumber;
+            spentToday: z.ZodNumber;
+            left: z.ZodNumber;
+            balance: z.ZodNullable<z.ZodNumber>;
+            centsPer1000: z.ZodNumber;
+        }, z.core.$strip>>;
+        linkMaxBytes: z.ZodNumber;
+    }, z.core.$strip>>>;
+    createdAt: z.ZodString;
+    updatedAt: z.ZodString;
+    statusChangedAt: z.ZodString;
+    events: z.ZodArray<z.ZodObject<{
+        fromStatus: z.ZodNullable<z.ZodEnum<{
+            unknown: "unknown";
+            cancelled: "cancelled";
+            scheduled: "scheduled";
+            draft: "draft";
+            approved: "approved";
+            submitting: "submitting";
+            processing: "processing";
+            published: "published";
+            not_published: "not_published";
+            rejected: "rejected";
+            missed: "missed";
+            withdrawn: "withdrawn";
+        }>>;
+        toStatus: z.ZodEnum<{
+            unknown: "unknown";
+            cancelled: "cancelled";
+            scheduled: "scheduled";
+            draft: "draft";
+            approved: "approved";
+            submitting: "submitting";
+            processing: "processing";
+            published: "published";
+            not_published: "not_published";
+            rejected: "rejected";
+            missed: "missed";
+            withdrawn: "withdrawn";
+        }>;
+        actorKind: z.ZodEnum<{
+            human: "human";
+            agent: "agent";
+            hub: "hub";
+        }>;
+        actorUserId: z.ZodNullable<z.ZodNumber>;
+        actorAgentKeyId: z.ZodNullable<z.ZodNumber>;
+        reason: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+    }, z.core.$strip>>;
+    revision: z.ZodNullable<z.ZodObject<{
+        id: z.ZodNumber;
+        fingerprint: z.ZodString;
+        approvedByUserId: z.ZodNumber;
+        approvedAt: z.ZodString;
+    }, z.core.$strip>>;
+    names: z.ZodObject<{
+        users: z.ZodArray<z.ZodObject<{
+            id: z.ZodNumber;
+            name: z.ZodString;
+        }, z.core.$strip>>;
+        agentKeys: z.ZodArray<z.ZodObject<{
+            id: z.ZodNumber;
+            name: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>;
+    words: z.ZodObject<{
+        statusReason: z.ZodNullable<z.ZodString>;
+        statusReasonParts: z.ZodNullable<z.ZodArray<z.ZodObject<{
+            text: z.ZodString;
+            names: z.ZodArray<z.ZodString>;
+        }, z.core.$strip>>>;
+        findings: z.ZodArray<z.ZodString>;
+        command: z.ZodNullable<z.ZodString>;
+        events: z.ZodArray<z.ZodNullable<z.ZodString>>;
+        album: z.ZodNullable<z.ZodObject<{
+            landed: z.ZodString;
+            current: z.ZodNullable<z.ZodString>;
+            missing: z.ZodNullable<z.ZodString>;
+            stop: z.ZodNullable<z.ZodString>;
+            price: z.ZodString;
+            ceiling: z.ZodNullable<z.ZodString>;
+            files: z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                size: z.ZodString;
+                state: z.ZodString;
+            }, z.core.$strip>>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+export type PersonPublicationDetail = z.infer<typeof personPublicationDetailSchema>;
 export declare const publicationListQuerySchema: z.ZodObject<{
     pageLabel: z.ZodOptional<z.ZodString>;
+    modelSlug: z.ZodOptional<z.ZodString>;
     status: z.ZodOptional<z.ZodEnum<{
         unknown: "unknown";
         cancelled: "cancelled";
@@ -1518,6 +2175,193 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/** Approval through the person's door: a refusal's reason in Hub's words. */
+export declare const personPublicationApproveResponseSchema: z.ZodObject<{
+    results: z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        outcome: z.ZodEnum<{
+            approved: "approved";
+            refused: "refused";
+        }>;
+        reason: z.ZodNullable<z.ZodString>;
+        words: z.ZodNullable<z.ZodString>;
+        publication: z.ZodNullable<z.ZodObject<{
+            id: z.ZodNumber;
+            pageLabel: z.ZodString;
+            platform: z.ZodEnum<{
+                fansly: "fansly";
+                onlyfans: "onlyfans";
+                telegram: "telegram";
+            }>;
+            kind: z.ZodEnum<{
+                story: "story";
+                fyp_post: "fyp_post";
+                subscriber_post: "subscriber_post";
+                paid_post: "paid_post";
+                vault_album: "vault_album";
+            }>;
+            status: z.ZodEnum<{
+                unknown: "unknown";
+                cancelled: "cancelled";
+                scheduled: "scheduled";
+                draft: "draft";
+                approved: "approved";
+                submitting: "submitting";
+                processing: "processing";
+                published: "published";
+                not_published: "not_published";
+                rejected: "rejected";
+                missed: "missed";
+                withdrawn: "withdrawn";
+            }>;
+            version: z.ZodNumber;
+            text: z.ZodString;
+            publishAt: z.ZodString;
+            expiresAt: z.ZodNullable<z.ZodString>;
+            wallRefs: z.ZodArray<z.ZodString>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            repost: z.ZodBoolean;
+            pinWallRefs: z.ZodArray<z.ZodString>;
+            replyLock: z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>;
+            subscribersOnly: z.ZodBoolean;
+            extraAttachments: z.ZodArray<z.ZodObject<{
+                attachment: z.ZodNumber;
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                tierRefs: z.ZodArray<z.ZodString>;
+                priceMills: z.ZodNullable<z.ZodNumber>;
+                subscribersOnly: z.ZodBoolean;
+            }, z.core.$strip>>;
+            media: z.ZodArray<z.ZodObject<{
+                role: z.ZodEnum<{
+                    media: "media";
+                    preview: "preview";
+                }>;
+                position: z.ZodNumber;
+                source: z.ZodEnum<{
+                    vault: "vault";
+                    file: "file";
+                }>;
+                mediaRef: z.ZodNullable<z.ZodString>;
+                fileId: z.ZodNullable<z.ZodNumber>;
+                attachment: z.ZodNumber;
+                name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            }, z.core.$strip>>;
+            findings: z.ZodArray<z.ZodObject<{
+                code: z.ZodEnum<{
+                    publish_time_past: "publish_time_past";
+                    file_of_another_model: "file_of_another_model";
+                    file_deleted: "file_deleted";
+                    media_not_on_page: "media_not_on_page";
+                    repost_within_threshold: "repost_within_threshold";
+                    posted_before: "posted_before";
+                    price_range_not_set: "price_range_not_set";
+                    price_out_of_range: "price_out_of_range";
+                    paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                    volume_high: "volume_high";
+                    daily_limit_exceeded: "daily_limit_exceeded";
+                    wall_not_on_page: "wall_not_on_page";
+                    wall_default_unknown: "wall_default_unknown";
+                    tier_not_on_page: "tier_not_on_page";
+                    onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                    onlyfans_file_too_large: "onlyfans_file_too_large";
+                    fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                    fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                    platform_schedule_incomplete: "platform_schedule_incomplete";
+                }>;
+                severity: z.ZodEnum<{
+                    info: "info";
+                    blocking: "blocking";
+                    warning: "warning";
+                }>;
+                mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+            }, z.core.$strip>>;
+            blocked: z.ZodBoolean;
+            author: z.ZodObject<{
+                kind: z.ZodEnum<{
+                    human: "human";
+                    agent: "agent";
+                }>;
+                userId: z.ZodNullable<z.ZodNumber>;
+                agentKeyId: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+            approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+            platformPostRef: z.ZodNullable<z.ZodString>;
+            vaultAlbumRef: z.ZodNullable<z.ZodString>;
+            statusReason: z.ZodNullable<z.ZodString>;
+            previousPublicationId: z.ZodNullable<z.ZodNumber>;
+            withdrawal: z.ZodNullable<z.ZodObject<{
+                state: z.ZodString;
+                errorCode: z.ZodNullable<z.ZodString>;
+                at: z.ZodString;
+            }, z.core.$strip>>;
+            deletion: z.ZodNullable<z.ZodObject<{
+                state: z.ZodString;
+                errorCode: z.ZodNullable<z.ZodString>;
+                at: z.ZodString;
+            }, z.core.$strip>>;
+            albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                step: z.ZodNullable<z.ZodEnum<{
+                    uploads: "uploads";
+                    read: "read";
+                    done: "done";
+                    album: "album";
+                    contents: "contents";
+                    add: "add";
+                }>>;
+                files: z.ZodNumber;
+                done: z.ZodNumber;
+                reused: z.ZodNumber;
+                refused: z.ZodNumber;
+                unknown: z.ZodNumber;
+                notTried: z.ZodNumber;
+                tooBig: z.ZodNumber;
+                currentFile: z.ZodNullable<z.ZodString>;
+                estimateCredits: z.ZodNumber;
+                spentCredits: z.ZodNumber;
+                stopReason: z.ZodNullable<z.ZodString>;
+                fileList: z.ZodArray<z.ZodObject<{
+                    name: z.ZodString;
+                    bytes: z.ZodNumber;
+                    state: z.ZodEnum<{
+                        pending: "pending";
+                        unknown: "unknown";
+                        failed: "failed";
+                        too_big: "too_big";
+                        reused: "reused";
+                        in_album: "in_album";
+                        uploading: "uploading";
+                        uploaded: "uploaded";
+                        not_tried: "not_tried";
+                    }>;
+                    credits: z.ZodNumber;
+                }, z.core.$strip>>;
+                account: z.ZodNullable<z.ZodObject<{
+                    dailyCredits: z.ZodNumber;
+                    spentToday: z.ZodNumber;
+                    left: z.ZodNumber;
+                    balance: z.ZodNullable<z.ZodNumber>;
+                    centsPer1000: z.ZodNumber;
+                }, z.core.$strip>>;
+                linkMaxBytes: z.ZodNumber;
+            }, z.core.$strip>>>;
+            createdAt: z.ZodString;
+            updatedAt: z.ZodString;
+            statusChangedAt: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 /** The person's answer to "unknown" (spec §8.2). A post that went out names
  *  its id and where it is; a vault album (either platform) has no post: it
  *  goes out with neither, and becomes published. */
@@ -1918,6 +2762,27 @@ export declare const publicationSettingsListResponseSchema: z.ZodObject<{
         updatedAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/** The settings through the person's door: why Hub stopped a page, in words. */
+export declare const personPublicationSettingsListResponseSchema: z.ZodObject<{
+    globalEnabled: z.ZodBoolean;
+    pages: z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+            telegram: "telegram";
+        }>;
+        enabled: z.ZodBoolean;
+        autostopReason: z.ZodNullable<z.ZodString>;
+        autostoppedAt: z.ZodNullable<z.ZodString>;
+        paidPriceMinMills: z.ZodNullable<z.ZodNumber>;
+        paidPriceMaxMills: z.ZodNullable<z.ZodNumber>;
+        repostThresholdDays: z.ZodNumber;
+        dailyLimit: z.ZodNullable<z.ZodNumber>;
+        updatedAt: z.ZodNullable<z.ZodString>;
+        autostopReasonWords: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 export declare const publicationSettingsUpdateBodySchema: z.ZodObject<{
     enabled: z.ZodBoolean;
     paidPriceMinMills: z.ZodNullable<z.ZodNumber>;
@@ -2303,6 +3168,197 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
             updatedAt: z.ZodString;
             statusChangedAt: z.ZodString;
         }, z.core.$strip>>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** A withdrawal's or a deletion's outcome with Hub's words (the person's door). */
+export declare const personPublicationWithdrawResponseSchema: z.ZodObject<{
+    results: z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        outcome: z.ZodEnum<{
+            unknown: "unknown";
+            rejected: "rejected";
+            withdrawn: "withdrawn";
+            refused: "refused";
+            not_sent: "not_sent";
+            accepted: "accepted";
+        }>;
+        reason: z.ZodNullable<z.ZodString>;
+        publication: z.ZodNullable<z.ZodObject<{
+            id: z.ZodNumber;
+            pageLabel: z.ZodString;
+            platform: z.ZodEnum<{
+                fansly: "fansly";
+                onlyfans: "onlyfans";
+                telegram: "telegram";
+            }>;
+            kind: z.ZodEnum<{
+                story: "story";
+                fyp_post: "fyp_post";
+                subscriber_post: "subscriber_post";
+                paid_post: "paid_post";
+                vault_album: "vault_album";
+            }>;
+            status: z.ZodEnum<{
+                unknown: "unknown";
+                cancelled: "cancelled";
+                scheduled: "scheduled";
+                draft: "draft";
+                approved: "approved";
+                submitting: "submitting";
+                processing: "processing";
+                published: "published";
+                not_published: "not_published";
+                rejected: "rejected";
+                missed: "missed";
+                withdrawn: "withdrawn";
+            }>;
+            version: z.ZodNumber;
+            text: z.ZodString;
+            publishAt: z.ZodString;
+            expiresAt: z.ZodNullable<z.ZodString>;
+            wallRefs: z.ZodArray<z.ZodString>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            repost: z.ZodBoolean;
+            pinWallRefs: z.ZodArray<z.ZodString>;
+            replyLock: z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>;
+            subscribersOnly: z.ZodBoolean;
+            extraAttachments: z.ZodArray<z.ZodObject<{
+                attachment: z.ZodNumber;
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                tierRefs: z.ZodArray<z.ZodString>;
+                priceMills: z.ZodNullable<z.ZodNumber>;
+                subscribersOnly: z.ZodBoolean;
+            }, z.core.$strip>>;
+            media: z.ZodArray<z.ZodObject<{
+                role: z.ZodEnum<{
+                    media: "media";
+                    preview: "preview";
+                }>;
+                position: z.ZodNumber;
+                source: z.ZodEnum<{
+                    vault: "vault";
+                    file: "file";
+                }>;
+                mediaRef: z.ZodNullable<z.ZodString>;
+                fileId: z.ZodNullable<z.ZodNumber>;
+                attachment: z.ZodNumber;
+                name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            }, z.core.$strip>>;
+            findings: z.ZodArray<z.ZodObject<{
+                code: z.ZodEnum<{
+                    publish_time_past: "publish_time_past";
+                    file_of_another_model: "file_of_another_model";
+                    file_deleted: "file_deleted";
+                    media_not_on_page: "media_not_on_page";
+                    repost_within_threshold: "repost_within_threshold";
+                    posted_before: "posted_before";
+                    price_range_not_set: "price_range_not_set";
+                    price_out_of_range: "price_out_of_range";
+                    paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                    volume_high: "volume_high";
+                    daily_limit_exceeded: "daily_limit_exceeded";
+                    wall_not_on_page: "wall_not_on_page";
+                    wall_default_unknown: "wall_default_unknown";
+                    tier_not_on_page: "tier_not_on_page";
+                    onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                    onlyfans_file_too_large: "onlyfans_file_too_large";
+                    fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                    fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                    platform_schedule_incomplete: "platform_schedule_incomplete";
+                }>;
+                severity: z.ZodEnum<{
+                    info: "info";
+                    blocking: "blocking";
+                    warning: "warning";
+                }>;
+                mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+            }, z.core.$strip>>;
+            blocked: z.ZodBoolean;
+            author: z.ZodObject<{
+                kind: z.ZodEnum<{
+                    human: "human";
+                    agent: "agent";
+                }>;
+                userId: z.ZodNullable<z.ZodNumber>;
+                agentKeyId: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+            approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+            platformPostRef: z.ZodNullable<z.ZodString>;
+            vaultAlbumRef: z.ZodNullable<z.ZodString>;
+            statusReason: z.ZodNullable<z.ZodString>;
+            previousPublicationId: z.ZodNullable<z.ZodNumber>;
+            withdrawal: z.ZodNullable<z.ZodObject<{
+                state: z.ZodString;
+                errorCode: z.ZodNullable<z.ZodString>;
+                at: z.ZodString;
+            }, z.core.$strip>>;
+            deletion: z.ZodNullable<z.ZodObject<{
+                state: z.ZodString;
+                errorCode: z.ZodNullable<z.ZodString>;
+                at: z.ZodString;
+            }, z.core.$strip>>;
+            albumRun: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                step: z.ZodNullable<z.ZodEnum<{
+                    uploads: "uploads";
+                    read: "read";
+                    done: "done";
+                    album: "album";
+                    contents: "contents";
+                    add: "add";
+                }>>;
+                files: z.ZodNumber;
+                done: z.ZodNumber;
+                reused: z.ZodNumber;
+                refused: z.ZodNumber;
+                unknown: z.ZodNumber;
+                notTried: z.ZodNumber;
+                tooBig: z.ZodNumber;
+                currentFile: z.ZodNullable<z.ZodString>;
+                estimateCredits: z.ZodNumber;
+                spentCredits: z.ZodNumber;
+                stopReason: z.ZodNullable<z.ZodString>;
+                fileList: z.ZodArray<z.ZodObject<{
+                    name: z.ZodString;
+                    bytes: z.ZodNumber;
+                    state: z.ZodEnum<{
+                        pending: "pending";
+                        unknown: "unknown";
+                        failed: "failed";
+                        too_big: "too_big";
+                        reused: "reused";
+                        in_album: "in_album";
+                        uploading: "uploading";
+                        uploaded: "uploaded";
+                        not_tried: "not_tried";
+                    }>;
+                    credits: z.ZodNumber;
+                }, z.core.$strip>>;
+                account: z.ZodNullable<z.ZodObject<{
+                    dailyCredits: z.ZodNumber;
+                    spentToday: z.ZodNumber;
+                    left: z.ZodNumber;
+                    balance: z.ZodNullable<z.ZodNumber>;
+                    centsPer1000: z.ZodNumber;
+                }, z.core.$strip>>;
+                linkMaxBytes: z.ZodNumber;
+            }, z.core.$strip>>>;
+            createdAt: z.ZodString;
+            updatedAt: z.ZodString;
+            statusChangedAt: z.ZodString;
+        }, z.core.$strip>>;
+        words: z.ZodString;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const publicationWithdrawPageBodySchema: z.ZodObject<{

@@ -17,6 +17,12 @@ export declare const MATTER_CHECK_KIND_PERIODS: {
     readonly "people.no_working_page": 10;
     /** A person works a page none of their living logins may open. */
     readonly "people.page_without_access": 10;
+    /**
+     * The registry's gaps of the teams (products package T): who worked a model's page in the last 14 days and is not in
+     * its team (no working page of that model), and models whose pages are worked with nobody in the team. ONE matter
+     * listing them all; it proposes fixing the working pages through the people proposals. Nobody is blocked by it.
+     */
+    readonly "people.off_team": 60;
     /** Access to pages a person neither works nor touched for 30 days: information, one line, read once a week. */
     readonly "people.access_idle": number;
     /** An agent key that expires within 7 days (or expired and nobody revoked it). */
@@ -34,7 +40,7 @@ export type MatterCheckKind = keyof typeof MATTER_CHECK_KIND_PERIODS;
 export declare const MATTER_CHECK_KINDS: MatterCheckKind[];
 export declare function isMatterCheckKind(kind: string): kind is MatterCheckKind;
 /** The people checks: a person or a login, read from the people registry and the logins. */
-export declare const PEOPLE_CHECK_KINDS: ("people.left_with_access" | "people.login_unlinked" | "people.no_pay_terms" | "people.no_working_page" | "people.page_without_access" | "people.access_idle" | "people.agent_key_expiring" | "people.proposal_open" | "ledger.check" | "ledger.sheet_column" | "ledger.off_platform")[];
+export declare const PEOPLE_CHECK_KINDS: ("people.left_with_access" | "people.login_unlinked" | "people.no_pay_terms" | "people.no_working_page" | "people.page_without_access" | "people.off_team" | "people.access_idle" | "people.agent_key_expiring" | "people.proposal_open" | "ledger.check" | "ledger.sheet_column" | "ledger.off_platform")[];
 /** The ledger's: its checks, its notice about the payout tabs, its off-platform sales. */
 export declare const LEDGER_CHECK_KINDS: readonly ["ledger.check", "ledger.sheet_column", "ledger.off_platform"];
 /**

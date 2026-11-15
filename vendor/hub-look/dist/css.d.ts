@@ -18,7 +18,7 @@ export declare function rgbChannels(hex: string): string;
 /** Workboard's copy (`packages/ui/src/styles/tokens.css`): every token as `--ui-*`, in `@layer ui`. */
 export declare function renderUiTokensCss(): string;
 /**
- * The console's copy (`apps/dashboard/src/styles/tokens.css`): the colours as
+ * The console's copy (`packages/ui/src/styles/console-tokens.css`): the colours as
  * `--color-*` and the type scale, radii and bold weight under Tailwind's
  * `@theme static` (so its utilities and `var()` read them), the two shadows on `:root`.
  */

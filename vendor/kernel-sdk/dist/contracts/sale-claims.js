@@ -13,7 +13,7 @@ import { intId, isoTimestamp, mills } from "./primitives";
  * that wait to be tied to a sale (`sale.decisions.unlinked`). Kept apart from MATTER_SERVER_KINDS (as the shift report's):
  * «Состояние» closes every open matter of those that its own pass did not find. An agent key may open none of them.
  */
-export const SALE_CLAIM_MATTER_KINDS = ["sale.claim", "sale.dispute", "sale.nobody_week", "off_platform.pending", "sale.decisions.unlinked"];
+export const SALE_CLAIM_MATTER_KINDS = ["sale.claim", "sale.dispute", "sale.nobody_week", "off_platform.pending", "sale.decisions.unlinked", "sale.pot_offer"];
 const SALE_CLAIM_KIND_SET = new Set(SALE_CLAIM_MATTER_KINDS);
 export function isSaleClaimMatterKind(kind) {
     return SALE_CLAIM_KIND_SET.has(kind);
@@ -22,7 +22,12 @@ export const SALE_CLAIM_STATES = ["asked", "agreed", "owner", "decided", "withdr
 export const SALE_CLAIM_ANSWERS = ["agree", "disagree"];
 export const SALE_DISPUTE_OUTCOMES = ["first", "second", "half", "nobody"];
 /** «Закрыть без решения»: only a question carried over from the ledger whose people Hub could not tell. */
-export const SALE_DISPUTE_OUTCOMES_WITH_DISMISS = [...SALE_DISPUTE_OUTCOMES, "dismiss"];
+export const SALE_DISPUTE_OUTCOMES_WITH_DISMISS = [...SALE_DISPUTE_OUTCOMES, "dismiss", "pot", "return"];
+/**
+ * The answers to a sale its holder gave to the pot («<имя> отдаёт продажу в общак», the board): «В общак» (`pot`: the
+ * owner's decision of kind pot), «Вернуть <имени>» (`return`: the sale is the person's again) and «Никому» (`nobody`).
+ */
+export const POT_OFFER_OUTCOMES = ["pot", "return", "nobody"];
 export const saleClaimStateEnum = z.enum(SALE_CLAIM_STATES);
 export const saleClaimAnswerEnum = z.enum(SALE_CLAIM_ANSWERS);
 const person = z.object({ userId: intId, name: z.string() });

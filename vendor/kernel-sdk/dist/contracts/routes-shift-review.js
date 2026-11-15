@@ -322,7 +322,7 @@ export const teamShiftReviewResponseSchema = z.object({
 });
 export const shiftReviewRouteSchemas = {
     teamShiftReview: {
-        auth: { kind: "owner-session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "One chatter's shift opened up: its pulse, every chat, and where each message's text came from",
         description: "The owner only; read-only, database only. The shift of `userId` that holds `at` (a shift or a look-in), "

@@ -25,6 +25,12 @@ export declare function daysInRange(from: MoscowDay, to: MoscowDay, until?: Mosc
 export declare function weekdayIndex(day: MoscowDay): number;
 /** The Monday of the week a day belongs to. */
 export declare function mondayOf(day: MoscowDay): MoscowDay;
+/**
+ * The Moscow day a shift is reported on and paid by — the ledger's `ReportDate` (internal/payroll/source.go), the one
+ * day every system puts a shift's report on: the day it starts, except that a shift starting within two hours before
+ * midnight that mostly lies in the next day belongs to the next day (a night entered at 23:54 is the morning's).
+ */
+export declare function shiftReportDay(startedAt: string | number | Date, endedAt: string | number | Date): MoscowDay;
 /** The instant a Moscow day starts at, as ISO: `2026-11-02` → `2026-11-01T21:00:00.000Z`. */
 export declare function moscowDayStart(day: MoscowDay): string;
 /** The instant a Moscow day ends at (the next day's start, excluded). */

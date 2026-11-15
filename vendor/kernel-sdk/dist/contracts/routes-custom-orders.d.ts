@@ -50,13 +50,18 @@ export declare const customOrderRouteSchemas: {
                     lead: import("zod").ZodBoolean;
                     owner: import("zod").ZodBoolean;
                 }, import("zod/v4/core").$strip>;
-                leads: import("zod").ZodArray<import("zod").ZodString>;
+                leads: import("zod").ZodArray<import("zod").ZodObject<{
+                    model: import("zod").ZodString;
+                    check: import("zod").ZodNullable<import("zod").ZodString>;
+                    shoot: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
                 orders: import("zod").ZodArray<import("zod").ZodObject<{
                     id: import("zod").ZodNumber;
                     code: import("zod").ZodString;
                     pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
                     platform: import("zod").ZodNullable<import("zod").ZodString>;
                     model: import("zod").ZodNullable<import("zod").ZodString>;
+                    modelSlug: import("zod").ZodNullable<import("zod").ZodString>;
                     fan: import("zod").ZodNullable<import("zod").ZodObject<{
                         platform: import("zod").ZodString;
                         fanRef: import("zod").ZodString;
@@ -95,11 +100,25 @@ export declare const customOrderRouteSchemas: {
                         revision: "revision";
                         refused: "refused";
                         closed: "closed";
+                        checked: "checked";
                         at_model: "at_model";
                         partly: "partly";
                         shot: "shot";
                         given: "given";
                     }>;
+                    stateWord: import("zod").ZodString;
+                    leader: import("zod").ZodNullable<import("zod").ZodObject<{
+                        name: import("zod").ZodNullable<import("zod").ZodString>;
+                        phase: import("zod").ZodEnum<{
+                            check: "check";
+                            give: "give";
+                            shoot: "shoot";
+                        }>;
+                        product: import("zod").ZodEnum<{
+                            workboard: "workboard";
+                            contentops: "contentops";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
                     stateAt: import("zod").ZodString;
                     stateNote: import("zod").ZodNullable<import("zod").ZodString>;
                     stateRef: import("zod").ZodNullable<import("zod").ZodString>;
@@ -114,9 +133,9 @@ export declare const customOrderRouteSchemas: {
                     contentopsRef: import("zod").ZodNullable<import("zod").ZodString>;
                     origin: import("zod").ZodEnum<{
                         agent: "agent";
+                        workboard: "workboard";
                         extension: "extension";
                         import: "import";
-                        workboard: "workboard";
                     }>;
                     overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
                     partsDone: import("zod").ZodArray<import("zod").ZodEnum<{
@@ -202,6 +221,7 @@ export declare const customOrderRouteSchemas: {
                     pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
                     platform: import("zod").ZodNullable<import("zod").ZodString>;
                     model: import("zod").ZodNullable<import("zod").ZodString>;
+                    modelSlug: import("zod").ZodNullable<import("zod").ZodString>;
                     fan: import("zod").ZodNullable<import("zod").ZodObject<{
                         platform: import("zod").ZodString;
                         fanRef: import("zod").ZodString;
@@ -240,11 +260,25 @@ export declare const customOrderRouteSchemas: {
                         revision: "revision";
                         refused: "refused";
                         closed: "closed";
+                        checked: "checked";
                         at_model: "at_model";
                         partly: "partly";
                         shot: "shot";
                         given: "given";
                     }>;
+                    stateWord: import("zod").ZodString;
+                    leader: import("zod").ZodNullable<import("zod").ZodObject<{
+                        name: import("zod").ZodNullable<import("zod").ZodString>;
+                        phase: import("zod").ZodEnum<{
+                            check: "check";
+                            give: "give";
+                            shoot: "shoot";
+                        }>;
+                        product: import("zod").ZodEnum<{
+                            workboard: "workboard";
+                            contentops: "contentops";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
                     stateAt: import("zod").ZodString;
                     stateNote: import("zod").ZodNullable<import("zod").ZodString>;
                     stateRef: import("zod").ZodNullable<import("zod").ZodString>;
@@ -259,9 +293,9 @@ export declare const customOrderRouteSchemas: {
                     contentopsRef: import("zod").ZodNullable<import("zod").ZodString>;
                     origin: import("zod").ZodEnum<{
                         agent: "agent";
+                        workboard: "workboard";
                         extension: "extension";
                         import: "import";
-                        workboard: "workboard";
                     }>;
                     overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
                     partsDone: import("zod").ZodArray<import("zod").ZodEnum<{
@@ -334,6 +368,7 @@ export declare const customOrderRouteSchemas: {
                     fan: "fan";
                     edit: "edit";
                     card: "card";
+                    checked: "checked";
                     at_model: "at_model";
                     partly: "partly";
                     shot: "shot";
@@ -349,7 +384,7 @@ export declare const customOrderRouteSchemas: {
     };
     readonly customOrderAct: {
         readonly auth: {
-            readonly kind: "any-session";
+            readonly kind: "any";
         };
         readonly tags: readonly ["admin"];
         readonly summary: string;
@@ -397,8 +432,11 @@ export declare const customOrderRouteSchemas: {
             action: import("zod").ZodLiteral<"unpay">;
             transactionRef: import("zod").ZodString;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+            action: import("zod").ZodLiteral<"checked">;
+        }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"at_model">;
             telegramRef: import("zod").ZodOptional<import("zod").ZodString>;
+            deadlineOn: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"partly">;
             note: import("zod").ZodOptional<import("zod").ZodString>;
@@ -407,12 +445,16 @@ export declare const customOrderRouteSchemas: {
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"revision">;
             note: import("zod").ZodOptional<import("zod").ZodString>;
+            part: import("zod").ZodOptional<import("zod").ZodEnum<{
+                video: "video";
+                photos: "photos";
+            }>>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"refused">;
             reason: import("zod").ZodString;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"given">;
-            messageRef: import("zod").ZodString;
+            messageRef: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"close">;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
@@ -462,6 +504,7 @@ export declare const customOrderRouteSchemas: {
                     pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
                     platform: import("zod").ZodNullable<import("zod").ZodString>;
                     model: import("zod").ZodNullable<import("zod").ZodString>;
+                    modelSlug: import("zod").ZodNullable<import("zod").ZodString>;
                     fan: import("zod").ZodNullable<import("zod").ZodObject<{
                         platform: import("zod").ZodString;
                         fanRef: import("zod").ZodString;
@@ -500,11 +543,25 @@ export declare const customOrderRouteSchemas: {
                         revision: "revision";
                         refused: "refused";
                         closed: "closed";
+                        checked: "checked";
                         at_model: "at_model";
                         partly: "partly";
                         shot: "shot";
                         given: "given";
                     }>;
+                    stateWord: import("zod").ZodString;
+                    leader: import("zod").ZodNullable<import("zod").ZodObject<{
+                        name: import("zod").ZodNullable<import("zod").ZodString>;
+                        phase: import("zod").ZodEnum<{
+                            check: "check";
+                            give: "give";
+                            shoot: "shoot";
+                        }>;
+                        product: import("zod").ZodEnum<{
+                            workboard: "workboard";
+                            contentops: "contentops";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
                     stateAt: import("zod").ZodString;
                     stateNote: import("zod").ZodNullable<import("zod").ZodString>;
                     stateRef: import("zod").ZodNullable<import("zod").ZodString>;
@@ -519,9 +576,9 @@ export declare const customOrderRouteSchemas: {
                     contentopsRef: import("zod").ZodNullable<import("zod").ZodString>;
                     origin: import("zod").ZodEnum<{
                         agent: "agent";
+                        workboard: "workboard";
                         extension: "extension";
                         import: "import";
-                        workboard: "workboard";
                     }>;
                     overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
                     partsDone: import("zod").ZodArray<import("zod").ZodEnum<{
@@ -594,6 +651,7 @@ export declare const customOrderRouteSchemas: {
                     fan: "fan";
                     edit: "edit";
                     card: "card";
+                    checked: "checked";
                     at_model: "at_model";
                     partly: "partly";
                     shot: "shot";
@@ -609,10 +667,11 @@ export declare const customOrderRouteSchemas: {
     };
     readonly customOrderCreate: {
         readonly auth: {
-            readonly kind: "any-session";
+            readonly kind: "any";
         };
         readonly tags: readonly ["admin"];
         readonly summary: "«Записать кастом» on the board: from a sale that looks like a custom, or on a page for a fan";
+        readonly description: "A session, or the extension's device token: the board's own form in the extension's frame (package R5).";
         readonly body: import("zod").ZodObject<{
             transactionRef: import("zod").ZodOptional<import("zod").ZodString>;
             pageLabel: import("zod").ZodOptional<import("zod").ZodString>;
@@ -683,6 +742,7 @@ export declare const customOrderRouteSchemas: {
                     pageLabel: import("zod").ZodNullable<import("zod").ZodString>;
                     platform: import("zod").ZodNullable<import("zod").ZodString>;
                     model: import("zod").ZodNullable<import("zod").ZodString>;
+                    modelSlug: import("zod").ZodNullable<import("zod").ZodString>;
                     fan: import("zod").ZodNullable<import("zod").ZodObject<{
                         platform: import("zod").ZodString;
                         fanRef: import("zod").ZodString;
@@ -721,11 +781,25 @@ export declare const customOrderRouteSchemas: {
                         revision: "revision";
                         refused: "refused";
                         closed: "closed";
+                        checked: "checked";
                         at_model: "at_model";
                         partly: "partly";
                         shot: "shot";
                         given: "given";
                     }>;
+                    stateWord: import("zod").ZodString;
+                    leader: import("zod").ZodNullable<import("zod").ZodObject<{
+                        name: import("zod").ZodNullable<import("zod").ZodString>;
+                        phase: import("zod").ZodEnum<{
+                            check: "check";
+                            give: "give";
+                            shoot: "shoot";
+                        }>;
+                        product: import("zod").ZodEnum<{
+                            workboard: "workboard";
+                            contentops: "contentops";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
                     stateAt: import("zod").ZodString;
                     stateNote: import("zod").ZodNullable<import("zod").ZodString>;
                     stateRef: import("zod").ZodNullable<import("zod").ZodString>;
@@ -740,9 +814,9 @@ export declare const customOrderRouteSchemas: {
                     contentopsRef: import("zod").ZodNullable<import("zod").ZodString>;
                     origin: import("zod").ZodEnum<{
                         agent: "agent";
+                        workboard: "workboard";
                         extension: "extension";
                         import: "import";
-                        workboard: "workboard";
                     }>;
                     overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
                     partsDone: import("zod").ZodArray<import("zod").ZodEnum<{
@@ -815,6 +889,7 @@ export declare const customOrderRouteSchemas: {
                     fan: "fan";
                     edit: "edit";
                     card: "card";
+                    checked: "checked";
                     at_model: "at_model";
                     partly: "partly";
                     shot: "shot";
@@ -955,6 +1030,7 @@ export declare const customOrderRouteSchemas: {
                         revision: "revision";
                         refused: "refused";
                         closed: "closed";
+                        checked: "checked";
                         at_model: "at_model";
                         partly: "partly";
                         shot: "shot";
@@ -964,9 +1040,9 @@ export declare const customOrderRouteSchemas: {
                     code: import("zod").ZodString;
                     origin: import("zod").ZodEnum<{
                         agent: "agent";
+                        workboard: "workboard";
                         extension: "extension";
                         import: "import";
-                        workboard: "workboard";
                     }>;
                     version: import("zod").ZodNumber;
                     updatedAt: import("zod").ZodString;
@@ -977,6 +1053,21 @@ export declare const customOrderRouteSchemas: {
                         displayName: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     model: import("zod").ZodNullable<import("zod").ZodString>;
+                    modelSlug: import("zod").ZodNullable<import("zod").ZodString>;
+                    deadlineOn: import("zod").ZodNullable<import("zod").ZodString>;
+                    overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    leader: import("zod").ZodNullable<import("zod").ZodObject<{
+                        name: import("zod").ZodNullable<import("zod").ZodString>;
+                        phase: import("zod").ZodEnum<{
+                            check: "check";
+                            give: "give";
+                            shoot: "shoot";
+                        }>;
+                        product: import("zod").ZodEnum<{
+                            workboard: "workboard";
+                            contentops: "contentops";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
                     card: import("zod").ZodObject<{
                         date: import("zod").ZodOptional<import("zod").ZodString>;
                         name: import("zod").ZodOptional<import("zod").ZodString>;
@@ -1002,7 +1093,7 @@ export declare const customOrderRouteSchemas: {
                     stateAt: import("zod").ZodString;
                     buyer: import("zod").ZodNullable<import("zod").ZodString>;
                     fanErased: import("zod").ZodBoolean;
-                    deadlineOn: import("zod").ZodNullable<import("zod").ZodString>;
+                    stateWord: import("zod").ZodString;
                     stateNote: import("zod").ZodNullable<import("zod").ZodString>;
                     stateRef: import("zod").ZodNullable<import("zod").ZodString>;
                     payments: import("zod").ZodNumber;
@@ -1012,7 +1103,6 @@ export declare const customOrderRouteSchemas: {
                     acceptedByName: import("zod").ZodNullable<import("zod").ZodString>;
                     telegramRefs: import("zod").ZodArray<import("zod").ZodString>;
                     contentopsRef: import("zod").ZodNullable<import("zod").ZodString>;
-                    overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
                     partsDone: import("zod").ZodArray<import("zod").ZodEnum<{
                         video: "video";
                         photos: "photos";
@@ -1149,6 +1239,7 @@ export declare const customOrderRouteSchemas: {
                         revision: "revision";
                         refused: "refused";
                         closed: "closed";
+                        checked: "checked";
                         at_model: "at_model";
                         partly: "partly";
                         shot: "shot";
@@ -1158,9 +1249,9 @@ export declare const customOrderRouteSchemas: {
                     code: import("zod").ZodString;
                     origin: import("zod").ZodEnum<{
                         agent: "agent";
+                        workboard: "workboard";
                         extension: "extension";
                         import: "import";
-                        workboard: "workboard";
                     }>;
                     version: import("zod").ZodNumber;
                     updatedAt: import("zod").ZodString;
@@ -1171,6 +1262,21 @@ export declare const customOrderRouteSchemas: {
                         displayName: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     model: import("zod").ZodNullable<import("zod").ZodString>;
+                    modelSlug: import("zod").ZodNullable<import("zod").ZodString>;
+                    deadlineOn: import("zod").ZodNullable<import("zod").ZodString>;
+                    overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    leader: import("zod").ZodNullable<import("zod").ZodObject<{
+                        name: import("zod").ZodNullable<import("zod").ZodString>;
+                        phase: import("zod").ZodEnum<{
+                            check: "check";
+                            give: "give";
+                            shoot: "shoot";
+                        }>;
+                        product: import("zod").ZodEnum<{
+                            workboard: "workboard";
+                            contentops: "contentops";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
                     card: import("zod").ZodObject<{
                         date: import("zod").ZodOptional<import("zod").ZodString>;
                         name: import("zod").ZodOptional<import("zod").ZodString>;
@@ -1196,7 +1302,7 @@ export declare const customOrderRouteSchemas: {
                     stateAt: import("zod").ZodString;
                     buyer: import("zod").ZodNullable<import("zod").ZodString>;
                     fanErased: import("zod").ZodBoolean;
-                    deadlineOn: import("zod").ZodNullable<import("zod").ZodString>;
+                    stateWord: import("zod").ZodString;
                     stateNote: import("zod").ZodNullable<import("zod").ZodString>;
                     stateRef: import("zod").ZodNullable<import("zod").ZodString>;
                     payments: import("zod").ZodNumber;
@@ -1206,7 +1312,6 @@ export declare const customOrderRouteSchemas: {
                     acceptedByName: import("zod").ZodNullable<import("zod").ZodString>;
                     telegramRefs: import("zod").ZodArray<import("zod").ZodString>;
                     contentopsRef: import("zod").ZodNullable<import("zod").ZodString>;
-                    overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
                     partsDone: import("zod").ZodArray<import("zod").ZodEnum<{
                         video: "video";
                         photos: "photos";
@@ -1307,6 +1412,10 @@ export declare const customOrderRouteSchemas: {
             }, import("zod/v4/core").$strict>;
             ordinal: import("zod").ZodDefault<import("zod").ZodNumber>;
             text: import("zod").ZodString;
+            part: import("zod").ZodOptional<import("zod").ZodEnum<{
+                video: "video";
+                photos: "photos";
+            }>>;
             onBehalfOf: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
             action: import("zod").ZodLiteral<"revision_done">;
@@ -1417,6 +1526,7 @@ export declare const customOrderRouteSchemas: {
                         revision: "revision";
                         refused: "refused";
                         closed: "closed";
+                        checked: "checked";
                         at_model: "at_model";
                         partly: "partly";
                         shot: "shot";
@@ -1426,9 +1536,9 @@ export declare const customOrderRouteSchemas: {
                     code: import("zod").ZodString;
                     origin: import("zod").ZodEnum<{
                         agent: "agent";
+                        workboard: "workboard";
                         extension: "extension";
                         import: "import";
-                        workboard: "workboard";
                     }>;
                     version: import("zod").ZodNumber;
                     updatedAt: import("zod").ZodString;
@@ -1439,6 +1549,21 @@ export declare const customOrderRouteSchemas: {
                         displayName: import("zod").ZodNullable<import("zod").ZodString>;
                     }, import("zod/v4/core").$strip>>;
                     model: import("zod").ZodNullable<import("zod").ZodString>;
+                    modelSlug: import("zod").ZodNullable<import("zod").ZodString>;
+                    deadlineOn: import("zod").ZodNullable<import("zod").ZodString>;
+                    overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    leader: import("zod").ZodNullable<import("zod").ZodObject<{
+                        name: import("zod").ZodNullable<import("zod").ZodString>;
+                        phase: import("zod").ZodEnum<{
+                            check: "check";
+                            give: "give";
+                            shoot: "shoot";
+                        }>;
+                        product: import("zod").ZodEnum<{
+                            workboard: "workboard";
+                            contentops: "contentops";
+                        }>;
+                    }, import("zod/v4/core").$strip>>;
                     card: import("zod").ZodObject<{
                         date: import("zod").ZodOptional<import("zod").ZodString>;
                         name: import("zod").ZodOptional<import("zod").ZodString>;
@@ -1464,7 +1589,7 @@ export declare const customOrderRouteSchemas: {
                     stateAt: import("zod").ZodString;
                     buyer: import("zod").ZodNullable<import("zod").ZodString>;
                     fanErased: import("zod").ZodBoolean;
-                    deadlineOn: import("zod").ZodNullable<import("zod").ZodString>;
+                    stateWord: import("zod").ZodString;
                     stateNote: import("zod").ZodNullable<import("zod").ZodString>;
                     stateRef: import("zod").ZodNullable<import("zod").ZodString>;
                     payments: import("zod").ZodNumber;
@@ -1474,7 +1599,6 @@ export declare const customOrderRouteSchemas: {
                     acceptedByName: import("zod").ZodNullable<import("zod").ZodString>;
                     telegramRefs: import("zod").ZodArray<import("zod").ZodString>;
                     contentopsRef: import("zod").ZodNullable<import("zod").ZodString>;
-                    overdueDays: import("zod").ZodNullable<import("zod").ZodNumber>;
                     partsDone: import("zod").ZodArray<import("zod").ZodEnum<{
                         video: "video";
                         photos: "photos";

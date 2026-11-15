@@ -125,3 +125,40 @@ export interface ShiftReviewCounts {
 }
 /** The shift's numbers, as «Разбор смены» shows them and «Смены» counts them. */
 export declare function shiftReviewCounts(data: Pick<ShiftReviewRuleData, "chats">, waits: readonly ShiftReviewWait[]): ShiftReviewCounts;
+/**
+ * A shift's quality as every screen shows it: the journal, the person's card
+ * and the review itself, so one shift never shows two sets of numbers. The
+ * words are Workboard's (apps/workboard/src/shared/metrics.ts).
+ */
+export interface ShiftQuality {
+    /** «Ответ, медиана»: the median of the chatter's replies in the shift, whole seconds; null — no reply. */
+    replyMedianSeconds: number | null;
+    /** «Без ответа к концу»: the chatter's fans who wrote in the shift (or began waiting in it) and got no answer before its end — now, for a shift going on. */
+    unansweredAtEnd: number;
+    /** «ИИ без правки»: the share (0…1) of the chatter's texts that are the AI's sent as it was; null — no texts. */
+    aiUneditedShare: number | null;
+}
+/** The fields of a shift's numbers in `teamChatterNumbers` its quality reads. */
+export interface ChatterNumbersLike {
+    replies: number;
+    replyMedianSeconds: number | null;
+    waitingAtEnd: number;
+    textMessages: number;
+    aiUnedited: number;
+}
+/**
+ * A shift's quality from `teamChatterNumbers`. Hub counts all three by the
+ * review's rules (this file): the reply median, «без ответа к
+ * концу» and «ИИ без правки» agree with the shift's «Разбор смены» to the one.
+ */
+export declare function shiftQualityOf(numbers: ChatterNumbersLike): ShiftQuality;
+/** A period's quality: each number the plain average over its shifts that have one («…, в среднем за смену»). */
+export interface PeriodQuality {
+    /** The shifts averaged. */
+    shifts: number;
+    replyMedianSeconds: number | null;
+    /** Not rounded: «1,4 в среднем за смену». */
+    unansweredAtEnd: number | null;
+    aiUneditedShare: number | null;
+}
+export declare function averageShiftQuality(shifts: readonly ShiftQuality[]): PeriodQuality;

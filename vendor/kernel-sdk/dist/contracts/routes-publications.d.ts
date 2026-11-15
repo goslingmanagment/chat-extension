@@ -7,6 +7,7 @@ export declare const publicationRouteSchemas: {
         readonly summary: "Publications of every page (or one) by publish time, with their draft-check findings";
         readonly querystring: import("zod").ZodObject<{
             pageLabel: import("zod").ZodOptional<import("zod").ZodString>;
+            modelSlug: import("zod").ZodOptional<import("zod").ZodString>;
             status: import("zod").ZodOptional<import("zod").ZodEnum<{
                 unknown: "unknown";
                 cancelled: "cancelled";

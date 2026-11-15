@@ -46,11 +46,57 @@ export declare const PLACES: {
     readonly hub: "Hub";
     /** The team's place. */
     readonly workboard: "Workboard";
+    /** The content's product (a КМ's, the owner's). */
+    readonly contentops: "ContentOps";
+    /** The owner's outside tools, at the foot of the products' switcher. */
+    readonly tasks: "Задачи";
+    readonly monitor: "Монитор";
     /** The extension. */
     readonly chatgoose: "ChatGoose";
     /** The team's agent in Telegram. */
     readonly gengar: "Генгар";
 };
+/**
+ * The name of a failure (a notification incident) by its kind: the console's «Система → Сбои» and the list «Ждут
+ * вас» say the same words (design/ia.md §5.2). The console checks that every kind of the contract has one.
+ */
+export declare const INCIDENT_KIND_WORDS: {
+    readonly auth_blocked: "Вход заблокирован";
+    readonly proxy_failed: "Прокси не работает";
+    readonly proxy_missing: "Нет прокси";
+    readonly stream_failed_threshold: "Сбор падает 3 раза подряд";
+    readonly ofapi_auth: "OnlyFans API: доступ отклонён";
+    readonly ofapi_binding_conflict: "OnlyFans API: конфликт привязки";
+    readonly ofapi_low_credit: "Мало кредитов OnlyFans API";
+    readonly ofapi_webhook_silence: "События OnlyFans API замолчали";
+    readonly ofapi_burn_rate: "Кредиты сгорают необычно быстро";
+    readonly db_disk_usage: "База: мало места";
+    readonly observations_partitions: "База: разделы журнала";
+    readonly wrong_transactions_writer: "Операции пишет не тот процесс";
+    readonly read_gateway_capture: "Сбор: шлюз чтения";
+    readonly golden_signal_lag: "Отставание ключевых метрик";
+    readonly scheduler_silent: "Планировщик молчит";
+    readonly ops_sampler_silent: "Сбор метрик молчит";
+    readonly sync_silent: "Сбор Fansly молчит";
+    readonly fansly_sync_engine: "Сбор Fansly: сбой";
+    readonly ofapi_chargebacks_reconcile_failed: "Сверка возвратов OnlyFans";
+    readonly ofapi_link_stats_reconcile_failed: "Сверка статистики ссылок OnlyFans";
+    readonly ai_provider_billing: "ИИ: проблема с оплатой";
+    readonly ai_provider_failed: "ИИ: поставщик не отвечает";
+    readonly capture_payload_parity: "Расхождение сохранённых данных";
+    readonly publishing_stopped: "Hub остановил публикацию";
+    readonly publication_not_published: "Пост не вышел";
+    readonly ofapi_platform_notice: "OnlyFans написал странице";
+    readonly chatspace_tab: "Вкладка ChatSpace на сервере";
+};
+/** A failure's name by its kind; null — a kind the dictionary does not know (say its code, never nothing). */
+export declare function incidentKindWord(kind: string): string | null;
 /** The AI buttons: proper names, the same everywhere, never translated. */
 export declare const AI_BUTTONS: readonly ["Reply", "Fix", "Hi", "Ping", "Recap", "Coach"];
 export type AiButton = (typeof AI_BUTTONS)[number];
+/**
+ * A Russian first name «кому»: Алекс → Алексу, Андрей → Андрею, Никита → Никите, Катя → Кате, Мария → Марии.
+ * Only the first word, only a Cyrillic name with a known ending; null otherwise (a Latin name, a name ending in
+ * «ь», «о», «е»…): the caller then says it without the case («Отправить в Telegram: Rick»).
+ */
+export declare function nameToWhom(name: string): string | null;

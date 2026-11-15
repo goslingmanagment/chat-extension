@@ -33,8 +33,8 @@ export declare const peopleRouteSchemas: {
                     steps: import("zod").ZodArray<import("zod").ZodObject<{
                         step: import("zod").ZodEnum<{
                             pages: "pages";
-                            install: "install";
                             extension: "extension";
+                            install: "install";
                             activity: "activity";
                             payout: "payout";
                         }>;
@@ -45,8 +45,8 @@ export declare const peopleRouteSchemas: {
                     total: import("zod").ZodNumber;
                     current: import("zod").ZodNullable<import("zod").ZodEnum<{
                         pages: "pages";
-                        install: "install";
                         extension: "extension";
+                        install: "install";
                         activity: "activity";
                         payout: "payout";
                     }>>;
@@ -72,7 +72,7 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                 }, import("zod/v4/core").$strip>>;
                 payoutDetails: import("zod").ZodNullable<import("zod").ZodObject<{
-                    text: import("zod").ZodString;
+                    text: import("zod").ZodNullable<import("zod").ZodString>;
                     updatedAt: import("zod").ZodString;
                 }, import("zod/v4/core").$strip>>;
                 submitsShift: import("zod").ZodBoolean;
@@ -129,7 +129,7 @@ export declare const peopleRouteSchemas: {
     };
     readonly teamPeople: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["admin"];
         readonly summary: string;
@@ -163,10 +163,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -187,6 +187,7 @@ export declare const peopleRouteSchemas: {
                             owner: "owner";
                             team_lead: "team_lead";
                             chatter: "chatter";
+                            content_manager: "content_manager";
                         }>;
                         state: import("zod").ZodEnum<{
                             active: "active";
@@ -279,8 +280,8 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
-                        import: "import";
                         proposal: "proposal";
+                        import: "import";
                     }>;
                     openProposals: import("zod").ZodNumber;
                     createdAt: import("zod").ZodString;
@@ -293,6 +294,7 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         active: "active";
@@ -365,10 +367,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -389,6 +391,7 @@ export declare const peopleRouteSchemas: {
                             owner: "owner";
                             team_lead: "team_lead";
                             chatter: "chatter";
+                            content_manager: "content_manager";
                         }>;
                         state: import("zod").ZodEnum<{
                             active: "active";
@@ -481,8 +484,8 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
-                        import: "import";
                         proposal: "proposal";
+                        import: "import";
                     }>;
                     openProposals: import("zod").ZodNumber;
                     createdAt: import("zod").ZodString;
@@ -548,8 +551,8 @@ export declare const peopleRouteSchemas: {
                     steps: import("zod").ZodArray<import("zod").ZodObject<{
                         step: import("zod").ZodEnum<{
                             pages: "pages";
-                            install: "install";
                             extension: "extension";
+                            install: "install";
                             activity: "activity";
                             payout: "payout";
                         }>;
@@ -560,8 +563,8 @@ export declare const peopleRouteSchemas: {
                     total: import("zod").ZodNumber;
                     current: import("zod").ZodNullable<import("zod").ZodEnum<{
                         pages: "pages";
-                        install: "install";
                         extension: "extension";
+                        install: "install";
                         activity: "activity";
                         payout: "payout";
                     }>>;
@@ -657,6 +660,7 @@ export declare const peopleRouteSchemas: {
                 role: import("zod").ZodOptional<import("zod").ZodEnum<{
                     team_lead: "team_lead";
                     chatter: "chatter";
+                    content_manager: "content_manager";
                 }>>;
                 pageLabels: import("zod").ZodArray<import("zod").ZodString>;
                 expiresInHours: import("zod").ZodOptional<import("zod").ZodNumber>;
@@ -668,15 +672,16 @@ export declare const peopleRouteSchemas: {
                 fixPerShiftMills: import("zod").ZodNumber;
                 note: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
             }, import("zod/v4/core").$strip>>>;
+            leadModelSlugs: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodString>>;
             displayName: import("zod").ZodString;
             role: import("zod").ZodEnum<{
                 owner: "owner";
                 team_lead: "team_lead";
                 chatter: "chatter";
+                content_manager: "content_manager";
                 agent: "agent";
                 contractor: "contractor";
                 service: "service";
-                content_manager: "content_manager";
             }>;
             code: import("zod").ZodString;
             kind: import("zod").ZodOptional<import("zod").ZodEnum<{
@@ -735,10 +740,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -759,6 +764,7 @@ export declare const peopleRouteSchemas: {
                             owner: "owner";
                             team_lead: "team_lead";
                             chatter: "chatter";
+                            content_manager: "content_manager";
                         }>;
                         state: import("zod").ZodEnum<{
                             active: "active";
@@ -851,8 +857,8 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
-                        import: "import";
                         proposal: "proposal";
+                        import: "import";
                     }>;
                     openProposals: import("zod").ZodNumber;
                     createdAt: import("zod").ZodString;
@@ -918,8 +924,8 @@ export declare const peopleRouteSchemas: {
                     steps: import("zod").ZodArray<import("zod").ZodObject<{
                         step: import("zod").ZodEnum<{
                             pages: "pages";
-                            install: "install";
                             extension: "extension";
+                            install: "install";
                             activity: "activity";
                             payout: "payout";
                         }>;
@@ -930,8 +936,8 @@ export declare const peopleRouteSchemas: {
                     total: import("zod").ZodNumber;
                     current: import("zod").ZodNullable<import("zod").ZodEnum<{
                         pages: "pages";
-                        install: "install";
                         extension: "extension";
+                        install: "install";
                         activity: "activity";
                         payout: "payout";
                     }>>;
@@ -990,10 +996,10 @@ export declare const peopleRouteSchemas: {
                 owner: "owner";
                 team_lead: "team_lead";
                 chatter: "chatter";
+                content_manager: "content_manager";
                 agent: "agent";
                 contractor: "contractor";
                 service: "service";
-                content_manager: "content_manager";
             }>>;
             state: import("zod").ZodOptional<import("zod").ZodEnum<{
                 left: "left";
@@ -1096,10 +1102,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -1120,6 +1126,7 @@ export declare const peopleRouteSchemas: {
                             owner: "owner";
                             team_lead: "team_lead";
                             chatter: "chatter";
+                            content_manager: "content_manager";
                         }>;
                         state: import("zod").ZodEnum<{
                             active: "active";
@@ -1212,8 +1219,8 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
-                        import: "import";
                         proposal: "proposal";
+                        import: "import";
                     }>;
                     openProposals: import("zod").ZodNumber;
                     createdAt: import("zod").ZodString;
@@ -1279,8 +1286,8 @@ export declare const peopleRouteSchemas: {
                     steps: import("zod").ZodArray<import("zod").ZodObject<{
                         step: import("zod").ZodEnum<{
                             pages: "pages";
-                            install: "install";
                             extension: "extension";
+                            install: "install";
                             activity: "activity";
                             payout: "payout";
                         }>;
@@ -1291,8 +1298,8 @@ export declare const peopleRouteSchemas: {
                     total: import("zod").ZodNumber;
                     current: import("zod").ZodNullable<import("zod").ZodEnum<{
                         pages: "pages";
-                        install: "install";
                         extension: "extension";
+                        install: "install";
                         activity: "activity";
                         payout: "payout";
                     }>>;
@@ -1392,10 +1399,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -1416,6 +1423,7 @@ export declare const peopleRouteSchemas: {
                             owner: "owner";
                             team_lead: "team_lead";
                             chatter: "chatter";
+                            content_manager: "content_manager";
                         }>;
                         state: import("zod").ZodEnum<{
                             active: "active";
@@ -1508,8 +1516,8 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
-                        import: "import";
                         proposal: "proposal";
+                        import: "import";
                     }>;
                     openProposals: import("zod").ZodNumber;
                     createdAt: import("zod").ZodString;
@@ -1575,8 +1583,8 @@ export declare const peopleRouteSchemas: {
                     steps: import("zod").ZodArray<import("zod").ZodObject<{
                         step: import("zod").ZodEnum<{
                             pages: "pages";
-                            install: "install";
                             extension: "extension";
+                            install: "install";
                             activity: "activity";
                             payout: "payout";
                         }>;
@@ -1587,8 +1595,8 @@ export declare const peopleRouteSchemas: {
                     total: import("zod").ZodNumber;
                     current: import("zod").ZodNullable<import("zod").ZodEnum<{
                         pages: "pages";
-                        install: "install";
                         extension: "extension";
+                        install: "install";
                         activity: "activity";
                         payout: "payout";
                     }>>;
@@ -1686,10 +1694,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -1710,6 +1718,7 @@ export declare const peopleRouteSchemas: {
                             owner: "owner";
                             team_lead: "team_lead";
                             chatter: "chatter";
+                            content_manager: "content_manager";
                         }>;
                         state: import("zod").ZodEnum<{
                             active: "active";
@@ -1802,8 +1811,8 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
-                        import: "import";
                         proposal: "proposal";
+                        import: "import";
                     }>;
                     openProposals: import("zod").ZodNumber;
                     createdAt: import("zod").ZodString;
@@ -1869,8 +1878,8 @@ export declare const peopleRouteSchemas: {
                     steps: import("zod").ZodArray<import("zod").ZodObject<{
                         step: import("zod").ZodEnum<{
                             pages: "pages";
-                            install: "install";
                             extension: "extension";
+                            install: "install";
                             activity: "activity";
                             payout: "payout";
                         }>;
@@ -1881,8 +1890,8 @@ export declare const peopleRouteSchemas: {
                     total: import("zod").ZodNumber;
                     current: import("zod").ZodNullable<import("zod").ZodEnum<{
                         pages: "pages";
-                        install: "install";
                         extension: "extension";
+                        install: "install";
                         activity: "activity";
                         payout: "payout";
                     }>>;
@@ -2080,10 +2089,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -2104,6 +2113,7 @@ export declare const peopleRouteSchemas: {
                             owner: "owner";
                             team_lead: "team_lead";
                             chatter: "chatter";
+                            content_manager: "content_manager";
                         }>;
                         state: import("zod").ZodEnum<{
                             active: "active";
@@ -2196,8 +2206,8 @@ export declare const peopleRouteSchemas: {
                     }, import("zod/v4/core").$strip>>;
                     origin: import("zod").ZodEnum<{
                         owner: "owner";
-                        import: "import";
                         proposal: "proposal";
+                        import: "import";
                     }>;
                     openProposals: import("zod").ZodNumber;
                     createdAt: import("zod").ZodString;
@@ -2273,10 +2283,10 @@ export declare const peopleRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                         agent: "agent";
                         contractor: "contractor";
                         service: "service";
-                        content_manager: "content_manager";
                     }>;
                     state: import("zod").ZodEnum<{
                         left: "left";
@@ -2386,10 +2396,10 @@ export declare const peopleRouteSchemas: {
                     owner: "owner";
                     team_lead: "team_lead";
                     chatter: "chatter";
+                    content_manager: "content_manager";
                     agent: "agent";
                     contractor: "contractor";
                     service: "service";
-                    content_manager: "content_manager";
                 }>>;
                 state: import("zod").ZodOptional<import("zod").ZodEnum<{
                     left: "left";
@@ -2476,17 +2486,17 @@ export declare const peopleRouteSchemas: {
                     owner: "owner";
                     team_lead: "team_lead";
                     chatter: "chatter";
+                    content_manager: "content_manager";
                     agent: "agent";
                     contractor: "contractor";
                     service: "service";
-                    content_manager: "content_manager";
                 }>;
-                leftOn: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
-                logins: import("zod").ZodOptional<import("zod").ZodObject<{
+                agentKeys: import("zod").ZodOptional<import("zod").ZodObject<{
                     add: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
                     remove: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
                 }, import("zod/v4/core").$strip>>;
-                agentKeys: import("zod").ZodOptional<import("zod").ZodObject<{
+                leftOn: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
+                logins: import("zod").ZodOptional<import("zod").ZodObject<{
                     add: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
                     remove: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodNumber>>;
                 }, import("zod/v4/core").$strip>>;

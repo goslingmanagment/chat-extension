@@ -129,6 +129,95 @@ export declare const agentSaleChainQuerySchema: z.ZodObject<{
     pageLabel: z.ZodOptional<z.ZodString>;
     transactionRef: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
+/**
+ * «Продажи → Список продаж» (products plan §2.3): every sale of the viewer's teams in a window — whose it is and why
+ * (the chain's own words of «Чья»), the report it is in, and whether the viewer may open its chain. Cut by the viewer's
+ * teams on the server (services/teams.ts); no pay of anyone: a report's sums and accruals stay in the chain.
+ */
+export declare const TEAM_SALES_LIST_MAX_DAYS = 62;
+export declare const TEAM_SALES_LIST_PAGE = 50;
+export declare const TEAM_SALE_HOME_FILTERS: readonly ["all", "mine", "people", "owner", "pot", "waiting", "nobody", "none"];
+export type TeamSaleHomeFilterWire = (typeof TEAM_SALE_HOME_FILTERS)[number];
+export declare const teamSalesListQuerySchema: z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    pageLabel: z.ZodOptional<z.ZodString>;
+    home: z.ZodDefault<z.ZodEnum<{
+        owner: "owner";
+        all: "all";
+        none: "none";
+        mine: "mine";
+        pot: "pot";
+        nobody: "nobody";
+        waiting: "waiting";
+        people: "people";
+    }>>;
+    offset: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+}, z.core.$strip>;
+export declare const teamSalesListResponseSchema: z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    sales: z.ZodArray<z.ZodObject<{
+        transactionId: z.ZodNumber;
+        pageLabel: z.ZodString;
+        platform: z.ZodString;
+        kind: z.ZodString;
+        occurredAt: z.ZodString;
+        netMills: z.ZodNumber;
+        fan: z.ZodObject<{
+            fanRef: z.ZodNullable<z.ZodString>;
+            name: z.ZodNullable<z.ZodString>;
+            username: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
+        home: z.ZodObject<{
+            state: z.ZodEnum<{
+                unknown: "unknown";
+                none: "none";
+                open: "open";
+                done: "done";
+                wait: "wait";
+            }>;
+            words: z.ZodString;
+            kind: z.ZodNullable<z.ZodString>;
+            reason: z.ZodNullable<z.ZodString>;
+            above: z.ZodNullable<z.ZodString>;
+            dispute: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
+        people: z.ZodArray<z.ZodObject<{
+            userId: z.ZodNumber;
+            name: z.ZodString;
+            mine: z.ZodBoolean;
+        }, z.core.$strip>>;
+        report: z.ZodObject<{
+            state: z.ZodEnum<{
+                unknown: "unknown";
+                none: "none";
+                open: "open";
+                done: "done";
+                wait: "wait";
+            }>;
+            words: z.ZodString;
+            link: z.ZodNullable<z.ZodString>;
+            amountMills: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        chain: z.ZodBoolean;
+    }, z.core.$strip>>;
+    counts: z.ZodObject<{
+        owner: z.ZodNumber;
+        all: z.ZodNumber;
+        none: z.ZodNumber;
+        mine: z.ZodNumber;
+        pot: z.ZodNumber;
+        nobody: z.ZodNumber;
+        waiting: z.ZodNumber;
+        people: z.ZodNumber;
+    }, z.core.$strip>;
+    nextOffset: z.ZodNullable<z.ZodNumber>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export type TeamSalesListQuery = z.infer<typeof teamSalesListQuerySchema>;
+export type TeamSalesListResponse = z.infer<typeof teamSalesListResponseSchema>;
+export type TeamSalesListSale = TeamSalesListResponse["sales"][number];
 export type SaleChainQuery = z.infer<typeof saleChainQuerySchema>;
 export type SaleChainLink = z.infer<typeof saleChainLinkSchema>;
 export type SaleChainResponse = z.infer<typeof saleChainResponseSchema>;
@@ -259,6 +348,121 @@ export declare const saleChainRouteSchemas: {
                     }, z.core.$strip>;
                 }, z.core.$strip>>;
                 note: z.ZodNullable<z.ZodString>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamSalesList: {
+        readonly auth: {
+            readonly kind: "any";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Every sale of the viewer's teams in a window: whose it is and why, the report it is in";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            from: z.ZodString;
+            to: z.ZodString;
+            pageLabel: z.ZodOptional<z.ZodString>;
+            home: z.ZodDefault<z.ZodEnum<{
+                owner: "owner";
+                all: "all";
+                none: "none";
+                mine: "mine";
+                pot: "pot";
+                nobody: "nobody";
+                waiting: "waiting";
+                people: "people";
+            }>>;
+            offset: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                sales: z.ZodArray<z.ZodObject<{
+                    transactionId: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    platform: z.ZodString;
+                    kind: z.ZodString;
+                    occurredAt: z.ZodString;
+                    netMills: z.ZodNumber;
+                    fan: z.ZodObject<{
+                        fanRef: z.ZodNullable<z.ZodString>;
+                        name: z.ZodNullable<z.ZodString>;
+                        username: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                    home: z.ZodObject<{
+                        state: z.ZodEnum<{
+                            unknown: "unknown";
+                            none: "none";
+                            open: "open";
+                            done: "done";
+                            wait: "wait";
+                        }>;
+                        words: z.ZodString;
+                        kind: z.ZodNullable<z.ZodString>;
+                        reason: z.ZodNullable<z.ZodString>;
+                        above: z.ZodNullable<z.ZodString>;
+                        dispute: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                    people: z.ZodArray<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                        mine: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    report: z.ZodObject<{
+                        state: z.ZodEnum<{
+                            unknown: "unknown";
+                            none: "none";
+                            open: "open";
+                            done: "done";
+                            wait: "wait";
+                        }>;
+                        words: z.ZodString;
+                        link: z.ZodNullable<z.ZodString>;
+                        amountMills: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>;
+                    chain: z.ZodBoolean;
+                }, z.core.$strip>>;
+                counts: z.ZodObject<{
+                    owner: z.ZodNumber;
+                    all: z.ZodNumber;
+                    none: z.ZodNumber;
+                    mine: z.ZodNumber;
+                    pot: z.ZodNumber;
+                    nobody: z.ZodNumber;
+                    waiting: z.ZodNumber;
+                    people: z.ZodNumber;
+                }, z.core.$strip>;
+                nextOffset: z.ZodNullable<z.ZodNumber>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };

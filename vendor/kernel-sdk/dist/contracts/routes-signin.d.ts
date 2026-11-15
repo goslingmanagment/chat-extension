@@ -18,6 +18,9 @@
  *   TaskIndex, server-monitor) exchanges a code for «who is this» — and whether
  *   it is the owner — with its own agent key (`signin:<client>`), and re-checks
  *   that sign-in later. It never receives a Hub session token.
+ *   To ContentOps both answers carry the `person` (products plan §4.1): enough
+ *   to make, change and close its own person without a second registry; and
+ *   `authSsoWaiting` reads what waits in Hub for a person signed in that way.
  * - `authWebLink`: the extension's device token asks for a one-time link into
  *   the team's place (web-link-v1).
  */
@@ -40,8 +43,8 @@ export declare function isSigninClient(value: string): value is SigninClient;
 /** A server client's name (`contentops`, `taskindex`, `monitor`). */
 export declare const signinClientNameSchema: z.ZodEnum<{
     contentops: "contentops";
-    taskindex: "taskindex";
     monitor: "monitor";
+    taskindex: "taskindex";
 }>;
 export declare const authSsoQuerySchema: z.ZodObject<{
     to: z.ZodString;
@@ -64,6 +67,7 @@ export declare const signinUserSchema: z.ZodObject<{
         owner: "owner";
         team_lead: "team_lead";
         chatter: "chatter";
+        content_manager: "content_manager";
     }>;
 }, z.core.$strip>;
 export declare const authIntrospectResponseSchema: z.ZodObject<{
@@ -74,17 +78,39 @@ export declare const authIntrospectResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
         }>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 export declare const authSsoRedeemBodySchema: z.ZodObject<{
     client: z.ZodEnum<{
         contentops: "contentops";
-        taskindex: "taskindex";
         monitor: "monitor";
+        taskindex: "taskindex";
     }>;
     code: z.ZodString;
 }, z.core.$strict>;
+/**
+ * The person behind a sign-in, as ContentOps needs it (products plan §4.1): the registry's code, name, role and state;
+ * the models of their working pages (lower-case slugs); the models where they lead customs («ведёт кастомы»); the
+ * products `auth/me` gives them (the frame's switcher). null — the login is nobody's in the registry. Sent to ContentOps
+ * only.
+ */
+export declare const signinPersonSchema: z.ZodNullable<z.ZodObject<{
+    code: z.ZodString;
+    displayName: z.ZodString;
+    role: z.ZodString;
+    state: z.ZodString;
+    models: z.ZodArray<z.ZodString>;
+    customsModels: z.ZodArray<z.ZodString>;
+    products: z.ZodArray<z.ZodEnum<{
+        hub: "hub";
+        workboard: "workboard";
+        contentops: "contentops";
+        tasks: "tasks";
+        monitor: "monitor";
+    }>>;
+}, z.core.$strip>>;
 export declare const authSsoRedeemResponseSchema: z.ZodObject<{
     user: z.ZodObject<{
         id: z.ZodNumber;
@@ -93,17 +119,33 @@ export declare const authSsoRedeemResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
         }>;
     }, z.core.$strip>;
     owner: z.ZodBoolean;
     grant: z.ZodString;
     expiresAt: z.ZodString;
+    person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        code: z.ZodString;
+        displayName: z.ZodString;
+        role: z.ZodString;
+        state: z.ZodString;
+        models: z.ZodArray<z.ZodString>;
+        customsModels: z.ZodArray<z.ZodString>;
+        products: z.ZodArray<z.ZodEnum<{
+            hub: "hub";
+            workboard: "workboard";
+            contentops: "contentops";
+            tasks: "tasks";
+            monitor: "monitor";
+        }>>;
+    }, z.core.$strip>>>;
 }, z.core.$strip>;
 export declare const authSsoCheckBodySchema: z.ZodObject<{
     client: z.ZodEnum<{
         contentops: "contentops";
-        taskindex: "taskindex";
         monitor: "monitor";
+        taskindex: "taskindex";
     }>;
     grant: z.ZodString;
 }, z.core.$strict>;
@@ -116,13 +158,169 @@ export declare const authSsoCheckResponseSchema: z.ZodDiscriminatedUnion<[z.ZodO
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
         }>;
     }, z.core.$strip>;
     owner: z.ZodBoolean;
     expiresAt: z.ZodString;
+    person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        code: z.ZodString;
+        displayName: z.ZodString;
+        role: z.ZodString;
+        state: z.ZodString;
+        models: z.ZodArray<z.ZodString>;
+        customsModels: z.ZodArray<z.ZodString>;
+        products: z.ZodArray<z.ZodEnum<{
+            hub: "hub";
+            workboard: "workboard";
+            contentops: "contentops";
+            tasks: "tasks";
+            monitor: "monitor";
+        }>>;
+    }, z.core.$strip>>>;
 }, z.core.$strip>, z.ZodObject<{
     active: z.ZodLiteral<false>;
 }, z.core.$strip>], "active">;
+export declare const authSsoWaitingBodySchema: z.ZodObject<{
+    client: z.ZodEnum<{
+        contentops: "contentops";
+        monitor: "monitor";
+        taskindex: "taskindex";
+    }>;
+    grant: z.ZodString;
+}, z.core.$strict>;
+/** One open matter of the person, as ContentOps lists it: it opens where it is decided (`link`). */
+export declare const signinWaitingMatterSchema: z.ZodObject<{
+    id: z.ZodNumber;
+    kind: z.ZodString;
+    title: z.ZodString;
+    link: z.ZodNullable<z.ZodString>;
+    pageLabels: z.ZodArray<z.ZodString>;
+    models: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    object: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        type: z.ZodString;
+        id: z.ZodString;
+    }, z.core.$strip>>>;
+    openedAt: z.ZodString;
+}, z.core.$strip>;
+export declare const authSsoWaitingResponseSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    active: z.ZodLiteral<true>;
+    matters: z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        kind: z.ZodString;
+        title: z.ZodString;
+        link: z.ZodNullable<z.ZodString>;
+        pageLabels: z.ZodArray<z.ZodString>;
+        models: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        object: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+            type: z.ZodString;
+            id: z.ZodString;
+        }, z.core.$strip>>>;
+        openedAt: z.ZodString;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    active: z.ZodLiteral<false>;
+}, z.core.$strip>], "active">;
+export declare const authSsoPasswordBodySchema: z.ZodObject<{
+    ip: z.ZodOptional<z.ZodString>;
+    userAgent: z.ZodOptional<z.ZodString>;
+    client: z.ZodEnum<{
+        contentops: "contentops";
+        monitor: "monitor";
+        taskindex: "taskindex";
+    }>;
+    username: z.ZodString;
+    password: z.ZodString;
+}, z.core.$strict>;
+/**
+ * Why a sign-in on another service's page was refused, in one word each: `wrong` — an unknown login or a wrong
+ * password, one answer for both; `locked` — too many tries, wait; `owner` — the owner's password never passes through
+ * another service: the owner enters through Hub; `no_access` — the person has no ContentOps; `link_unknown`,
+ * `link_used`, `link_expired`, `link_revoked` — an invitation or a new password's link that cannot be used;
+ * `not_here` — a link of a login that opens elsewhere; `weak` — a password Hub does not take (`message` says why).
+ */
+export declare const SIGNIN_REFUSALS: readonly ["wrong", "locked", "owner", "no_access", "link_unknown", "link_used", "link_expired", "link_revoked", "not_here", "weak"];
+export declare const authSsoSignedInResponseSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    user: z.ZodObject<{
+        id: z.ZodNumber;
+        username: z.ZodString;
+        role: z.ZodEnum<{
+            owner: "owner";
+            team_lead: "team_lead";
+            chatter: "chatter";
+            content_manager: "content_manager";
+        }>;
+    }, z.core.$strip>;
+    owner: z.ZodBoolean;
+    grant: z.ZodString;
+    expiresAt: z.ZodString;
+    person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        code: z.ZodString;
+        displayName: z.ZodString;
+        role: z.ZodString;
+        state: z.ZodString;
+        models: z.ZodArray<z.ZodString>;
+        customsModels: z.ZodArray<z.ZodString>;
+        products: z.ZodArray<z.ZodEnum<{
+            hub: "hub";
+            workboard: "workboard";
+            contentops: "contentops";
+            tasks: "tasks";
+            monitor: "monitor";
+        }>>;
+    }, z.core.$strip>>>;
+    result: z.ZodLiteral<"signed_in">;
+}, z.core.$strip>, z.ZodObject<{
+    result: z.ZodLiteral<"refused">;
+    reason: z.ZodEnum<{
+        owner: "owner";
+        wrong: "wrong";
+        locked: "locked";
+        no_access: "no_access";
+        link_unknown: "link_unknown";
+        link_used: "link_used";
+        link_expired: "link_expired";
+        link_revoked: "link_revoked";
+        not_here: "not_here";
+        weak: "weak";
+    }>;
+    message: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>], "result">;
+export declare const authSsoLinkBodySchema: z.ZodObject<{
+    ip: z.ZodOptional<z.ZodString>;
+    userAgent: z.ZodOptional<z.ZodString>;
+    client: z.ZodEnum<{
+        contentops: "contentops";
+        monitor: "monitor";
+        taskindex: "taskindex";
+    }>;
+    token: z.ZodString;
+    password: z.ZodString;
+}, z.core.$strict>;
+export declare const authSsoPasswordChangeBodySchema: z.ZodObject<{
+    ip: z.ZodOptional<z.ZodString>;
+    userAgent: z.ZodOptional<z.ZodString>;
+    client: z.ZodEnum<{
+        contentops: "contentops";
+        monitor: "monitor";
+        taskindex: "taskindex";
+    }>;
+    grant: z.ZodString;
+    currentPassword: z.ZodString;
+    newPassword: z.ZodString;
+}, z.core.$strict>;
+export declare const authSsoLogoutBodySchema: z.ZodObject<{
+    client: z.ZodEnum<{
+        contentops: "contentops";
+        monitor: "monitor";
+        taskindex: "taskindex";
+    }>;
+    grant: z.ZodString;
+}, z.core.$strict>;
+export declare const authSsoLogoutResponseSchema: z.ZodObject<{
+    ended: z.ZodBoolean;
+}, z.core.$strip>;
 export declare const authWebLinkBodySchema: z.ZodObject<{
     next: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>;
@@ -132,6 +330,10 @@ export declare const authWebLinkResponseSchema: z.ZodObject<{
 }, z.core.$strip>;
 export type AuthSsoRedeemResponse = z.infer<typeof authSsoRedeemResponseSchema>;
 export type AuthSsoCheckResponse = z.infer<typeof authSsoCheckResponseSchema>;
+export type SigninPerson = z.infer<typeof signinPersonSchema>;
+export type AuthSsoWaitingResponse = z.infer<typeof authSsoWaitingResponseSchema>;
+export type AuthSsoSignedInResponse = z.infer<typeof authSsoSignedInResponseSchema>;
+export type SigninRefusal = (typeof SIGNIN_REFUSALS)[number];
 export type AuthWebLinkResponse = z.infer<typeof authWebLinkResponseSchema>;
 export declare const signinRouteSchemas: {
     readonly authSso: {
@@ -238,10 +440,36 @@ export declare const signinRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                     }>;
                 }, z.core.$strip>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly authStaticReports: {
+        readonly auth: {
+            readonly kind: "public";
+        };
+        readonly tags: readonly ["auth"];
+        readonly summary: "For nginx's guard of the static reports on chatgoose. (`/customs/`, `/fyp/`): 204 for a signed-in live person";
+        readonly description: string;
+        readonly response: {
+            readonly 204: z.ZodNull;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -260,8 +488,8 @@ export declare const signinRouteSchemas: {
         readonly body: z.ZodObject<{
             client: z.ZodEnum<{
                 contentops: "contentops";
-                taskindex: "taskindex";
                 monitor: "monitor";
+                taskindex: "taskindex";
             }>;
             code: z.ZodString;
         }, z.core.$strict>;
@@ -274,11 +502,27 @@ export declare const signinRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                     }>;
                 }, z.core.$strip>;
                 owner: z.ZodBoolean;
                 grant: z.ZodString;
                 expiresAt: z.ZodString;
+                person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                    role: z.ZodString;
+                    state: z.ZodString;
+                    models: z.ZodArray<z.ZodString>;
+                    customsModels: z.ZodArray<z.ZodString>;
+                    products: z.ZodArray<z.ZodEnum<{
+                        hub: "hub";
+                        workboard: "workboard";
+                        contentops: "contentops";
+                        tasks: "tasks";
+                        monitor: "monitor";
+                    }>>;
+                }, z.core.$strip>>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
@@ -327,8 +571,8 @@ export declare const signinRouteSchemas: {
         readonly body: z.ZodObject<{
             client: z.ZodEnum<{
                 contentops: "contentops";
-                taskindex: "taskindex";
                 monitor: "monitor";
+                taskindex: "taskindex";
             }>;
             grant: z.ZodString;
         }, z.core.$strict>;
@@ -342,13 +586,429 @@ export declare const signinRouteSchemas: {
                         owner: "owner";
                         team_lead: "team_lead";
                         chatter: "chatter";
+                        content_manager: "content_manager";
                     }>;
                 }, z.core.$strip>;
                 owner: z.ZodBoolean;
                 expiresAt: z.ZodString;
+                person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                    role: z.ZodString;
+                    state: z.ZodString;
+                    models: z.ZodArray<z.ZodString>;
+                    customsModels: z.ZodArray<z.ZodString>;
+                    products: z.ZodArray<z.ZodEnum<{
+                        hub: "hub";
+                        workboard: "workboard";
+                        contentops: "contentops";
+                        tasks: "tasks";
+                        monitor: "monitor";
+                    }>>;
+                }, z.core.$strip>>>;
             }, z.core.$strip>, z.ZodObject<{
                 active: z.ZodLiteral<false>;
             }, z.core.$strip>], "active">;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly authSsoWaiting: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["auth"];
+        readonly summary: "What waits in Hub for the person of a live sign-in, for ContentOps' «Ждут вас» (needs signin:contentops)";
+        readonly description: string;
+        readonly body: z.ZodObject<{
+            client: z.ZodEnum<{
+                contentops: "contentops";
+                monitor: "monitor";
+                taskindex: "taskindex";
+            }>;
+            grant: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                active: z.ZodLiteral<true>;
+                matters: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    kind: z.ZodString;
+                    title: z.ZodString;
+                    link: z.ZodNullable<z.ZodString>;
+                    pageLabels: z.ZodArray<z.ZodString>;
+                    models: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                    object: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                        type: z.ZodString;
+                        id: z.ZodString;
+                    }, z.core.$strip>>>;
+                    openedAt: z.ZodString;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>, z.ZodObject<{
+                active: z.ZodLiteral<false>;
+            }, z.core.$strip>], "active">;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly authSsoPassword: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["auth"];
+        readonly summary: "ContentOps' own page signs a person in by login and password (needs signin:contentops)";
+        readonly description: string;
+        readonly body: z.ZodObject<{
+            ip: z.ZodOptional<z.ZodString>;
+            userAgent: z.ZodOptional<z.ZodString>;
+            client: z.ZodEnum<{
+                contentops: "contentops";
+                monitor: "monitor";
+                taskindex: "taskindex";
+            }>;
+            username: z.ZodString;
+            password: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                user: z.ZodObject<{
+                    id: z.ZodNumber;
+                    username: z.ZodString;
+                    role: z.ZodEnum<{
+                        owner: "owner";
+                        team_lead: "team_lead";
+                        chatter: "chatter";
+                        content_manager: "content_manager";
+                    }>;
+                }, z.core.$strip>;
+                owner: z.ZodBoolean;
+                grant: z.ZodString;
+                expiresAt: z.ZodString;
+                person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                    role: z.ZodString;
+                    state: z.ZodString;
+                    models: z.ZodArray<z.ZodString>;
+                    customsModels: z.ZodArray<z.ZodString>;
+                    products: z.ZodArray<z.ZodEnum<{
+                        hub: "hub";
+                        workboard: "workboard";
+                        contentops: "contentops";
+                        tasks: "tasks";
+                        monitor: "monitor";
+                    }>>;
+                }, z.core.$strip>>>;
+                result: z.ZodLiteral<"signed_in">;
+            }, z.core.$strip>, z.ZodObject<{
+                result: z.ZodLiteral<"refused">;
+                reason: z.ZodEnum<{
+                    owner: "owner";
+                    wrong: "wrong";
+                    locked: "locked";
+                    no_access: "no_access";
+                    link_unknown: "link_unknown";
+                    link_used: "link_used";
+                    link_expired: "link_expired";
+                    link_revoked: "link_revoked";
+                    not_here: "not_here";
+                    weak: "weak";
+                }>;
+                message: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>], "result">;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly authSsoLink: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["auth"];
+        readonly summary: "ContentOps' own page sets the password of an invitation or a reset link and signs the person in (needs signin:contentops)";
+        readonly description: string;
+        readonly body: z.ZodObject<{
+            ip: z.ZodOptional<z.ZodString>;
+            userAgent: z.ZodOptional<z.ZodString>;
+            client: z.ZodEnum<{
+                contentops: "contentops";
+                monitor: "monitor";
+                taskindex: "taskindex";
+            }>;
+            token: z.ZodString;
+            password: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                user: z.ZodObject<{
+                    id: z.ZodNumber;
+                    username: z.ZodString;
+                    role: z.ZodEnum<{
+                        owner: "owner";
+                        team_lead: "team_lead";
+                        chatter: "chatter";
+                        content_manager: "content_manager";
+                    }>;
+                }, z.core.$strip>;
+                owner: z.ZodBoolean;
+                grant: z.ZodString;
+                expiresAt: z.ZodString;
+                person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                    role: z.ZodString;
+                    state: z.ZodString;
+                    models: z.ZodArray<z.ZodString>;
+                    customsModels: z.ZodArray<z.ZodString>;
+                    products: z.ZodArray<z.ZodEnum<{
+                        hub: "hub";
+                        workboard: "workboard";
+                        contentops: "contentops";
+                        tasks: "tasks";
+                        monitor: "monitor";
+                    }>>;
+                }, z.core.$strip>>>;
+                result: z.ZodLiteral<"signed_in">;
+            }, z.core.$strip>, z.ZodObject<{
+                result: z.ZodLiteral<"refused">;
+                reason: z.ZodEnum<{
+                    owner: "owner";
+                    wrong: "wrong";
+                    locked: "locked";
+                    no_access: "no_access";
+                    link_unknown: "link_unknown";
+                    link_used: "link_used";
+                    link_expired: "link_expired";
+                    link_revoked: "link_revoked";
+                    not_here: "not_here";
+                    weak: "weak";
+                }>;
+                message: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>], "result">;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly authSsoPasswordChange: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["auth"];
+        readonly summary: "A person changes their password from ContentOps' profile (needs signin:contentops)";
+        readonly description: string;
+        readonly body: z.ZodObject<{
+            ip: z.ZodOptional<z.ZodString>;
+            userAgent: z.ZodOptional<z.ZodString>;
+            client: z.ZodEnum<{
+                contentops: "contentops";
+                monitor: "monitor";
+                taskindex: "taskindex";
+            }>;
+            grant: z.ZodString;
+            currentPassword: z.ZodString;
+            newPassword: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                user: z.ZodObject<{
+                    id: z.ZodNumber;
+                    username: z.ZodString;
+                    role: z.ZodEnum<{
+                        owner: "owner";
+                        team_lead: "team_lead";
+                        chatter: "chatter";
+                        content_manager: "content_manager";
+                    }>;
+                }, z.core.$strip>;
+                owner: z.ZodBoolean;
+                grant: z.ZodString;
+                expiresAt: z.ZodString;
+                person: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    code: z.ZodString;
+                    displayName: z.ZodString;
+                    role: z.ZodString;
+                    state: z.ZodString;
+                    models: z.ZodArray<z.ZodString>;
+                    customsModels: z.ZodArray<z.ZodString>;
+                    products: z.ZodArray<z.ZodEnum<{
+                        hub: "hub";
+                        workboard: "workboard";
+                        contentops: "contentops";
+                        tasks: "tasks";
+                        monitor: "monitor";
+                    }>>;
+                }, z.core.$strip>>>;
+                result: z.ZodLiteral<"signed_in">;
+            }, z.core.$strip>, z.ZodObject<{
+                result: z.ZodLiteral<"refused">;
+                reason: z.ZodEnum<{
+                    owner: "owner";
+                    wrong: "wrong";
+                    locked: "locked";
+                    no_access: "no_access";
+                    link_unknown: "link_unknown";
+                    link_used: "link_used";
+                    link_expired: "link_expired";
+                    link_revoked: "link_revoked";
+                    not_here: "not_here";
+                    weak: "weak";
+                }>;
+                message: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>], "result">;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly authSsoLogout: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["auth"];
+        readonly summary: "ContentOps' «Выйти»: ends the Hub session its own page opened (needs signin:contentops)";
+        readonly description: "A session the person opened in Hub or Workboard themselves stays. Idempotent.";
+        readonly body: z.ZodObject<{
+            client: z.ZodEnum<{
+                contentops: "contentops";
+                monitor: "monitor";
+                taskindex: "taskindex";
+            }>;
+            grant: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                ended: z.ZodBoolean;
+            }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;

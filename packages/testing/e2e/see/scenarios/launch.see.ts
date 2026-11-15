@@ -129,7 +129,6 @@ const JAMIE_CARD = {
     { id: 4, kind: 'promise', text: 'Вторая часть сета «Morning», когда вернётся из поездки', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '5100000104', messageAt: chatAt(20 * 60), source: 'chatter', author: 'Max', createdAt: chatAt(20 * 60 - 5), quote: { text: 'safe flight, handsome 💋 the second part waits until you’re back 😇', from: 'model', at: chatAt(20 * 60), media: false } },
   ],
   customs: [],
-  customPayments: [],
   serverNow: new Date().toISOString(),
 };
 

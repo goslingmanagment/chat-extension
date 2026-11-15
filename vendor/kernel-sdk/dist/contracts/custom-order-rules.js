@@ -5,13 +5,15 @@ import { CUSTOM_ORDER_ACTIONS, customOrderCardSchema, customOrderCode, } from ".
  * «📦 Описание заказа» as text. Hub's server enforces them
  * (apps/runtime services/custom-orders); Workboard and the demo read them.
  */
-const OPEN = ["recorded", "paid", "at_model", "partly", "shot", "revision", "refused"];
+const OPEN = ["recorded", "paid", "checked", "at_model", "partly", "shot", "revision", "refused"];
 const NOT_ENDED = [...OPEN, "given"];
 const ALL = [...NOT_ENDED, "closed", "cancelled"];
 const BOARD_ACTIONS = new Set(CUSTOM_ORDER_ACTIONS);
 export function isBoardAction(step) {
     return BOARD_ACTIONS.has(step);
 }
+/** The states a delivery moves the order from (to «сдан частично», «снят» or back to «правка»). */
+export const DELIVERY_MOVES_FROM = ["recorded", "paid", "checked", "at_model", "partly", "revision"];
 /** The states each step may be taken from. A step that moves the order names its new state in `STEP_TO`. */
 export const STEP_FROM = {
     edit: NOT_ENDED,
@@ -21,13 +23,15 @@ export const STEP_FROM = {
     // «100$ после готовности»: a payment may come at any step, after «отдали» too; never to a cancelled order.
     payment: [...NOT_ENDED, "closed"],
     unpay: NOT_ENDED,
-    at_model: ["recorded", "paid", "refused"],
+    // «Проверен» before the model; a routine «со слов из Telegram» may still put a recorded or paid order there.
+    checked: ["recorded", "paid"],
+    at_model: ["recorded", "paid", "checked", "refused"],
     partly: ["at_model", "partly", "revision"],
     shot: ["at_model", "partly", "revision"],
     // A fan's complaint after «отдали» is a revision too; one more request while it is in revision as well.
     revision: ["partly", "shot", "revision", "given"],
     refused: ["at_model", "partly", "revision"],
-    given: ["recorded", "paid", "at_model", "partly", "shot", "revision"],
+    given: ["recorded", "paid", "checked", "at_model", "partly", "shot", "revision"],
     close: ["given"],
     cancel: OPEN,
     // A delivery is kept in every state (its sender must know it is in the hub); it moves the order only from the
@@ -36,10 +40,10 @@ export const STEP_FROM = {
     revision_done: NOT_ENDED,
     message: ALL,
     retract: ALL,
+    settle: DELIVERY_MOVES_FROM,
 };
-/** The states a delivery moves the order from (to «сдан частично», «снят» or back to «правка»). */
-export const DELIVERY_MOVES_FROM = ["recorded", "paid", "at_model", "partly", "revision"];
 export const STEP_TO = {
+    checked: "checked",
     at_model: "at_model",
     partly: "partly",
     shot: "shot",
@@ -56,6 +60,7 @@ export const STEP_TO = {
 export const CUSTOM_STATE_WORDS = {
     recorded: "Записан",
     paid: "Оплачен",
+    checked: "Проверен",
     at_model: "У модели",
     partly: "Сдан частично",
     shot: "Снят",
@@ -65,6 +70,13 @@ export const CUSTOM_STATE_WORDS = {
     closed: "Закрыт",
     cancelled: "Отменён",
 };
+/** Whether the order is of the viewer's realm (an order of no known page is the live agency's). */
+function ofViewersRealm(viewer, order) {
+    if (viewer.realm === undefined)
+        return true;
+    const test = order.pageId !== null && viewer.realm.testPageIds.includes(order.pageId);
+    return test === viewer.realm.test;
+}
 /** The lead's steps belong to the lead, the owner and a team lead. */
 export function leadsSteps(viewer) {
     return viewer.lead || viewer.role === "owner" || viewer.role === "team_lead";
@@ -74,11 +86,49 @@ export function leadsSteps(viewer) {
  * those of no known page; a chatter only the orders of the pages they reach.
  */
 export function seesOrder(viewer, order) {
+    if (!ofViewersRealm(viewer, order))
+        return false;
     if (viewer.lead || viewer.role === "owner")
         return true;
     if (order.pageId === null)
         return viewer.role === "team_lead";
     return viewer.pageIds.includes(order.pageId);
+}
+export function customPhaseOf(state) {
+    if (state === "recorded" || state === "paid")
+        return "check";
+    if (state === "checked" || state === "at_model" || state === "partly" || state === "revision" || state === "refused")
+        return "shoot";
+    if (state === "shot")
+        return "give";
+    return null;
+}
+/** Where a phase is done. */
+export function customPhaseProduct(phase) {
+    return phase === "shoot" ? "contentops" : "workboard";
+}
+/** The content side's steps: whoever leads the shooting takes them. */
+const SHOOT_STEPS = new Set(["at_model", "partly", "shot", "revision", "refused"]);
+/** Whether the viewer leads a phase of the order (the owner always; an order of no page: the person right, a team lead). */
+export function leadsPhase(viewer, order, phase) {
+    if (viewer.role === "owner")
+        return true;
+    if (viewer.leads === undefined || order.pageId === null)
+        return leadsSteps(viewer);
+    return viewer.leads[phase].includes(order.pageId);
+}
+/**
+ * Whether the viewer works a page: the owner every page; else the login's own pages (`workPageIds`), or a page whose
+ * order's step they lead. An order of no known page: the lead's steps' holders.
+ */
+export function worksOnPage(viewer, pageId) {
+    if (viewer.role === "owner")
+        return true;
+    if (pageId === null)
+        return leadsSteps(viewer);
+    if ((viewer.workPageIds ?? viewer.pageIds).includes(pageId))
+        return true;
+    return viewer.leads !== undefined && (viewer.leads.check.includes(pageId) || viewer.leads.shoot.includes(pageId));
 }
 /** A chatter's steps: a payment, «отдали»; on their own order also its card, its fan and «отменить». */
 const CHATTER_STEPS = new Set(["payment", "given"]);
@@ -89,10 +139,24 @@ export function mayTakeStep(viewer, order, step) {
         return false;
     if (!STEP_FROM[step].includes(order.state))
         return false;
-    if (leadsSteps(viewer))
+    if (viewer.leads !== undefined) {
+        const check = leadsPhase(viewer, order, "check");
+        const shoot = leadsPhase(viewer, order, "shoot");
+        // «Проверен» is the check's; the content side's steps the shooting's (a fan's complaint after «отдан» either's).
+        if (step === "checked")
+            return check;
+        if (SHOOT_STEPS.has(step))
+            return shoot || (step === "revision" && order.state === "given" && check);
+        // The card's fixes, its fan, its deadline, a payment, «отменить», «закрыть»: whoever leads a step of it.
+        if (check || shoot)
+            return true;
+    }
+    else if (leadsSteps(viewer)) {
         return true;
+    }
+    // «Оплата» and «отдан»: the chatter who took the order, or whoever works its page — never a reader of the team.
     if (CHATTER_STEPS.has(step))
-        return true;
+        return order.acceptedByUserId === viewer.userId || worksOnPage(viewer, order.pageId);
     return OWN_ORDER_STEPS.has(step) && order.acceptedByUserId === viewer.userId;
 }
 /** The steps the viewer may take on the order now, in the board's order. */
@@ -108,9 +172,13 @@ export function wantedParts(card) {
         parts.push("photos");
     return parts.length === 0 ? ["photos"] : parts;
 }
+/** The parts the order still waits for: the card orders them and they are not ready in the current round. */
+export function waitedParts(order) {
+    return wantedParts(order.card).filter((part) => !order.partsDone.includes(part));
+}
 /** Days past the deadline while the model has not delivered it whole (as ContentOps counts «просрочено»); null — not overdue. */
 export function overdueDaysOf(order, now) {
-    if (!["recorded", "paid", "at_model", "partly", "revision"].includes(order.state) || order.deadlineOn === null)
+    if (!["recorded", "paid", "checked", "at_model", "partly", "revision"].includes(order.state) || order.deadlineOn === null)
         return null;
     const today = moscowDay(now);
     if (today <= order.deadlineOn)

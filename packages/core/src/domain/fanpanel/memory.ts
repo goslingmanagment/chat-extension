@@ -1,13 +1,15 @@
 // «Память» of the fan panel (Chat Memory week 2): the hub's card of the person across pages as the panel shows it.
 // Pure. Pages most paid first; suggestions with why Hub thinks so and the person's «Да» / «Нет»; facts by kind, an empty
 // kind said as «не знаю» (the roadmap's rule: where the chat says nothing, the card says so instead of guessing).
-// Chat Memory week 4: the customs, open first; on a page the person works an open one offers the card's suggestions —
-// «Оплачен» by a tip no custom took (a custom of the asked page only: the tips are that page's), «Отдали» by media the
-// page sent since — and «Отменить». Hub sets nothing by itself.
+// Chat Memory week 4: the customs, open first. Since products package R5 they are Workboard's orders, said in
+// Workboard's words (`@hub/look`): the step, who has it, the deadline; «Отдан» when the board lets the person press it;
+// the order's card in Workboard. «Записать кастом» and «Спросить» open Workboard's own windows over the site.
 
+import { customDeadlineWords, customLeaderWords } from '@hub/look';
 import { PLATFORM_TITLES } from '@cg/contracts/hosts';
+import { CUSTOM_ORDER_CODE } from '@cg/contracts/report-board';
 import { FAN_CUSTOM_STATES, FAN_FACT_KINDS, type FanCard, type FanCardCustom, type FanCardPage } from '@cg/contracts/hub';
-import { type FanCustomPaymentVM, type FanCustomStepVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemorySuggestionVM, type FanMemoryVM, type Msg, type UiAction } from '@cg/contracts/vm';
+import { type FanCustomStepVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemorySuggestionVM, type FanMemoryVM, type Msg, type UiAction } from '@cg/contracts/vm';
 
 /** Every page of the person as the panel shows it. */
 export function memoryPage(page: FanCardPage): FanMemoryPageVM {
@@ -45,6 +47,8 @@ export interface MemoryInput {
   readonly openOf: (pageLabel: string) => UiAction | null;
   /** The hub serves customs (`fan-customs-v1`). */
   readonly customs?: boolean;
+  /** This tab opens Workboard's windows over the site (package R5): «Записать кастом», «Спросить». */
+  readonly forms?: boolean;
 }
 
 const OPEN_CUSTOM: readonly string[] = ['ordered', 'paid'];
@@ -55,28 +59,31 @@ export function customStep(custom: { readonly stepLabel?: string | undefined; re
   return { label: custom.stepLabel, at: custom.stepAt ?? null };
 }
 
-/** «Кастомы» of the card: `busy` keys are `custom:<id>` and `custom:new` (a record on its way). */
-export function customsModel(card: FanCard, busy: ReadonlySet<string>): FanMemoryCustomsVM {
-  const payments: FanCustomPaymentVM[] = (card.customPayments ?? []).map((payment) => ({ ref: payment.paymentRef, amount: payment.amountMills, at: payment.at, note: payment.note }));
+/**
+ * «Кастомы» of the card, as Workboard says them (products package R5): `busy` keys are `custom:<id>` («Отдан» on its
+ * way). `forms` — this tab can open Workboard's form and question window over the site.
+ */
+export function customsModel(card: FanCard, busy: ReadonlySet<string>, forms: boolean): FanMemoryCustomsVM {
   const custom = (item: FanCardCustom): FanCustomVM => {
-    const open = item.granted && OPEN_CUSTOM.includes(item.state);
     const state = (FAN_CUSTOM_STATES as readonly string[]).includes(item.state) ? (item.state as FanCustomVM['state']) : null;
+    const code = item.code !== undefined && CUSTOM_ORDER_CODE.test(item.code) ? item.code : null;
+    const deadline = item.deadlineOn === undefined || item.orderState === undefined ? null : customDeadlineWords({ deadlineOn: item.deadlineOn, overdueDays: item.overdueDays ?? null, state: item.orderState }, card.serverNow);
     return {
       id: item.id,
       description: item.description,
       pageLabel: item.pageLabel,
       state,
       price: item.priceMills,
-      paid: item.paymentMills,
       paidAt: item.paidAt,
       deliveredAt: item.deliveredAt,
       createdBy: item.createdBy,
       createdAt: item.createdAt,
-      code: item.code ?? null,
+      code,
       step: customStep(item),
-      payWith: open && item.state === 'ordered' && item.pageLabel === card.pageLabel ? payments.map((payment) => ({ ...payment, action: { type: 'ChangeFanCustom', customId: item.id, action: 'paid', ref: payment.ref } })) : [],
-      deliveredBy: open ? item.deliveryCandidates.map((candidate) => ({ ref: candidate.messageRef, at: candidate.at, mediaCount: candidate.mediaCount, price: candidate.priceMills, action: { type: 'ChangeFanCustom', customId: item.id, action: 'delivered', ref: candidate.messageRef } })) : [],
-      cancel: open ? { type: 'ChangeFanCustom', customId: item.id, action: 'cancel' } : null,
+      leader: item.leader === undefined ? null : customLeaderWords(item.leader),
+      deadline,
+      give: code !== null && item.granted && item.mayGive === true ? { type: 'GiveFanCustom', customId: item.id, code } : null,
+      open: code === null ? null : { type: 'OpenWorkboardCustom', code },
       busy: busy.has(`custom:${String(item.id)}`),
     };
   };
@@ -84,10 +91,11 @@ export function customsModel(card: FanCard, busy: ReadonlySet<string>): FanMemor
   // The open first, as the hub sends them; the ended after.
   const ordered = [...items.filter((item) => OPEN_CUSTOM.includes(item.state)), ...items.filter((item) => !OPEN_CUSTOM.includes(item.state))];
   const asked = card.pages.find((page) => page.pageLabel === card.pageLabel);
-  return { items: ordered.map(custom), payments, record: asked === undefined || asked.granted ? { busy: busy.has('custom:new') } : null };
+  const offered = forms && (asked === undefined || asked.granted);
+  return { items: ordered.map(custom), record: offered ? { record: { type: 'RecordFanCustom', fanRef: card.fanRef }, ask: { type: 'AskAboutFan', fanRef: card.fanRef } } : null };
 }
 
-export function memoryModel({ card, busy, openOf, customs }: MemoryInput): Omit<FanMemoryVM, 'view' | 'error'> {
+export function memoryModel({ card, busy, openOf, customs, forms }: MemoryInput): Omit<FanMemoryVM, 'view' | 'error'> {
   const suggestions: FanMemorySuggestionVM[] = card.suggestions.map((suggestion) => {
     const key = `link:${suggestion.platform}:${suggestion.fanRef}`;
     const decide = (decision: 'same' | 'different'): UiAction => ({ type: 'DecideFanLink', otherPlatform: suggestion.platform, otherFanRef: suggestion.fanRef, decision });
@@ -131,6 +139,6 @@ export function memoryModel({ card, busy, openOf, customs }: MemoryInput): Omit<
     pages: [...card.pages].sort((a, b) => b.spentMills - a.spentMills).map(memoryPage),
     suggestions,
     facts,
-    ...(customs === true ? { customs: customsModel(card, busy) } : {}),
+    ...(customs === true ? { customs: customsModel(card, busy, forms === true) } : {}),
   };
 }

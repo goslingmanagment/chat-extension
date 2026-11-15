@@ -7,7 +7,7 @@
  * Two copies exist in Hub and both are GENERATED from here (`node --import tsx/esm
  * packages/look/generate.ts`; CI checks they are fresh):
  *   - packages/ui/src/styles/tokens.css   `--ui-*`, Workboard and the shared components;
- *   - apps/dashboard/src/styles/tokens.css `--color-*` and the type scale under
+ *   - packages/ui/src/styles/console-tokens.css `--color-*` and the type scale under
  *     Tailwind's `@theme static`, the console.
  * Other repositories take the values through `scripts/vendor-look.mjs` (the
  * extension keeps its own dock palette; ContentOps and TaskIndex keep their
@@ -100,6 +100,22 @@ export const COLORS = {
     onDanger: { value: both("#ffffff", "#1a0a0a"), console: "on-danger", note: "Legacy: text on a danger fill." },
     dangerHover: { value: both("#a92f2f", "#f59696"), console: "danger-hover", note: "Legacy: danger under the pointer." },
 };
+/**
+ * A product's own accent in the one system (products plan §2.1): Hub keeps the ink above; Workboard takes the
+ * ChatGoose family's clay (the extension's `--clay #d97757`), darkened where text must clear 4.5:1 on the sheet
+ * (#ad5230 on white: 5.2:1; white on the dark fill #a8502e: 5.4:1). Only the accent changes: the current item of the
+ * menu, the main button, a link, focus, a selected row's ground and line. Surfaces, tables and charts stay as they are.
+ * Workboard's copy sets them under `:root[data-product="workboard"]` (the app marks its <html>).
+ */
+export const PRODUCT_ACCENTS = {
+    workboard: {
+        accent: both("#ad5230", "#e08566"),
+        accentFill: both("#ad5230", "#a8502e"),
+        accentFillHover: both("#964526", "#b85a35"),
+        accentSoft: both("#fbefe9", "#33231b"),
+        accentLine: both("#efc9b8", "#61412f"),
+    },
+};
 /** Inter 400/500/600, the system's sans after it. */
 export const FONT = {
     family: "\"Inter\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
@@ -158,6 +174,7 @@ export const LAYERS = { sticky: 4, header: 5, drawer: 10, menu: 20, modal: 30, t
 /** Every value above in one object: what `tokens.json` of a vendored copy holds. */
 export const TOKENS = {
     colors: COLORS,
+    productAccents: PRODUCT_ACCENTS,
     font: FONT,
     typeScale: TYPE_SCALE,
     uiTypeSizes: UI_TYPE_SIZES,

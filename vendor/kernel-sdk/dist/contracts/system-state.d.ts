@@ -162,8 +162,8 @@ export declare const systemStateRoutineSchema: z.ZodObject<{
         ok: "ok";
         skipped: "skipped";
         unchecked: "unchecked";
-        empty: "empty";
         silent: "silent";
+        empty: "empty";
         failing: "failing";
         empty_long: "empty_long";
         failed_once: "failed_once";
@@ -305,8 +305,8 @@ export declare const systemStateResponseSchema: z.ZodObject<{
             ok: "ok";
             skipped: "skipped";
             unchecked: "unchecked";
-            empty: "empty";
             silent: "silent";
+            empty: "empty";
             failing: "failing";
             empty_long: "empty_long";
             failed_once: "failed_once";
@@ -343,6 +343,10 @@ export declare const systemStateResponseSchema: z.ZodObject<{
             unchecked: "unchecked";
             attention: "attention";
         }>;
+    }, z.core.$strip>>;
+    sandbox: z.ZodNullable<z.ZodObject<{
+        people: z.ZodNumber;
+        lastWorkedAt: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
     limits: z.ZodObject<{
         copyStaleHours: z.ZodNumber;

@@ -210,7 +210,7 @@ export declare const chatterStatsRouteSchemas: {
     };
     readonly teamChatterStats: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "A chatter's statistics, as their cabinet shows them, for the owner and team leads";
@@ -427,7 +427,7 @@ export declare const chatterStatsRouteSchemas: {
     };
     readonly teamShiftSales: {
         readonly auth: {
-            readonly kind: "session";
+            readonly kind: "any-session";
         };
         readonly tags: readonly ["client"];
         readonly summary: "The team's shifts of the window with their money: by day, by chatter, against the window before";
@@ -570,11 +570,11 @@ export declare const chatterStatsRouteSchemas: {
                         visitBy: import("zod").ZodNullable<import("zod").ZodString>;
                         home: import("zod").ZodOptional<import("zod").ZodEnum<{
                             person: "person";
-                            waiting: "waiting";
-                            visit: "visit";
                             pot: "pot";
-                            decide: "decide";
                             nobody: "nobody";
+                            waiting: "waiting";
+                            decide: "decide";
+                            visit: "visit";
                         }>>;
                     }, import("zod/v4/core").$strip>>;
                     personNetMills: import("zod").ZodOptional<import("zod").ZodNumber>;

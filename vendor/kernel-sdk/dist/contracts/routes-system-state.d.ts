@@ -74,8 +74,8 @@ export declare const systemStateRouteSchemas: {
                         ok: "ok";
                         skipped: "skipped";
                         unchecked: "unchecked";
-                        empty: "empty";
                         silent: "silent";
+                        empty: "empty";
                         failing: "failing";
                         empty_long: "empty_long";
                         failed_once: "failed_once";
@@ -112,6 +112,10 @@ export declare const systemStateRouteSchemas: {
                         unchecked: "unchecked";
                         attention: "attention";
                     }>;
+                }, import("zod/v4/core").$strip>>;
+                sandbox: import("zod").ZodNullable<import("zod").ZodObject<{
+                    people: import("zod").ZodNumber;
+                    lastWorkedAt: import("zod").ZodNullable<import("zod").ZodString>;
                 }, import("zod/v4/core").$strip>>;
                 limits: import("zod").ZodObject<{
                     copyStaleHours: import("zod").ZodNumber;

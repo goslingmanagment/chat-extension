@@ -25,6 +25,7 @@
 import { MOSCOW_TIME_ZONE, diffBusinessDays, isValidBusinessDateString, nextBusinessDate, platforms, userRoles, } from "../shared/index";
 import { z } from "zod";
 import { businessDate, errorResponseSchema, intId, isoTimestamp, mills } from "./primitives";
+import { shiftReportPulseSchema } from "./shift-report-board";
 /** Open token: the wire form of every growing vocabulary (reason, flag, capability, platform, role…). */
 export const clientOpenToken = z.string().min(1).max(64);
 /**
@@ -2283,6 +2284,12 @@ export const clientActivityResponseSchema = z.object({
      * only informs): the number on the extension's icon. Absent when it could not be counted; an older extension ignores it.
      */
     matters: z.number().int().nonnegative().optional(),
+    /**
+     * The «Отчёт» board (package R): the person's shift that needs them most, its phase and whether it waits for them
+     * (the dot on the fifth button). Null — a person without the board (`submits_shift` off): the button is not drawn.
+     * Absent from an older server.
+     */
+    report: shiftReportPulseSchema.nullable().optional(),
     serverNow: isoTimestamp,
 });
 // ── The always-on ChatSpace tab (clientChatspaceTabState) ─────────────────────
@@ -2638,6 +2645,17 @@ export const clientFanCustomSchema = z.object({
         priceMills: mills.nullable(),
     })),
     ...clientCustomStepShape,
+    /**
+     * Products package R5 (the fan panel shows the order as Workboard does; all absent from an older Hub): the order's own
+     * state (CUSTOM_ORDER_STATES), its deadline (`YYYY-MM-DD`) and days overdue, who leads its step now — the panel says
+     * them in @agency_hub_core/look's words (customDeadlineWords, customLeaderWords) — and whether «Отдан» is this
+     * person's to press now (the board's own rule: `customOrderAct` `given`).
+     */
+    orderState: z.string().optional(),
+    deadlineOn: z.string().nullable().optional(),
+    overdueDays: z.number().int().nullable().optional(),
+    leader: z.object({ name: z.string().nullable(), product: z.string() }).nullable().optional(),
+    mayGive: z.boolean().optional(),
 });
 export const clientFanCardResponseSchema = z.object({
     pageLabel: z.string(),
@@ -3110,21 +3128,6 @@ export const clientHandoffResponseSchema = z.object({
     })),
     serverNow: isoTimestamp,
 });
-export const teamCustomsResponseSchema = z.object({
-    /** Open customs (ordered or paid) of the pages the viewer reaches, the oldest payment first. */
-    customs: z.array(z.object({
-        id: intId,
-        pageLabel: z.string(),
-        fanRef: clientFanRefSchema,
-        description: z.string(),
-        priceMills: mills.nullable(),
-        state: clientOpenToken,
-        paidAt: isoTimestamp.nullable(),
-        createdBy: z.string(),
-        createdAt: isoTimestamp,
-    })),
-    serverNow: isoTimestamp,
-});
 /** Chat Memory week 5: the longest window of the chatter numbers. */
 export const CHATTER_NUMBERS_MAX_DAYS = 31;
 /**
@@ -3133,9 +3136,11 @@ export const CHATTER_NUMBERS_MAX_DAYS = 31;
  */
 export const chatterNumbersSchema = z.object({
     workedMinutes: count,
-    /** Credited by confirmed shift reports; null — not confirmed (a week: the confirmed shifts only). */
+    /**
+     * Was: credited by the confirmed shift reports (Chat Memory week 4), and per worked hour of the confirmed shifts.
+     * Those reports are gone — a shift's report is its hand-in — so both are always null; they stay for the answer's shape.
+     */
     revenueMills: mills.nullable(),
-    /** `revenueMills` per worked hour of the confirmed shifts. */
     revenuePerHourMills: mills.nullable(),
     fansWritten: count,
     /** Of `fansWritten`: paid on the page after the chatter's first message to them in the shift, before its end. */
@@ -3168,17 +3173,80 @@ export const chatterNumbersSchema = z.object({
 export const teamChatterNumbersQuerySchema = z.object({
     from: isoTimestamp.optional(),
     to: isoTimestamp.optional(),
-    /** Only this person: one person's shifts are read in seconds, everyone's take most of a minute. */
+    /** Only this person (the person behind this login, every login of theirs): one person's shifts are read in seconds. */
     userId: z.coerce.number().int().positive().optional(),
+});
+/**
+ * A period's quality, «в среднем за смену»: each number the plain average over the shifts that have one (the reply
+ * median over shifts with replies, «ИИ без правки» over shifts with texts). The rules: `shiftQualityOf` and
+ * `averageShiftQuality` (shift-review-rules.ts).
+ */
+export const periodQualitySchema = z.object({
+    /** The shifts averaged. */
+    shifts: count,
+    replyMedianSeconds: count.nullable(),
+    /** Not rounded: «1,4 в среднем за смену». */
+    unansweredAtEnd: z.number().nonnegative().nullable(),
+    /** 0…1. */
+    aiUneditedShare: z.number().min(0).max(1).nullable(),
+});
+export const accountShiftNumbersQuerySchema = z.object({
+    /** [from, to): the shifts whose middle falls in it; default the last 7 days, at most 31. */
+    from: isoTimestamp.optional(),
+    to: isoTimestamp.optional(),
+});
+/**
+ * The signed-in person's own numbers (products plan §5, package N): every login of theirs, all pages. Beside each
+ * quality number the team's average of the same period: the team is the person's (the models of their working pages,
+ * services/teams.ts), the average is of its closed shifts with stored numbers — never a list of people. Sales by the
+ * rule only: the reports' sums stay the reports' (`accountReports`). No pay here.
+ */
+export const accountShiftNumbersResponseSchema = z.object({
+    from: isoTimestamp,
+    to: isoTimestamp,
+    personId: intId.nullable(),
+    period: z.object({
+        shifts: count,
+        workedMinutes: count,
+        quality: periodQualitySchema,
+        /** The period's numbers together (`teamChatterNumbers`' week). */
+        numbers: chatterNumbersSchema,
+    }),
+    /** The team's average; null — the person is in no team, or no shift of it has stored numbers yet. */
+    team: periodQualitySchema.extend({ people: count }).nullable(),
+    shifts: z.array(z.object({
+        userId: intId,
+        startedAt: isoTimestamp,
+        endedAt: isoTimestamp,
+        ongoing: z.boolean(),
+        pages: z.array(z.string()),
+        workedMinutes: count,
+        quality: z.object({
+            replyMedianSeconds: count.nullable(),
+            unansweredAtEnd: count,
+            aiUneditedShare: z.number().min(0).max(1).nullable(),
+        }),
+        numbers: chatterNumbersSchema,
+    })),
+    serverNow: isoTimestamp,
 });
 export const teamChatterNumbersResponseSchema = z.object({
     from: isoTimestamp,
     to: isoTimestamp,
+    /** One line a PERSON (the registry's `person_logins`): a person with two logins is one line of both logins' shifts. */
     chatters: z.array(z.object({
+        /** The person's login that worked the most shifts of the answer: the line's login. */
         userId: intId,
         username: z.string(),
+        /** The registry's person; null — a login of nobody (a person of its own). */
+        personId: intId.nullable(),
+        /** Every login of the person in the answer, `userId` first. */
+        userIds: z.array(intId),
+        /** `unconfirmedShifts` is every shift, and a shift's `confirmed` always false: the confirmed reports are gone (`revenueMills`). */
         week: chatterNumbersSchema.extend({ shifts: count, unconfirmedShifts: count }),
         shifts: z.array(z.object({
+            /** The login that worked the shift. */
+            userId: intId,
             startedAt: isoTimestamp,
             endedAt: isoTimestamp,
             ongoing: z.boolean(),
@@ -3826,7 +3894,7 @@ export const clientRouteSchemas = {
         },
     },
     teamShifts: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "The actual shifts of the team, from the chat extension's activity",
         description: "A cabinet route for the owner and team leads (cookie session); read-only and database-only. A "
@@ -3863,7 +3931,7 @@ export const clientRouteSchemas = {
         },
     },
     teamAuthorship: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "How many of each page's outgoing messages have an author, per day",
         description: "A cabinet route for the owner and team leads (cookie session); read-only and database-only. Per "
@@ -3880,7 +3948,7 @@ export const clientRouteSchemas = {
         },
     },
     teamEmptyHours: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "Empty hours of each page and who waited in them",
         description: "The owner and team leads, for the pages they reach; read-only and database-only. Per page over the "
@@ -3897,7 +3965,7 @@ export const clientRouteSchemas = {
         },
     },
     teamGreetings: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "Greetings of new subscribers and replies to broadcasts",
         description: "The owner and team leads, for the pages they reach; read-only and database-only. Per page over the "
@@ -4178,7 +4246,7 @@ export const clientRouteSchemas = {
         },
     },
     teamWinBackResults: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "Win-back results by approach and chatter",
         description: "A cabinet route for the owner and team leads; read-only. For the picks of the last `days` on the "
@@ -4259,7 +4327,9 @@ export const clientRouteSchemas = {
         summary: "A chatter marks a custom paid, delivered, cancelled, or edits it",
         description: "Database-only. A device token's; the custom must be of the fan's card and of a page the caller works. "
             + "`paid` takes a tip of `customPayments`, `delivered` a message of the custom's `deliveryCandidates` (else 409 "
-            + "`not_suggested`). A delivered or cancelled custom is final: a change answers `changed: false`.",
+            + "`not_suggested`). A delivered or cancelled custom is final: a change answers `changed: false`. A step that is "
+            + "not the caller's — cancelling or editing an order another person took — is 409 `not_allowed`, as on the board; "
+            + "their own order they cancel at any step before it is given.",
         params: clientFanCustomParamsSchema,
         body: clientFanCustomChangeBodySchema,
         response: {
@@ -4271,20 +4341,24 @@ export const clientRouteSchemas = {
             409: errorResponseSchema,
         },
     },
-    teamCustoms: {
-        auth: { kind: "session" },
+    accountShiftNumbers: {
+        auth: { kind: "any-session" },
         tags: ["client"],
-        summary: "Open customs of the pages the viewer reaches",
-        description: "A cabinet route for the owner and team leads; read-only. Customs ordered or paid and not delivered, "
-            + "the oldest payment first, up to 200.",
+        summary: "The caller's own shift numbers, with the team's average beside each quality number",
+        description: "Workboard «Мои смены» (and «Сегодня»); read-only, database only; the session's person, every login of "
+            + "theirs, a narrow session too. Per shift and for the period: the reply median, the fans left without an answer, "
+            + "«ИИ без правки» (the review's rules) and the period's numbers; `team` — the average of the person's team for the "
+            + "same period, never a list of people. A guide, not a basis for pay.",
+        querystring: accountShiftNumbersQuerySchema,
         response: {
-            200: teamCustomsResponseSchema,
+            200: accountShiftNumbersResponseSchema,
+            400: errorResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
         },
     },
     teamChatterNumbers: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "The eight numbers of each chatter's shifts and week",
         description: "The owner and team leads, for the pages they reach; read-only. Shifts are week 1's actual shifts that "
@@ -4300,7 +4374,7 @@ export const clientRouteSchemas = {
         },
     },
     teamSalesPpv: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "PPV conversion by page, chatter and price",
         description: "The owner and team leads, for the pages they reach; read-only, database only. Personal PPVs sent in the "
@@ -4315,7 +4389,7 @@ export const clientRouteSchemas = {
         },
     },
     teamSalesReplies: {
-        auth: { kind: "session" },
+        auth: { kind: "any-session" },
         tags: ["client"],
         summary: "How fast the page answered a fan, against whether the fan bought within 24 hours",
         description: "The owner and team leads, for the pages they reach; read-only, database only. Replies of the last "

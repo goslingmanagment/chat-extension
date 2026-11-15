@@ -227,7 +227,8 @@ const personFields = {
 /** An invitation made with the person in the same call: the login (no password yet), its pages, the link. */
 export const personInviteInputSchema = z.object({
     username: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "username may contain latin letters, digits, dots, underscores and dashes"),
-    role: z.enum(["chatter", "team_lead"]).optional(),
+    /** The login's role: a content manager's login opens ContentOps alone (products plan §4.1). */
+    role: z.enum(["chatter", "team_lead", "content_manager"]).optional(),
     /** The pages the login may open (access), which may be wider than the working pages. */
     pageLabels: z.array(z.string().min(1)).max(100),
     expiresInHours: z.number().int().min(1).max(720).optional(),
@@ -257,6 +258,12 @@ export const adminPersonCreateBodySchema = z.object({
     invite: personInviteInputSchema.optional(),
     /** Pay terms set in the same transaction (a human only; one per model). Money: the owner's only — never in a proposal. */
     payTerms: z.array(adminPersonPayTermBodySchema).max(20).optional(),
+    /**
+     * «Ведёт команды» (products package W): a team lead invited as the lead of these models' teams — the `lead` records
+     * written in the same transaction, so the lead's first «Сегодня» names their teams. A team lead only; the owner's
+     * word, never in a proposal. Models of the person's realm only.
+     */
+    leadModelSlugs: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
 });
 export const adminPersonUpdateBodySchema = z.object({
     displayName: personFields.displayName.optional(),
@@ -288,7 +295,7 @@ const proposalWords = {
     sourceRef: z.string().trim().min(1).max(500).optional(),
 };
 const proposalUpdate = z.object({ kind: z.literal("update"), personCode: personCodeSchema, change: adminPersonUpdateBodySchema });
-const proposalCreate = z.object({ kind: z.literal("create"), person: adminPersonCreateBodySchema.omit({ invite: true, payTerms: true }) });
+const proposalCreate = z.object({ kind: z.literal("create"), person: adminPersonCreateBodySchema.omit({ invite: true, payTerms: true, leadModelSlugs: true }) });
 /** What a proposal changes: the owner's edit of an existing person, or a new person (never an invitation, never pay terms). */
 export const personProposalChangeSchema = z.discriminatedUnion("kind", [proposalUpdate, proposalCreate]);
 export const agentPersonProposalBodySchema = z.discriminatedUnion("kind", [

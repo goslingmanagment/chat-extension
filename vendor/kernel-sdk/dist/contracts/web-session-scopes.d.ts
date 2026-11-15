@@ -19,9 +19,11 @@
  * anything else. Never on it: a route of the account's credentials (devices,
  * password), where a person is paid, any owner or team-lead route, the
  * hand-off's own mint (a narrow session never travels to another name).
- * Services read a narrow session as a chatter whatever the role.
+ * A read on it that could carry where a person is paid leaves it out for a
+ * narrow session (the hand-off's integration test walks every read of the
+ * list for it). Services read a narrow session as a chatter whatever the role.
  */
-export declare const NARROW_WEB_SESSION_OPERATIONS: readonly ["me", "accountChatterStats", "accountReports", "mattersList", "shiftReport", "shiftReportsList", "shiftReportClaimable", "shiftReportLineSet", "shiftReportCommentSet", "shiftReportOffPlatformAdd", "shiftReportOffPlatformWithdraw", "shiftReportSubmit", "saleClaimAnswer", "saleChain", "accountPay", "customOrdersBoard", "customOrder", "customOrderCreate", "customOrderAct", "customSaleDismiss", "pages", "accountStart"];
+export declare const NARROW_WEB_SESSION_OPERATIONS: readonly ["me", "accountChatterStats", "accountShiftNumbers", "accountReports", "mattersList", "mattersWaiting", "accountShifts", "workboardToday", "shiftReport", "shiftReportsList", "shiftReportClaimable", "shiftReportLineSet", "shiftReportCommentSet", "shiftReportOffPlatformAdd", "shiftReportOffPlatformWithdraw", "shiftReportSubmit", "shiftReportCurrent", "shiftReportConfirm", "shiftReportReopen", "shiftReportReopenCancel", "shiftReportResend", "shiftReportAsk", "shiftReportAskWithdraw", "shiftReportProposalAnswer", "shiftReportSightingAdd", "shiftReportPostCopied", "saleClaimAnswer", "saleChain", "accountPay", "shiftReportNotes", "customOrdersBoard", "customOrder", "customOrderCreate", "customOrderAct", "customSaleDismiss", "pages", "accountStart", "teamPeople", "teamShifts", "teamShiftSales", "teamChatterStats", "teamChatterNumbers", "teamAuthorship", "teamSalesPpv", "teamSalesReplies", "teamSalesList", "teamQuestions", "teamQuestionAsk", "teamSwaps", "teamQuestionClose", "learnPages", "learnPage", "teamEmptyHours", "teamGreetings", "teamWinBackResults", "teamShiftReview", "reviewNotes", "spenders", "spenderDetail", "spenderSeries", "spenderBatch", "pageSpenderAutoLists", "pageSpenderAutoListDetail", "pageSubscribers", "pageFollowers", "pageDeletedFans", "pageFanCard", "pageFanDetail", "pageFanProfile", "pageFanProfileVersions", "pageFanProfileVersion", "pageFanTransactions", "pageFanWorkedWith", "crossPageFanDetail", "crossPageFanTransactions", "pageConversationPreview", "fanPages"];
 /**
  * What a screen of the chatter's part calls and a narrow session must NOT do:
  * a change that needs the person's password behind it. The screen shows the
@@ -29,6 +31,6 @@ export declare const NARROW_WEB_SESSION_OPERATIONS: readonly ["me", "accountChat
  * войдите на сайте с паролем»), never an error. Not one of these is on the
  * list above.
  */
-export declare const NARROW_WEB_SESSION_PASSWORD_ONLY: readonly ["accountPayoutDetailsSet", "authListDevices", "authRevokeDevice", "authRevokeAllDevices", "authChangePassword", "authMyUsage"];
+export declare const NARROW_WEB_SESSION_PASSWORD_ONLY: readonly ["accountPayoutDetailsSet", "authListDevices", "authRevokeDevice", "authRevokeAllDevices", "authChangePassword", "authMyUsage", "reviewNoteAdd", "teamSwapRevoke", "createFanNote", "teamQuestionAnswer", "learnPageApprove"];
 /** Whether a narrow web session may call the route with this key. */
 export declare function narrowWebSessionAllows(operationKey: string): boolean;

@@ -50,7 +50,7 @@ type DataRequest =
   | 'fan.memory'
   | 'fan.memory.link'
   | 'fan.memory.fact'
-  | 'fan.memory.custom'
+  | 'fan.memory.give'
   | 'queue.handoff'
   | 'online.list'
   | 'online.presence'
@@ -141,15 +141,11 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
         const { pageId: _pageId, ...change } = request;
         return deps.hub().fanFactChange({ ...change, pageLabel: page.pageLabel });
       }),
-    // Chat Memory week 4: a custom written, or marked paid / delivered by a suggestion, or cancelled — one call, never repeated.
-    'fan.memory.custom': (request, sender) =>
-      onPage(request.pageId, sender, (page) => {
-        if (request.action === 'create') {
-          const { pageId: _pageId, action: _action, ...custom } = request;
-          return deps.hub().fanCustomCreate({ ...custom, pageLabel: page.pageLabel });
-        }
-        const { pageId: _pageId, ...change } = request;
-        return deps.hub().fanCustomChange({ ...change, pageLabel: page.pageLabel });
+    // Products package R5: «Отдан» — Workboard's own step of the order (one call, never repeated); the card as it stands after.
+    'fan.memory.give': (request, sender) =>
+      onPage(request.pageId, sender, async (page) => {
+        await deps.hub().customOrderGive({ code: request.code, action: 'given' }, page.pageLabel);
+        return { changed: true, card: await deps.hub().fanCard({ pageLabel: page.pageLabel, fanRef: request.fanRef }) };
       }),
     // Chat Memory week 3, «Очередь»: the win-back list, a chatter's approach pick (one call, never repeated; nothing is sent to the fan), the handoff.
     'queue.handoff': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().handoff({ pageLabel: page.pageLabel })),

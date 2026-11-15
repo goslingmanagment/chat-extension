@@ -8,7 +8,11 @@
  * code `K-<number>`, which the card text carries.
  */
 import { z } from "zod";
-export declare const CUSTOM_ORDER_STATES: readonly ["recorded", "paid", "at_model", "partly", "shot", "revision", "refused", "given", "closed", "cancelled"];
+/**
+ * The states. `checked` («Проверен», products plan §4.5, package C3): the team's customs lead (with a team lead — the
+ * lead) checked the card and gave it to shooting; the content side (ContentOps «Съёмка») takes it from there.
+ */
+export declare const CUSTOM_ORDER_STATES: readonly ["recorded", "paid", "checked", "at_model", "partly", "shot", "revision", "refused", "given", "closed", "cancelled"];
 export type CustomOrderState = (typeof CUSTOM_ORDER_STATES)[number];
 /** Still in work: neither given to the fan nor ended. */
 export declare const CUSTOM_ORDER_OPEN_STATES: readonly CustomOrderState[];
@@ -19,7 +23,7 @@ export declare const CUSTOM_ORDER_ORIGINS: readonly ["extension", "agent", "work
  * The matters the custom checks keep (apps/runtime services/custom-orders/checks.ts), Hub's server the one
  * writer of each: an agent key opens or closes none of them.
  */
-export declare const CUSTOM_ORDER_CHECK_KINDS: readonly ["custom.not_at_model", "custom.overdue", "custom.overdue_owner", "custom.shot_not_given", "custom.give_on_shift", "custom.unrecorded", "custom.card_without_order"];
+export declare const CUSTOM_ORDER_CHECK_KINDS: readonly ["custom.not_at_model", "custom.checked_not_at_model", "custom.overdue", "custom.overdue_owner", "custom.shot_not_given", "custom.give_on_shift", "custom.unrecorded", "custom.card_without_order"];
 export type CustomOrderCheckKind = (typeof CUSTOM_ORDER_CHECK_KINDS)[number];
 export declare function isCustomOrderCheckKind(kind: string): kind is CustomOrderCheckKind;
 /** `K-<number>`: what a person says and types, never one of ContentOps' `CUS-217`. */
@@ -27,6 +31,12 @@ export declare const CUSTOM_ORDER_CODE_PATTERN: RegExp;
 export declare function customOrderCode(id: number): string;
 /** The order's number from what a person typed: `K-123`, `к-123` (Cyrillic), `K123`, `#K-123`. Null — no code. */
 export declare function parseCustomOrderCode(text: string): number | null;
+/**
+ * The order's number from a code somewhere in a line of text (a card's title «📦 Описание заказа К-123»): the Latin
+ * or the Cyrillic letter, as a Russian keyboard types it, with its hyphen or right before the number. Null — the
+ * line holds no code. A code is always printed with the Latin letter (`customOrderCode`).
+ */
+export declare function findCustomOrderCode(text: string): number | null;
 export declare const customOrderCodeSchema: z.ZodString;
 /**
  * A Telegram message, in ContentOps' form `tg:<chat>/<topic>/<message>` (chat
@@ -79,6 +89,7 @@ export declare const customOrderSchema: z.ZodObject<{
     pageLabel: z.ZodNullable<z.ZodString>;
     platform: z.ZodNullable<z.ZodString>;
     model: z.ZodNullable<z.ZodString>;
+    modelSlug: z.ZodNullable<z.ZodString>;
     fan: z.ZodNullable<z.ZodObject<{
         platform: z.ZodString;
         fanRef: z.ZodString;
@@ -117,11 +128,25 @@ export declare const customOrderSchema: z.ZodObject<{
         revision: "revision";
         refused: "refused";
         closed: "closed";
+        checked: "checked";
         at_model: "at_model";
         partly: "partly";
         shot: "shot";
         given: "given";
     }>;
+    stateWord: z.ZodString;
+    leader: z.ZodNullable<z.ZodObject<{
+        name: z.ZodNullable<z.ZodString>;
+        phase: z.ZodEnum<{
+            check: "check";
+            give: "give";
+            shoot: "shoot";
+        }>;
+        product: z.ZodEnum<{
+            workboard: "workboard";
+            contentops: "contentops";
+        }>;
+    }, z.core.$strip>>;
     stateAt: z.ZodString;
     stateNote: z.ZodNullable<z.ZodString>;
     stateRef: z.ZodNullable<z.ZodString>;
@@ -136,9 +161,9 @@ export declare const customOrderSchema: z.ZodObject<{
     contentopsRef: z.ZodNullable<z.ZodString>;
     origin: z.ZodEnum<{
         agent: "agent";
+        workboard: "workboard";
         extension: "extension";
         import: "import";
-        workboard: "workboard";
     }>;
     overdueDays: z.ZodNullable<z.ZodNumber>;
     partsDone: z.ZodArray<z.ZodEnum<{
@@ -202,7 +227,7 @@ export declare const customLookalikeSaleSchema: z.ZodObject<{
     grossMills: z.ZodNumber;
     at: z.ZodString;
 }, z.core.$strip>;
-export declare const CUSTOM_ORDER_ACTIONS: readonly ["edit", "deadline", "fan", "card", "payment", "unpay", "at_model", "partly", "shot", "revision", "refused", "given", "close", "cancel"];
+export declare const CUSTOM_ORDER_ACTIONS: readonly ["edit", "deadline", "fan", "card", "payment", "unpay", "checked", "at_model", "partly", "shot", "revision", "refused", "given", "close", "cancel"];
 export type CustomOrderAction = (typeof CUSTOM_ORDER_ACTIONS)[number];
 export declare const customOrdersBoardQuerySchema: z.ZodObject<{
     pageLabel: z.ZodOptional<z.ZodString>;
@@ -212,13 +237,18 @@ export declare const customOrdersBoardResponseSchema: z.ZodObject<{
         lead: z.ZodBoolean;
         owner: z.ZodBoolean;
     }, z.core.$strip>;
-    leads: z.ZodArray<z.ZodString>;
+    leads: z.ZodArray<z.ZodObject<{
+        model: z.ZodString;
+        check: z.ZodNullable<z.ZodString>;
+        shoot: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
     orders: z.ZodArray<z.ZodObject<{
         id: z.ZodNumber;
         code: z.ZodString;
         pageLabel: z.ZodNullable<z.ZodString>;
         platform: z.ZodNullable<z.ZodString>;
         model: z.ZodNullable<z.ZodString>;
+        modelSlug: z.ZodNullable<z.ZodString>;
         fan: z.ZodNullable<z.ZodObject<{
             platform: z.ZodString;
             fanRef: z.ZodString;
@@ -257,11 +287,25 @@ export declare const customOrdersBoardResponseSchema: z.ZodObject<{
             revision: "revision";
             refused: "refused";
             closed: "closed";
+            checked: "checked";
             at_model: "at_model";
             partly: "partly";
             shot: "shot";
             given: "given";
         }>;
+        stateWord: z.ZodString;
+        leader: z.ZodNullable<z.ZodObject<{
+            name: z.ZodNullable<z.ZodString>;
+            phase: z.ZodEnum<{
+                check: "check";
+                give: "give";
+                shoot: "shoot";
+            }>;
+            product: z.ZodEnum<{
+                workboard: "workboard";
+                contentops: "contentops";
+            }>;
+        }, z.core.$strip>>;
         stateAt: z.ZodString;
         stateNote: z.ZodNullable<z.ZodString>;
         stateRef: z.ZodNullable<z.ZodString>;
@@ -276,9 +320,9 @@ export declare const customOrdersBoardResponseSchema: z.ZodObject<{
         contentopsRef: z.ZodNullable<z.ZodString>;
         origin: z.ZodEnum<{
             agent: "agent";
+            workboard: "workboard";
             extension: "extension";
             import: "import";
-            workboard: "workboard";
         }>;
         overdueDays: z.ZodNullable<z.ZodNumber>;
         partsDone: z.ZodArray<z.ZodEnum<{
@@ -336,6 +380,7 @@ export declare const customOrderDetailResponseSchema: z.ZodObject<{
         pageLabel: z.ZodNullable<z.ZodString>;
         platform: z.ZodNullable<z.ZodString>;
         model: z.ZodNullable<z.ZodString>;
+        modelSlug: z.ZodNullable<z.ZodString>;
         fan: z.ZodNullable<z.ZodObject<{
             platform: z.ZodString;
             fanRef: z.ZodString;
@@ -374,11 +419,25 @@ export declare const customOrderDetailResponseSchema: z.ZodObject<{
             revision: "revision";
             refused: "refused";
             closed: "closed";
+            checked: "checked";
             at_model: "at_model";
             partly: "partly";
             shot: "shot";
             given: "given";
         }>;
+        stateWord: z.ZodString;
+        leader: z.ZodNullable<z.ZodObject<{
+            name: z.ZodNullable<z.ZodString>;
+            phase: z.ZodEnum<{
+                check: "check";
+                give: "give";
+                shoot: "shoot";
+            }>;
+            product: z.ZodEnum<{
+                workboard: "workboard";
+                contentops: "contentops";
+            }>;
+        }, z.core.$strip>>;
         stateAt: z.ZodString;
         stateNote: z.ZodNullable<z.ZodString>;
         stateRef: z.ZodNullable<z.ZodString>;
@@ -393,9 +452,9 @@ export declare const customOrderDetailResponseSchema: z.ZodObject<{
         contentopsRef: z.ZodNullable<z.ZodString>;
         origin: z.ZodEnum<{
             agent: "agent";
+            workboard: "workboard";
             extension: "extension";
             import: "import";
-            workboard: "workboard";
         }>;
         overdueDays: z.ZodNullable<z.ZodNumber>;
         partsDone: z.ZodArray<z.ZodEnum<{
@@ -468,6 +527,7 @@ export declare const customOrderDetailResponseSchema: z.ZodObject<{
         fan: "fan";
         edit: "edit";
         card: "card";
+        checked: "checked";
         at_model: "at_model";
         partly: "partly";
         shot: "shot";
@@ -519,8 +579,11 @@ export declare const customOrderActionBodySchema: z.ZodDiscriminatedUnion<[z.Zod
     action: z.ZodLiteral<"unpay">;
     transactionRef: z.ZodString;
 }, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"checked">;
+}, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"at_model">;
     telegramRef: z.ZodOptional<z.ZodString>;
+    deadlineOn: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"partly">;
     note: z.ZodOptional<z.ZodString>;
@@ -529,12 +592,16 @@ export declare const customOrderActionBodySchema: z.ZodDiscriminatedUnion<[z.Zod
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"revision">;
     note: z.ZodOptional<z.ZodString>;
+    part: z.ZodOptional<z.ZodEnum<{
+        video: "video";
+        photos: "photos";
+    }>>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"refused">;
     reason: z.ZodString;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"given">;
-    messageRef: z.ZodString;
+    messageRef: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"close">;
 }, z.core.$strict>, z.ZodObject<{
@@ -588,6 +655,7 @@ export declare const agentCustomOrderSchema: z.ZodObject<{
         revision: "revision";
         refused: "refused";
         closed: "closed";
+        checked: "checked";
         at_model: "at_model";
         partly: "partly";
         shot: "shot";
@@ -597,9 +665,9 @@ export declare const agentCustomOrderSchema: z.ZodObject<{
     code: z.ZodString;
     origin: z.ZodEnum<{
         agent: "agent";
+        workboard: "workboard";
         extension: "extension";
         import: "import";
-        workboard: "workboard";
     }>;
     version: z.ZodNumber;
     updatedAt: z.ZodString;
@@ -610,6 +678,21 @@ export declare const agentCustomOrderSchema: z.ZodObject<{
         displayName: z.ZodNullable<z.ZodString>;
     }, z.core.$strip>>;
     model: z.ZodNullable<z.ZodString>;
+    modelSlug: z.ZodNullable<z.ZodString>;
+    deadlineOn: z.ZodNullable<z.ZodString>;
+    overdueDays: z.ZodNullable<z.ZodNumber>;
+    leader: z.ZodNullable<z.ZodObject<{
+        name: z.ZodNullable<z.ZodString>;
+        phase: z.ZodEnum<{
+            check: "check";
+            give: "give";
+            shoot: "shoot";
+        }>;
+        product: z.ZodEnum<{
+            workboard: "workboard";
+            contentops: "contentops";
+        }>;
+    }, z.core.$strip>>;
     card: z.ZodObject<{
         date: z.ZodOptional<z.ZodString>;
         name: z.ZodOptional<z.ZodString>;
@@ -635,7 +718,7 @@ export declare const agentCustomOrderSchema: z.ZodObject<{
     stateAt: z.ZodString;
     buyer: z.ZodNullable<z.ZodString>;
     fanErased: z.ZodBoolean;
-    deadlineOn: z.ZodNullable<z.ZodString>;
+    stateWord: z.ZodString;
     stateNote: z.ZodNullable<z.ZodString>;
     stateRef: z.ZodNullable<z.ZodString>;
     payments: z.ZodNumber;
@@ -645,7 +728,6 @@ export declare const agentCustomOrderSchema: z.ZodObject<{
     acceptedByName: z.ZodNullable<z.ZodString>;
     telegramRefs: z.ZodArray<z.ZodString>;
     contentopsRef: z.ZodNullable<z.ZodString>;
-    overdueDays: z.ZodNullable<z.ZodNumber>;
     partsDone: z.ZodArray<z.ZodEnum<{
         video: "video";
         photos: "photos";
@@ -697,6 +779,7 @@ export declare const agentCustomOrdersResponseSchema: z.ZodObject<{
             revision: "revision";
             refused: "refused";
             closed: "closed";
+            checked: "checked";
             at_model: "at_model";
             partly: "partly";
             shot: "shot";
@@ -706,9 +789,9 @@ export declare const agentCustomOrdersResponseSchema: z.ZodObject<{
         code: z.ZodString;
         origin: z.ZodEnum<{
             agent: "agent";
+            workboard: "workboard";
             extension: "extension";
             import: "import";
-            workboard: "workboard";
         }>;
         version: z.ZodNumber;
         updatedAt: z.ZodString;
@@ -719,6 +802,21 @@ export declare const agentCustomOrdersResponseSchema: z.ZodObject<{
             displayName: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         model: z.ZodNullable<z.ZodString>;
+        modelSlug: z.ZodNullable<z.ZodString>;
+        deadlineOn: z.ZodNullable<z.ZodString>;
+        overdueDays: z.ZodNullable<z.ZodNumber>;
+        leader: z.ZodNullable<z.ZodObject<{
+            name: z.ZodNullable<z.ZodString>;
+            phase: z.ZodEnum<{
+                check: "check";
+                give: "give";
+                shoot: "shoot";
+            }>;
+            product: z.ZodEnum<{
+                workboard: "workboard";
+                contentops: "contentops";
+            }>;
+        }, z.core.$strip>>;
         card: z.ZodObject<{
             date: z.ZodOptional<z.ZodString>;
             name: z.ZodOptional<z.ZodString>;
@@ -744,7 +842,7 @@ export declare const agentCustomOrdersResponseSchema: z.ZodObject<{
         stateAt: z.ZodString;
         buyer: z.ZodNullable<z.ZodString>;
         fanErased: z.ZodBoolean;
-        deadlineOn: z.ZodNullable<z.ZodString>;
+        stateWord: z.ZodString;
         stateNote: z.ZodNullable<z.ZodString>;
         stateRef: z.ZodNullable<z.ZodString>;
         payments: z.ZodNumber;
@@ -754,7 +852,6 @@ export declare const agentCustomOrdersResponseSchema: z.ZodObject<{
         acceptedByName: z.ZodNullable<z.ZodString>;
         telegramRefs: z.ZodArray<z.ZodString>;
         contentopsRef: z.ZodNullable<z.ZodString>;
-        overdueDays: z.ZodNullable<z.ZodNumber>;
         partsDone: z.ZodArray<z.ZodEnum<{
             video: "video";
             photos: "photos";
@@ -870,6 +967,10 @@ export declare const agentCustomOrderUpdateBodySchema: z.ZodDiscriminatedUnion<[
     }, z.core.$strict>;
     ordinal: z.ZodDefault<z.ZodNumber>;
     text: z.ZodString;
+    part: z.ZodOptional<z.ZodEnum<{
+        video: "video";
+        photos: "photos";
+    }>>;
     onBehalfOf: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"revision_done">;
@@ -938,6 +1039,7 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
             revision: "revision";
             refused: "refused";
             closed: "closed";
+            checked: "checked";
             at_model: "at_model";
             partly: "partly";
             shot: "shot";
@@ -947,9 +1049,9 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
         code: z.ZodString;
         origin: z.ZodEnum<{
             agent: "agent";
+            workboard: "workboard";
             extension: "extension";
             import: "import";
-            workboard: "workboard";
         }>;
         version: z.ZodNumber;
         updatedAt: z.ZodString;
@@ -960,6 +1062,21 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
             displayName: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         model: z.ZodNullable<z.ZodString>;
+        modelSlug: z.ZodNullable<z.ZodString>;
+        deadlineOn: z.ZodNullable<z.ZodString>;
+        overdueDays: z.ZodNullable<z.ZodNumber>;
+        leader: z.ZodNullable<z.ZodObject<{
+            name: z.ZodNullable<z.ZodString>;
+            phase: z.ZodEnum<{
+                check: "check";
+                give: "give";
+                shoot: "shoot";
+            }>;
+            product: z.ZodEnum<{
+                workboard: "workboard";
+                contentops: "contentops";
+            }>;
+        }, z.core.$strip>>;
         card: z.ZodObject<{
             date: z.ZodOptional<z.ZodString>;
             name: z.ZodOptional<z.ZodString>;
@@ -985,7 +1102,7 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
         stateAt: z.ZodString;
         buyer: z.ZodNullable<z.ZodString>;
         fanErased: z.ZodBoolean;
-        deadlineOn: z.ZodNullable<z.ZodString>;
+        stateWord: z.ZodString;
         stateNote: z.ZodNullable<z.ZodString>;
         stateRef: z.ZodNullable<z.ZodString>;
         payments: z.ZodNumber;
@@ -995,7 +1112,6 @@ export declare const agentCustomOrderResponseSchema: z.ZodObject<{
         acceptedByName: z.ZodNullable<z.ZodString>;
         telegramRefs: z.ZodArray<z.ZodString>;
         contentopsRef: z.ZodNullable<z.ZodString>;
-        overdueDays: z.ZodNullable<z.ZodNumber>;
         partsDone: z.ZodArray<z.ZodEnum<{
             video: "video";
             photos: "photos";

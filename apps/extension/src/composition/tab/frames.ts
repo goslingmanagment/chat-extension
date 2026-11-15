@@ -1,7 +1,10 @@
 // Workboard's screens over the site, the tab's side (hub package R, 2026-11-15; R-protocol.md; host-kit
-// isolated/frame-host.ts draws). One host of Workboard «frame» screens: the board «Отчёт» is the first, «Записать
-// кастом» and «Мои деньги» come through the same seam (the coordinator, 2026-11-15): a screen is a path under
-// `/workboard/frame/`, its allow-list a table of the background (core domain/report-board.ts).
+// isolated/frame-host.ts draws). One host of Workboard «frame» screens (the coordinator, 2026-11-15): a screen is a path
+// under `/workboard/frame/`, its allow-list a table of the background (core domain/report-board.ts).
+// - `report`, the board «Отчёт»: made once, hidden (never unloaded) when collapsed, with the bar below.
+// - `custom` and `ask` (products package R5), the fan panel's «Записать кастом» and «Спросить»: Workboard's own form and
+//   question window for one fan (the page and the fan in the address), made fresh on each open and gone when closed; no
+//   bar. `done` (recorded, asked) or a close ends it, and the fan panel hears which.
 //
 // What the frame says over its port, and what this does with it:
 // - `fetch` — one API request; the background runs it with the device token if the screen's allow-list has it, and
@@ -17,8 +20,20 @@
 //   bar: never a similar row.
 // - `copy` — the text to the clipboard (the click in the frame activates this page too); `copy:result`.
 // - `statement` — the OnlyFans statements of these pages read again (ChatSpace's tabs of them ask their poll now).
+// - `done` (a form) — it recorded the custom or asked the question: the window goes, the fan panel reads the card again.
 
-import { REPORT_FETCH_BODY_MAX, ReportSaleSchema, ReportStateSchema, workboardFramePath, type ReportSale, type ReportState, type WorkboardFrameScreen } from '@cg/contracts/report-board';
+import {
+  REPORT_FETCH_BODY_MAX,
+  ReportSaleSchema,
+  ReportStateSchema,
+  workboardFormPath,
+  workboardFramePath,
+  type ReportSale,
+  type ReportState,
+  type WorkboardFormFor,
+  type WorkboardFormScreen,
+  type WorkboardFrameScreen,
+} from '@cg/contracts/report-board';
 import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
 import { compareWords, notFoundWords, openTabWords, salesWords, type SaleLook } from '@cg/core/domain/report-board';
 import { createFrameHost, createRowHighlight, type FrameBarView, type FrameHost } from '@cg/host-kit/isolated/frame-host';
@@ -26,7 +41,7 @@ import type { ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
 import type { TabRpcClient } from '@cg/platform';
 
 /** The board's title on the bar. */
-const TITLE: Readonly<Record<WorkboardFrameScreen, string>> = { report: 'Отчёт смены' };
+const TITLE: Readonly<Record<WorkboardFrameScreen, string>> = { report: 'Отчёт смены', custom: 'Записать кастом', ask: 'Спросить' };
 /** How often the screen under the bar is looked at while a board or a compare exists. */
 const SCREEN_WATCH_MS = 600;
 
@@ -52,6 +67,11 @@ export interface WorkboardFramesEnv {
 export interface WorkboardFrames {
   /** The launcher's «Отчёт» or the bar's button: the screen shows (made the first time). */
   open(screen: WorkboardFrameScreen): void;
+  /**
+   * Products package R5: Workboard's form («Записать кастом») or question window («Спросить») for one fan, over the
+   * site; resolves when it closes — `done`: it recorded or asked. Another form open is closed first.
+   */
+  form(screen: WorkboardFormScreen, form: WorkboardFormFor): Promise<{ readonly done: boolean }>;
   /** A find the background handed to this tab (another tab's «show on the site»). */
   find(sale: ReportSale): void;
   /** Said when the bar comes or goes (Fansly's corner card rises over it). */
@@ -190,8 +210,14 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
   const onMessage = (screen: WorkboardFrameScreen, raw: unknown): void => {
     if (typeof raw !== 'object' || raw === null) return;
     const message = raw as Readonly<Record<string, unknown>>;
-    const frame = hosts.get(screen);
+    const frame = hosts.get(screen) ?? (formNow !== null && formNow.screen === screen ? formNow.frame : undefined);
     if (frame === undefined) return;
+    // A form says only these: its requests, `done`, a close.
+    if (screen !== 'report' && message['t'] !== 'fetch') {
+      if (message['t'] === 'done' && message['screen'] === screen) endForm(true);
+      else if (message['t'] === 'collapse') endForm(false);
+      return;
+    }
     switch (message['t']) {
       case 'fetch': {
         const id = message['id'];
@@ -311,7 +337,51 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
     return frame;
   };
 
+  /** The form over the site now, and how its open ends; null — none. */
+  let formNow: { readonly screen: WorkboardFormScreen; readonly frame: FrameHost; readonly end: (done: boolean) => void } | null = null;
+  const endForm = (done: boolean): void => {
+    const now = formNow;
+    if (now === null) return;
+    formNow = null;
+    now.frame.dispose();
+    now.end(done);
+    env.log('form closed', { screen: now.screen, done });
+  };
+  const form = async (screen: WorkboardFormScreen, who: WorkboardFormFor): Promise<{ readonly done: boolean }> => {
+    endForm(false);
+    const teamOrigin = await originOf();
+    if (teamOrigin === null) {
+      env.log('frame not opened', { screen, reason: 'origin' });
+      return { done: false };
+    }
+    // The board steps aside while a form is up (it stays loaded; the launcher brings it back).
+    hosts.get('report')?.hide();
+    return new Promise((resolve) => {
+      const frame = createFrameHost({
+        doc,
+        ...(env.registry === undefined ? {} : { registry: env.registry }),
+        origin: teamOrigin,
+        url: `${teamOrigin}${workboardFormPath(screen, who)}`,
+        tokens: env.tokens,
+        scheme: () => env.scheme.value,
+        onMessage: (message) => onMessage(screen, message),
+        onConnected: () => env.log('frame port', { screen }),
+        onEscape: () => endForm(false),
+        onNoPort: () => {
+          env.log('frame no port', { screen });
+          endForm(false);
+        },
+        onBarButton: () => undefined,
+      });
+      formNow = { screen, frame, end: (done) => resolve({ done }) };
+      frame.show();
+      frame.post({ t: 'show' });
+    });
+  };
+
   const open = (screen: WorkboardFrameScreen): void => {
+    // A form is opened for its fan only (`form`), never bare.
+    if (screen !== 'report') return;
     void host(screen).then((frame) => {
       if (frame === null) {
         env.log('frame not opened', { screen, reason: 'origin' });
@@ -330,10 +400,12 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
 
   const offScheme = env.scheme.subscribe(() => {
     for (const frame of hosts.values()) frame.scheme();
+    formNow?.frame.scheme();
   });
 
   return {
     open,
+    form,
     find(sale) {
       void findHere(sale);
     },
@@ -351,6 +423,7 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
       clearInterval(watching);
       offScheme();
       highlight.clear();
+      endForm(false);
       for (const frame of hosts.values()) frame.dispose();
       hosts.clear();
     },

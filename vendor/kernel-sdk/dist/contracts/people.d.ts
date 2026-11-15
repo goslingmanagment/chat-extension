@@ -55,10 +55,10 @@ export declare const personRoleEnum: z.ZodEnum<{
     owner: "owner";
     team_lead: "team_lead";
     chatter: "chatter";
+    content_manager: "content_manager";
     agent: "agent";
     contractor: "contractor";
     service: "service";
-    content_manager: "content_manager";
 }>;
 export declare const personStateEnum: z.ZodEnum<{
     left: "left";
@@ -83,8 +83,8 @@ export declare const personWeekdayEnum: z.ZodEnum<{
 }>;
 export declare const personOriginEnum: z.ZodEnum<{
     owner: "owner";
-    import: "import";
     proposal: "proposal";
+    import: "import";
 }>;
 export declare const personProposalStateEnum: z.ZodEnum<{
     rejected: "rejected";
@@ -129,6 +129,7 @@ export declare const personLoginSchema: z.ZodObject<{
         owner: "owner";
         team_lead: "team_lead";
         chatter: "chatter";
+        content_manager: "content_manager";
     }>;
     state: z.ZodEnum<{
         active: "active";
@@ -195,10 +196,10 @@ export declare const personSchema: z.ZodObject<{
         owner: "owner";
         team_lead: "team_lead";
         chatter: "chatter";
+        content_manager: "content_manager";
         agent: "agent";
         contractor: "contractor";
         service: "service";
-        content_manager: "content_manager";
     }>;
     state: z.ZodEnum<{
         left: "left";
@@ -219,6 +220,7 @@ export declare const personSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
         }>;
         state: z.ZodEnum<{
             active: "active";
@@ -311,8 +313,8 @@ export declare const personSchema: z.ZodObject<{
     }, z.core.$strip>>;
     origin: z.ZodEnum<{
         owner: "owner";
-        import: "import";
         proposal: "proposal";
+        import: "import";
     }>;
     openProposals: z.ZodNumber;
     createdAt: z.ZodString;
@@ -357,6 +359,7 @@ export declare const personInviteInputSchema: z.ZodObject<{
     role: z.ZodOptional<z.ZodEnum<{
         team_lead: "team_lead";
         chatter: "chatter";
+        content_manager: "content_manager";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresInHours: z.ZodOptional<z.ZodNumber>;
@@ -424,6 +427,7 @@ export declare const adminPersonCreateBodySchema: z.ZodObject<{
         role: z.ZodOptional<z.ZodEnum<{
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
         }>>;
         pageLabels: z.ZodArray<z.ZodString>;
         expiresInHours: z.ZodOptional<z.ZodNumber>;
@@ -435,15 +439,16 @@ export declare const adminPersonCreateBodySchema: z.ZodObject<{
         fixPerShiftMills: z.ZodNumber;
         note: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>>;
+    leadModelSlugs: z.ZodOptional<z.ZodArray<z.ZodString>>;
     displayName: z.ZodString;
     role: z.ZodEnum<{
         owner: "owner";
         team_lead: "team_lead";
         chatter: "chatter";
+        content_manager: "content_manager";
         agent: "agent";
         contractor: "contractor";
         service: "service";
-        content_manager: "content_manager";
     }>;
     code: z.ZodString;
     kind: z.ZodOptional<z.ZodEnum<{
@@ -458,10 +463,10 @@ export declare const adminPersonUpdateBodySchema: z.ZodObject<{
         owner: "owner";
         team_lead: "team_lead";
         chatter: "chatter";
+        content_manager: "content_manager";
         agent: "agent";
         contractor: "contractor";
         service: "service";
-        content_manager: "content_manager";
     }>>;
     state: z.ZodOptional<z.ZodEnum<{
         left: "left";
@@ -530,10 +535,10 @@ export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodO
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>>;
         state: z.ZodOptional<z.ZodEnum<{
             left: "left";
@@ -617,17 +622,17 @@ export declare const personProposalChangeSchema: z.ZodDiscriminatedUnion<[z.ZodO
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>;
-        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        logins: z.ZodOptional<z.ZodObject<{
+        agentKeys: z.ZodOptional<z.ZodObject<{
             add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
         }, z.core.$strip>>;
-        agentKeys: z.ZodOptional<z.ZodObject<{
+        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        logins: z.ZodOptional<z.ZodObject<{
             add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
         }, z.core.$strip>>;
@@ -666,10 +671,10 @@ export declare const agentPersonProposalBodySchema: z.ZodDiscriminatedUnion<[z.Z
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>>;
         state: z.ZodOptional<z.ZodEnum<{
             left: "left";
@@ -756,17 +761,17 @@ export declare const agentPersonProposalBodySchema: z.ZodDiscriminatedUnion<[z.Z
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>;
-        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        logins: z.ZodOptional<z.ZodObject<{
+        agentKeys: z.ZodOptional<z.ZodObject<{
             add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
         }, z.core.$strip>>;
-        agentKeys: z.ZodOptional<z.ZodObject<{
+        leftOn: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        logins: z.ZodOptional<z.ZodObject<{
             add: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
             remove: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
         }, z.core.$strip>>;
@@ -853,10 +858,10 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>;
         state: z.ZodEnum<{
             left: "left";
@@ -877,6 +882,7 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
                 owner: "owner";
                 team_lead: "team_lead";
                 chatter: "chatter";
+                content_manager: "content_manager";
             }>;
             state: z.ZodEnum<{
                 active: "active";
@@ -969,8 +975,8 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
-            import: "import";
             proposal: "proposal";
+            import: "import";
         }>;
         openProposals: z.ZodNumber;
         createdAt: z.ZodString;
@@ -983,6 +989,7 @@ export declare const teamPeopleResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
         }>;
         state: z.ZodEnum<{
             active: "active";
@@ -1008,10 +1015,10 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>;
         state: z.ZodEnum<{
             left: "left";
@@ -1032,6 +1039,7 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
                 owner: "owner";
                 team_lead: "team_lead";
                 chatter: "chatter";
+                content_manager: "content_manager";
             }>;
             state: z.ZodEnum<{
                 active: "active";
@@ -1124,8 +1132,8 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
-            import: "import";
             proposal: "proposal";
+            import: "import";
         }>;
         openProposals: z.ZodNumber;
         createdAt: z.ZodString;
@@ -1191,8 +1199,8 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
         steps: z.ZodArray<z.ZodObject<{
             step: z.ZodEnum<{
                 pages: "pages";
-                install: "install";
                 extension: "extension";
+                install: "install";
                 activity: "activity";
                 payout: "payout";
             }>;
@@ -1203,8 +1211,8 @@ export declare const adminPersonResponseSchema: z.ZodObject<{
         total: z.ZodNumber;
         current: z.ZodNullable<z.ZodEnum<{
             pages: "pages";
-            install: "install";
             extension: "extension";
+            install: "install";
             activity: "activity";
             payout: "payout";
         }>>;
@@ -1249,10 +1257,10 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>;
         state: z.ZodEnum<{
             left: "left";
@@ -1273,6 +1281,7 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
                 owner: "owner";
                 team_lead: "team_lead";
                 chatter: "chatter";
+                content_manager: "content_manager";
             }>;
             state: z.ZodEnum<{
                 active: "active";
@@ -1365,8 +1374,8 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
-            import: "import";
             proposal: "proposal";
+            import: "import";
         }>;
         openProposals: z.ZodNumber;
         createdAt: z.ZodString;
@@ -1432,8 +1441,8 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
         steps: z.ZodArray<z.ZodObject<{
             step: z.ZodEnum<{
                 pages: "pages";
-                install: "install";
                 extension: "extension";
+                install: "install";
                 activity: "activity";
                 payout: "payout";
             }>;
@@ -1444,8 +1453,8 @@ export declare const adminPersonCreateResponseSchema: z.ZodObject<{
         total: z.ZodNumber;
         current: z.ZodNullable<z.ZodEnum<{
             pages: "pages";
-            install: "install";
             extension: "extension";
+            install: "install";
             activity: "activity";
             payout: "payout";
         }>>;
@@ -1546,10 +1555,10 @@ export declare const adminPersonProposalDecideResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>;
         state: z.ZodEnum<{
             left: "left";
@@ -1570,6 +1579,7 @@ export declare const adminPersonProposalDecideResponseSchema: z.ZodObject<{
                 owner: "owner";
                 team_lead: "team_lead";
                 chatter: "chatter";
+                content_manager: "content_manager";
             }>;
             state: z.ZodEnum<{
                 active: "active";
@@ -1662,8 +1672,8 @@ export declare const adminPersonProposalDecideResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
         origin: z.ZodEnum<{
             owner: "owner";
-            import: "import";
             proposal: "proposal";
+            import: "import";
         }>;
         openProposals: z.ZodNumber;
         createdAt: z.ZodString;
@@ -1686,10 +1696,10 @@ export declare const agentPersonSchema: z.ZodObject<{
         owner: "owner";
         team_lead: "team_lead";
         chatter: "chatter";
+        content_manager: "content_manager";
         agent: "agent";
         contractor: "contractor";
         service: "service";
-        content_manager: "content_manager";
     }>;
     state: z.ZodEnum<{
         left: "left";
@@ -1791,10 +1801,10 @@ export declare const agentPeopleResponseSchema: z.ZodObject<{
             owner: "owner";
             team_lead: "team_lead";
             chatter: "chatter";
+            content_manager: "content_manager";
             agent: "agent";
             contractor: "contractor";
             service: "service";
-            content_manager: "content_manager";
         }>;
         state: z.ZodEnum<{
             left: "left";

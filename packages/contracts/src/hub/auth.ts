@@ -87,7 +87,9 @@ export type WebLink = z.infer<typeof WebLinkSchema>;
  * enums there, the client's known values (ids.ts); bootstrap and the new
  * routes carry open tokens instead.
  */
-export const HUB_USER_ROLES = KNOWN_ROLES;
+// Hub 2026-11 added `content_manager` (the ContentOps person) to `me`'s closed enum; the client reads it as `unknown`
+// (narrowRole: the least privilege), but must not refuse the answer.
+export const HUB_USER_ROLES = [...KNOWN_ROLES, 'content_manager'] as const;
 export const HUB_PLATFORMS = KNOWN_PLATFORMS;
 
 /** A page as the hub's existing routes reference it (`pageRefSchema`). */
