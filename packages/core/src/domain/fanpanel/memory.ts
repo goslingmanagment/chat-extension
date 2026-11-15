@@ -49,6 +49,8 @@ export interface MemoryInput {
   readonly customs?: boolean;
   /** This tab opens Workboard's windows over the site (package R5): «Записать кастом», «Спросить». */
   readonly forms?: boolean;
+  /** The order whose «Отдан» is being asked about now (round 2, N7); null — none. */
+  readonly asking?: number | null;
 }
 
 const OPEN_CUSTOM: readonly string[] = ['ordered', 'paid'];
@@ -63,7 +65,10 @@ export function customStep(custom: { readonly stepLabel?: string | undefined; re
  * «Кастомы» of the card, as Workboard says them (products package R5): `busy` keys are `custom:<id>` («Отдан» on its
  * way). `forms` — this tab can open Workboard's form and question window over the site.
  */
-export function customsModel(card: FanCard, busy: ReadonlySet<string>, forms: boolean): FanMemoryCustomsVM {
+/** Workboard's state where «Отдан» is the order's next step (its card shows it as the main button only there). */
+const GIVEN_FROM = 'shot';
+
+export function customsModel(card: FanCard, busy: ReadonlySet<string>, forms: boolean, asking: number | null = null): FanMemoryCustomsVM {
   const custom = (item: FanCardCustom): FanCustomVM => {
     const state = (FAN_CUSTOM_STATES as readonly string[]).includes(item.state) ? (item.state as FanCustomVM['state']) : null;
     const code = item.code !== undefined && CUSTOM_ORDER_CODE.test(item.code) ? item.code : null;
@@ -82,7 +87,11 @@ export function customsModel(card: FanCard, busy: ReadonlySet<string>, forms: bo
       step: customStep(item),
       leader: item.leader === undefined ? null : customLeaderWords(item.leader),
       deadline,
-      give: code !== null && item.granted && item.mayGive === true ? { type: 'GiveFanCustom', customId: item.id, code } : null,
+      give: code !== null && item.granted && item.mayGive === true && item.orderState === GIVEN_FROM ? { type: 'GiveFanCustom', customId: item.id, code } : null,
+      giveAsk:
+        code !== null && asking === item.id && item.granted && item.mayGive === true && item.orderState === GIVEN_FROM
+          ? { yes: { type: 'ConfirmGiveFanCustom', customId: item.id, code }, no: { type: 'CancelGiveFanCustom', customId: item.id } }
+          : null,
       open: code === null ? null : { type: 'OpenWorkboardCustom', code },
       busy: busy.has(`custom:${String(item.id)}`),
     };
@@ -95,7 +104,7 @@ export function customsModel(card: FanCard, busy: ReadonlySet<string>, forms: bo
   return { items: ordered.map(custom), record: offered ? { record: { type: 'RecordFanCustom', fanRef: card.fanRef }, ask: { type: 'AskAboutFan', fanRef: card.fanRef } } : null };
 }
 
-export function memoryModel({ card, busy, openOf, customs, forms }: MemoryInput): Omit<FanMemoryVM, 'view' | 'error'> {
+export function memoryModel({ card, busy, openOf, customs, forms, asking }: MemoryInput): Omit<FanMemoryVM, 'view' | 'error'> {
   const suggestions: FanMemorySuggestionVM[] = card.suggestions.map((suggestion) => {
     const key = `link:${suggestion.platform}:${suggestion.fanRef}`;
     const decide = (decision: 'same' | 'different'): UiAction => ({ type: 'DecideFanLink', otherPlatform: suggestion.platform, otherFanRef: suggestion.fanRef, decision });
@@ -139,6 +148,6 @@ export function memoryModel({ card, busy, openOf, customs, forms }: MemoryInput)
     pages: [...card.pages].sort((a, b) => b.spentMills - a.spentMills).map(memoryPage),
     suggestions,
     facts,
-    ...(customs === true ? { customs: customsModel(card, busy, forms === true) } : {}),
+    ...(customs === true ? { customs: customsModel(card, busy, forms === true, asking ?? null) } : {}),
   };
 }

@@ -1763,7 +1763,8 @@ export class DataModel {
       deadlineOn: null,
       overdueDays: null,
       leader: null,
-      mayGive: false,
+      // As Hub: a chatter may give their own open order from any state; the panel offers «Отдан» only at «Снят».
+      mayGive: true,
       // Hub's own schema still carries the old suggestions; the extension reads past them.
       ...({ deliveryCandidates: [] } as object),
     };

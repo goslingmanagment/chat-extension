@@ -7,7 +7,8 @@
 //   a deliberate exception to the panel's «what no source knows is not drawn» (the roadmap's rule for the facts).
 // - «Кастомы» (products package R5: Workboard's orders, one implementation): the open first, the order's code beside
 //   what it is, in Workboard's words — the step («У модели 2 д»), who has it now, the deadline (red when it passed);
-//   «Отдан» when the board lets the person press it, «В Workboard ↗» — the order's card. «Записать кастом» and
+//   «Отдан» at «Снят» when the board lets the person press it, asked once first (no way back, round 2, N7),
+//   «В Workboard ↗» — the order's card. «Записать кастом» and
 //   «Спросить» open Workboard's own form and question window over the site, with the page and the fan filled in.
 
 import { type JSX } from 'preact';
@@ -136,9 +137,16 @@ function CustomRow({ custom }: { readonly custom: FanCustomVM }): JSX.Element {
           {custom.deadline.text}
         </div>
       )}
-      {custom.give === null && custom.open === null ? null : (
+      {custom.giveAsk === null ? null : (
+        <div class="cg-mem__confirm" role="alert" data-cg-custom-give-ask={custom.id}>
+          <span>{i18n.t('fanPanel.memory.custom.giveAsk', { code: custom.code ?? '', title: custom.description })}</span>
+          <Button label={i18n.t('fanPanel.memory.custom.giveYes')} variant="line" size="sm" reason={custom.busy ? i18n.t('common.loading') : null} onClick={() => void dispatch(custom.giveAsk!.yes)} />
+          <Button label={i18n.t('fanPanel.memory.custom.giveNo')} variant="quiet" size="sm" onClick={() => void dispatch(custom.giveAsk!.no)} />
+        </div>
+      )}
+      {(custom.give === null || custom.giveAsk !== null) && custom.open === null ? null : (
         <div class="cg-fp__acts">
-          {custom.give === null ? null : <Button label={i18n.t('fanPanel.memory.custom.give')} variant="line" size="sm" reason={custom.busy ? i18n.t('common.loading') : null} onClick={() => void dispatch(custom.give!)} />}
+          {custom.give === null || custom.giveAsk !== null ? null : <Button label={i18n.t('fanPanel.memory.custom.give')} variant="line" size="sm" reason={custom.busy ? i18n.t('common.loading') : null} onClick={() => void dispatch(custom.give!)} />}
           {custom.open === null ? null : <Button label={i18n.t('fanPanel.memory.custom.open')} variant="quiet" size="sm" onClick={() => void dispatch(custom.open!)} />}
         </div>
       )}
@@ -232,6 +240,8 @@ export const MEMORY_CSS = `
 .cg-mem__custom.is-delivered .cg-mem__text, .cg-mem__custom.is-cancelled .cg-mem__text { color: var(--cg-ink-2); }
 .cg-mem__code { margin-right: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-mem__meta.is-late { color: var(--cg-bad-ink); }
+.cg-mem__confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; padding: 8px 10px; border-radius: var(--cg-r-md); background: var(--cg-amber-bg); box-shadow: inset 0 0 0 1px var(--cg-amber-line); color: var(--cg-amber-ink); font-size: var(--cg-text-sm); }
+.cg-mem__confirm > span { flex-basis: 100%; }
 .cg-mem__page { padding: 6px 0; }
 .cg-mem__page + .cg-mem__page { border-top: 1px dashed var(--cg-rule); }
 .cg-mem__line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }

@@ -116,8 +116,10 @@ export interface FanCustomVM {
   readonly leader: string | null;
   /** The deadline in Workboard's words (`customDeadlineWords`); `late` — overdue. null — none. */
   readonly deadline: { readonly text: string; readonly late: boolean } | null;
-  /** «Отдан»: Workboard's own step, offered only when the board lets this person take it now. */
+  /** «Отдан»: offered only for an order at «Снят» that the board lets this person give (round 2, N7); it asks first. */
   readonly give: UiAction | null;
+  /** «Отдать K-12 фану? Это шаг без возврата»: asked after «Отдан»; `yes` is Workboard's own step. null — not asked. */
+  readonly giveAsk: { readonly yes: UiAction; readonly no: UiAction } | null;
   /** The order's card in Workboard, in a tab by the one-time link; null — no code. */
   readonly open: UiAction | null;
   readonly busy: boolean;

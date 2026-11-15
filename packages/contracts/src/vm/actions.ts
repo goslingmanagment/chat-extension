@@ -539,8 +539,14 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    */
   act('RecordFanCustom', { fanRef: NativeIdSchema }),
   act('AskAboutFan', { fanRef: NativeIdSchema }),
-  /** «Отдан»: Workboard's own step of the order (`code`); one hub call, the board's rule decides. */
+  /**
+   * «Отдан» (round 2, N7): offered only for an order at «Снят», as Workboard does, and asked once first — the step has no
+   * way back. `GiveFanCustom` asks; `ConfirmGiveFanCustom` is Workboard's own step (one hub call); `CancelGiveFanCustom`
+   * takes the question away.
+   */
   act('GiveFanCustom', { customId: z.int().check(z.gte(1)), code: z.string().check(z.regex(/^K-[1-9][0-9]{0,17}$/)) }),
+  act('ConfirmGiveFanCustom', { customId: z.int().check(z.gte(1)), code: z.string().check(z.regex(/^K-[1-9][0-9]{0,17}$/)) }),
+  act('CancelGiveFanCustom', { customId: z.int().check(z.gte(1)) }),
   /** The order's card in Workboard, in a new tab by the one-time link. */
   act('OpenWorkboardCustom', { code: z.string().check(z.regex(/^K-[1-9][0-9]{0,17}$/)) }),
 

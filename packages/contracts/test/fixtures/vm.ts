@@ -111,6 +111,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   RecordFanCustom: { type: 'RecordFanCustom', fanRef: '930000000000000011' },
   AskAboutFan: { type: 'AskAboutFan', fanRef: '930000000000000011' },
   GiveFanCustom: { type: 'GiveFanCustom', customId: 3, code: 'K-3' },
+  ConfirmGiveFanCustom: { type: 'ConfirmGiveFanCustom', customId: 3, code: 'K-3' },
+  CancelGiveFanCustom: { type: 'CancelGiveFanCustom', customId: 3 },
   OpenWorkboardCustom: { type: 'OpenWorkboardCustom', code: 'K-3' },
   DecideFanLink: { type: 'DecideFanLink', otherPlatform: 'fansly', otherFanRef: '920000000000000032', decision: 'same' },
   ChangeFanFact: { type: 'ChangeFanFact', factId: 7, action: 'correct', text: 'Lives in Montreal' },
