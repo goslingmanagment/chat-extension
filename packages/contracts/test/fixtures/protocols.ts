@@ -184,6 +184,9 @@ const OUTREACH_FAN = {
 const OUTREACH = { outreachId: OUTREACH_ID, author: OUTREACH_PERSON, createdAt: T, updatedAt: T, updatedBy: OUTREACH_PERSON, text: 'hey', withMedia: false, settings: {}, order: ['12'], fans: [OUTREACH_FAN], serverNow: T };
 const OUTREACH_SUMMARY = { outreachId: OUTREACH_ID, author: OUTREACH_PERSON, createdAt: T, updatedAt: T, updatedBy: OUTREACH_PERSON, text: 'hey', withMedia: false, fans: 1, written: 1, sent: 1, uncertain: 0, sending: 0, failed: 0, replied: 1, bought: 0, boughtMills: 0, lastSentAt: T };
 
+/** A sale «show on the site» asks for (hub package R). */
+const SALE = { transactionId: 77, pageLabel: 'mia-2', platform: 'fansly', platformRef: '981337562090745305', kind: 'media', occurredAt: '2026-11-12T19:30:00.000Z', netMills: 48000, grossMills: null, fanName: 'Viggo', fanHandle: 'viggo_nord' };
+
 export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixtures } = {
   'tab.register': {
     req: { valid: [{ host: 'chatspace', lateInjection: true, contractsVersion: '1.0.0' }], invalid: [{ host: 'chatspace', lateInjection: true }] },
@@ -244,6 +247,35 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'session.signOut': {
     req: empty,
     res: { valid: [{ serverRevoked: true }, { serverRevoked: null }], invalid: [{}] },
+  },
+  'report.state': {
+    req: { valid: [{}], invalid: [{ extra: true }] },
+    // null: the person has no board; a phase this build does not know stays an open token.
+    res: { valid: [{ report: null, origin: null }, { report: { shiftId: 41, phase: 'confirm', needsMe: true }, origin: 'https://chatgoose.gosling-agency.ru' }, { report: { shiftId: null, phase: 'later', needsMe: false }, origin: 'http://127.0.0.1:4100' }], invalid: [{ report: null }, { report: { shiftId: 41, phase: 'draft' }, origin: null }] },
+  },
+  'frame.fetch': {
+    req: {
+      valid: [{ screen: 'report', method: 'GET', path: '/api/v1/shift-reports/current', body: null }, { screen: 'report', method: 'PUT', path: '/api/v1/shift-reports/41/comment', body: '{"comment":"ok"}' }],
+      // A screen of another build, a method of none, no body field.
+      invalid: [{ screen: 'custom', method: 'GET', path: '/api/v1/x', body: null }, { screen: 'report', method: 'PATCH', path: '/api/v1/x', body: null }, { screen: 'report', method: 'GET', path: '/api/v1/x' }],
+    },
+    res: { valid: [{ status: 200, body: '{}' }, { error: 'refused' }, { error: 'signed_out' }], invalid: [{ status: 200 }, { error: 'other' }] },
+  },
+  'report.find': {
+    req: { valid: [{ sale: SALE }], invalid: [{ sale: { ...SALE, transactionId: 'x' } }, {}] },
+    res: { valid: [{ where: 'here' }, { where: 'tab' }, { where: 'none' }], invalid: [{ where: 'elsewhere' }] },
+  },
+  'report.statement': {
+    req: { valid: [{ pages: ['lora-of'] }, { pages: [] }], invalid: [{ pages: [''] }, {}] },
+    res: { valid: [{ recorded: true }], invalid: [{}] },
+  },
+  'report.sightings': {
+    req: {
+      valid: [{ hostAccountId: '700000000000000001', rows: [{ platformRef: '981337562090745305', kind: '2110', occurredAt: '2026-11-12T19:30:00.000Z', netMills: 48000, grossMills: null, fanRef: '700000000000000002', fanName: null }] }],
+      // No rows; a row without its platform's id.
+      invalid: [{ hostAccountId: '700000000000000001', rows: [] }, { hostAccountId: '700000000000000001', rows: [{ kind: '2110', occurredAt: 'x', netMills: 1, grossMills: null, fanRef: null, fanName: null }] }],
+    },
+    res: { valid: [{ recorded: true }], invalid: [{}] },
   },
   'session.webLink': {
     // The hub takes only a path of the team's place.
@@ -989,6 +1021,9 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
     // The same closed set as the request: a window of ours or an account — never a chat, a text or an action token.
     invalid: [{ command: { kind: 'surface', surface: 'coach' } }, { command: { kind: 'chat', fan: IDS.fan } }, { command: { kind: 'surface', surface: 'spenders' }, actionToken: 'x'.repeat(32) }, {}],
   },
+  'report.changed': { valid: [{ report: null }, { report: { shiftId: 41, phase: 'draft', needsMe: false } }], invalid: [{}, { report: { needsMe: 'yes' } }] },
+  'report.find': { valid: [{ sale: SALE }], invalid: [{ sale: null }] },
+  'report.statement': { valid: [{ pages: ['lora-of'] }], invalid: [{ pages: 'lora-of' }] },
   'greet.start': { valid: [{ pageId: 11, fanRef: IDS.fan }], invalid: [{ pageId: 11 }, { pageId: 11, fanRef: IDS.fan, actionToken: 'x'.repeat(32) }] },
 };
 

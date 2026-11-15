@@ -39,6 +39,7 @@ import {
   type WireSendBody,
 } from '../../fixture-fansly/src/wire';
 import { FakeFanslyCommandError, groupCreatedFrame, runCommand } from './control';
+import { standWalletAnswer } from '../../fixture-fansly/src/wallet';
 import { HISTORY_PAGE, MESSAGE_TYPE, standFbuddyTier, type FanslyWorld } from './data';
 
 /** The stand's copy of FBuddy's batch of tiers (`<stand>/fbuddy` is a test build's FBuddy base). */
@@ -274,6 +275,13 @@ const ROUTES: readonly Route[] = [
   },
   { name: 'message.typing', method: 'POST', path: /^\/message\/typing$/, run: ({ body }) => (typeof asRecord(body)?.['groupId'] === 'string' ? { response: {} } : bad('groupId')) },
   { name: 'message.automated', method: 'GET', path: /^\/message\/automated$/, run: ({ world }) => ({ response: world.automated }) },
+  // 2026-11-15 (hub package R): the creator's Wallet history, as the site's page asks it (fixture-fansly wallet.ts).
+  {
+    name: 'wallet.transactions',
+    method: 'GET',
+    path: /^\/account\/wallets\/earnings\/transactions$/,
+    run: ({ params }) => ({ response: standWalletAnswer(Number(params.get('offset') ?? 0) || 0, Math.min(Number(params.get('limit') ?? 30) || 30, 100)) }),
+  },
   {
     // One media's or bundle's orders, by the accounts asked (X54 on Fansly: the purchase check of an AI start).
     name: 'media.orderhistory',

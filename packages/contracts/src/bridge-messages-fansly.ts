@@ -23,6 +23,7 @@ import {
 } from './bridge-fansly';
 import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotFeatureSchema, FanslySnapshotSchema, HI_FAN_ACCOUNT_LIMITS } from './fansly';
 import { FANSLY_FILTER_LIMITS } from './fansly-filters';
+import { SALE_SIGHTINGS_MAX, SaleSightingRowSchema } from './report-board';
 import { ANCHOR_STATES, ConversationKindSchema, type FanScript } from './host';
 import { CountSchema, DigestSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText } from './primitives';
 
@@ -353,6 +354,12 @@ export const FROM_MAIN_FANSLY = {
    */
   'fx.vaultUpload': z.strictObject({ seq: CountSchema, name: boundedText(255), size: CountSchema, mediaId: z.nullable(NativeIdSchema) }),
   /**
+   * 2026-11-15 (hub package R): rows of the creator's Wallet history the page itself loaded (`GET …/account/wallets/
+   * earnings/transactions`): the transaction's own id, Fansly's type code, the time, the amount after the fee in mills
+   * (as the row prints it), the other account and its name if the answer named it. The board's «нет в Hub» sightings.
+   */
+  'fx.wallet': z.strictObject({ rows: z.array(SaleSightingRowSchema).check(z.minLength(1), z.maxLength(SALE_SIGHTINGS_MAX)) }),
+  /**
    * Who has the last word in a chat (2026-10-29, the mark of Fansly's list of chats): `fan` — the fan wrote last and no
    * personal message of the model came after; `model` — the model answered; null — not known any more. Neither a mass
    * send nor a welcome text answers a fan. Said when it changes; after `fx.state` MAIN says every one it knows again.
@@ -427,6 +434,7 @@ export const FanslyBatchEventSchema = z.discriminatedUnion('t', [
   batchEvent('fx.vaultUpload'),
   batchEvent('fx.lastWord'),
   batchEvent('fx.filters'),
+  batchEvent('fx.wallet'),
 ]);
 
 const STATES: readonly string[] = FANSLY_BRIDGE_STATE_EVENTS;

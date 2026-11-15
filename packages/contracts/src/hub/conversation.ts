@@ -50,6 +50,12 @@ export const ActivityBeatResultSchema = z.object({
    * failed beat.
    */
   matters: z.optional(z.number()),
+  /**
+   * 2026-11-15 (hub package R): the board «Отчёт» of the person — `{ shiftId, phase, needsMe }`, null for a person
+   * without the right `submits_shift`. Read loosely (core domain/report-board.ts `reportPulseOf`): absent or of a wrong
+   * shape is null, the fifth row of the launcher is not drawn; never a failed beat.
+   */
+  report: z.optional(z.unknown()),
   serverNow: z.string(),
 });
 export type ActivityBeatResult = z.infer<typeof ActivityBeatResultSchema>;

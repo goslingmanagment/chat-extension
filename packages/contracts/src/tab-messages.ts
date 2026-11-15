@@ -56,6 +56,7 @@ import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchem
 import { FANSLY_NOTES_VIEWS } from './settings-ext';
 import { NotesFillOpViewSchema, NotesFillStartSchema } from './notes-fill';
 import { NOTE_ATTRIBUTION_ACTIONS } from './hub/note-attribution';
+import { ReportFetchAnswerSchema, ReportFetchRequestSchema, ReportFindRouteSchema, ReportPulseSchema, ReportSaleSchema, ReportStatementRequestSchema, SaleSightingsRequestSchema } from './report-board';
 import { TabRegisterRequestSchema, TabRegisterResponseSchema, senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { VOICE_LIMITS, VoiceAllowanceSchema, VoiceAudioSchema, VoiceScriptStartSchema, VoiceSessionSchema, VoiceWriteResultSchema } from './voice';
 import { JOURNAL_KINDS } from './vm/selectors';
@@ -517,6 +518,23 @@ export const TAB_REQUESTS = {
     from: PAGE,
     pages: ['popup'],
   },
+  // ── Workboard's screens in the frame over the site (hub package R, 2026-11-15; contracts report-board.ts) ──
+  /**
+   * The pulse's `report` as the background last heard it: null — the person has no board (the fifth row is not drawn).
+   * `origin`: the team origin the frames come from (null — nobody signed in).
+   */
+  'report.state': { req: Empty, res: z.strictObject({ report: z.nullable(ReportPulseSchema), origin: z.nullable(HubOriginSchema) }), from: TAB },
+  /**
+   * One API request of a frame screen, relayed by the background with the device token, only when the screen's
+   * allow-list has it (core domain/report-board.ts); the token never leaves the background.
+   */
+  'frame.fetch': { req: ReportFetchRequestSchema, res: ReportFetchAnswerSchema, from: TAB },
+  /** «Show on the site»: here, in another tab of the sale's page (brought forward), or nowhere yet (kept for it). */
+  'report.find': { req: z.strictObject({ sale: ReportSaleSchema }), res: ReportFindRouteSchema, from: TAB },
+  /** The board asks the OnlyFans statements of these pages to be read again now (ChatSpace's tabs of them do it). */
+  'report.statement': { req: ReportStatementRequestSchema, res: Ack, from: TAB },
+  /** Rows of Fansly's wallet list the site itself loaded: sightings for Hub, only for a person with the board. */
+  'report.sightings': { req: SaleSightingsRequestSchema, res: Ack, from: TAB },
   'bootstrap.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: BootstrapSchema, from: ANY },
   /** Binds a host account to exactly one page by platformAccountId; CG-BINDING-* on failure. */
   'binding.resolve': { req: z.strictObject({ account: HostAccountSchema }), res: z.strictObject({ binding: HubBindingSchema }), from: ANY },
@@ -1248,6 +1266,12 @@ export const TAB_EVENTS = {
    * for a request of the popup or the options page; the tab runs it as that
    * human action — a navigation, never an insert, a send or a generation.
    */
+  /** 2026-11-15: the pulse's `report` changed (the launcher's fifth row and its dot); null — the person has no board. */
+  'report.changed': { payload: z.strictObject({ report: z.nullable(ReportPulseSchema) }), to: TAB },
+  /** «Show on the site» handed to the tab of the sale's page: it frames the row and shows the bar with «К отчёту». */
+  'report.find': { payload: z.strictObject({ sale: ReportSaleSchema }), to: TAB },
+  /** The board asks these pages' OnlyFans statements to be read again now: a ChatSpace tab of them does it. */
+  'report.statement': { payload: ReportStatementRequestSchema, to: TAB },
   'tab.command': { payload: z.strictObject({ command: PageCommandSchema }), to: TAB },
   /**
    * 1.62.0: «Hi» of a greeting reminder's toast pressed in a tab of another model (the owner, 2026-10-25: «может

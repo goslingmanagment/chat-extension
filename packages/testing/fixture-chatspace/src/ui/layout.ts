@@ -18,6 +18,7 @@ import { keys } from '../query/queries';
 import { useChatTabEntries, useTabEntries } from '../stores/accounts';
 import { installGlobalHotkeys } from './hotkeys';
 import { useNavigation } from './navigation';
+import { TransactionsWindow } from './transactions';
 
 const initials = (name: string): string =>
   name
@@ -89,6 +90,8 @@ const ChatTabBar = defineComponent({
           ]);
         }),
         accountId !== null ? h('button', { type: 'button', class: 'chat-tab chat-tab__new', 'aria-label': 'New tab', onClick: () => void nav.newChatTab(accountId) }, '+') : null,
+        // Hub package R: the account's OnlyFans transactions (transactions.ts; the documents' shape).
+        accountId !== null ? h(TransactionsWindow) : null,
       ]);
     };
   },

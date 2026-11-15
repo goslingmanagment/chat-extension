@@ -20,6 +20,7 @@ import type { Unsubscribe } from './host';
 import { LIVE_TEXT_LIMITS } from './limits';
 import type { FanslyFilterActions, FanslyFilterNames, FanslyFilterRead, FanslyFilterUnread } from './fansly-filters';
 import type { FanslyInboxMark } from './settings-ext';
+import type { SaleSightingRow } from './report-board';
 import { nativeIdsAscending as ascending, CountSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from './primitives';
 
 // Preserve the site's public name; schemas share the host-neutral numeric order.
@@ -366,6 +367,11 @@ export interface FanslyPagePort {
   setMessageAuthors(view: FanslyMessageAuthorsView | null): void;
   /** 2026-11-03: a message of the open chat was deleted (the fan's or the model's), by the chat's group id: «Фан удалил» asks again. */
   onDeleted(cb: (groupId: string) => void): Unsubscribe;
+  /**
+   * 2026-11-15 (hub package R): rows of the creator's Wallet history the page itself loaded (MAIN's `fx.wallet`), with the
+   * creator they belong to: the board's «нет в Hub» sightings. Nothing is requested of Fansly for them.
+   */
+  onWallet(cb: (creatorId: string, rows: readonly SaleSightingRow[]) => void): Unsubscribe;
   /**
    * 2026-11-12, temporary pins: the rows of the list of chats — a pinned row's mark on its avatar from its first frame,
    * and a pin button that fades in on hover (a direct chat whose fan MAIN knows). `onToggle` — the person's trusted

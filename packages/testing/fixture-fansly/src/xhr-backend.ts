@@ -18,6 +18,7 @@ import type { StandFiltersSource } from './filters';
 import type { Account, Message, MessageAttachment } from './data';
 import type { FanslyHttp } from './http';
 import type { VaultApi } from './vault';
+import type { WalletApi } from './wallet';
 import type { WireAccount, WireAccountMe, WireAckBody, WireList, WireSetting, WireGroup, WireHistoryPage, WireInboxPage, WireMediaUpload, WireMessage, WireSendBody, WireUnreadPage, WireVaultAlbum, WireVaultAlbumMediaPage, WireVaultAlbums } from './wire';
 
 const HISTORY_PAGE = 25;
@@ -61,7 +62,7 @@ export interface XhrBackendOptions {
   readonly ackDelay: () => number;
 }
 
-export class XhrBackend implements StandBackend, VaultApi {
+export class XhrBackend implements StandBackend, VaultApi, WalletApi {
   creatorId = '';
   /** A group's facts changed after its answer (a partner's account arrived): the store hears of it here. */
   onGroup: (detail: GroupDetail) => void = () => undefined;
@@ -282,6 +283,11 @@ export class XhrBackend implements StandBackend, VaultApi {
   }
 
   // ── the vault (vault.ts, R20 P13a) ──
+
+  /** 2026-11-15: Wallet history's list, as the site asks it (hub package R; wallet.ts). */
+  walletTransactions(offset: number, done: (answer: { readonly total: number; readonly data: readonly unknown[] } | null) => void): void {
+    this.http.request<{ readonly total: number; readonly data: readonly unknown[] }>('GET', `/account/wallets/earnings/transactions?before=&after=&limit=30&offset=${String(offset)}`, null, (error, response) => done(error === null ? response : null));
+  }
 
   vaultAlbums(done: (albums: readonly WireVaultAlbum[]) => void): void {
     this.http.request<WireVaultAlbums>('GET', '/vault/albumsnew', null, (error, response) => done(error !== null || response === null ? [] : response.albums));

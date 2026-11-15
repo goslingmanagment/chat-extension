@@ -27,6 +27,7 @@
 
 import { showProxyNotice } from '@cg/host-fansly/isolated/proxy-notice';
 import { isMessagesPath } from '@cg/host-fansly/isolated/route';
+import { FANSLY_SALE_LOOK, findWalletRow } from '@cg/host-fansly/isolated/wallet-finder';
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
@@ -204,14 +205,25 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   // X46: the floating launcher's click opens its window as the popup's command does (`Navigate` to the surface): the
   // click kept while the application loaded at once, every next one in its own click — the gate sees it through our root.
   // A refusal speaks for itself where the router says it (a toast, the window's own state), as for the popup's command.
+  // 2026-11-15 (hub package R): the fifth row «Отчёт» opens Workboard's board over the site (tab/frames.ts).
   const offLauncher = env.host.launcher.serve((surface) => {
-    void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
+    if (surface === 'report') env.frames?.open('report');
+    else void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
   });
+  // While the board's bar takes the bottom of the page, the corner card stands over it (the prototype's `.ln`, 58 px up).
+  const offBar = env.frames?.onBar((shown) => env.host.launcher.setLift(shown ? 42 : 0)) ?? (() => undefined);
   // The buttons wear the scheme of our surfaces, so they stay the dock's chips under «Тема» (2026-10-20).
   const offScheme = env.host.launcher.follow(env.deps.scheme);
+  // 2026-11-15 (hub package R): the Wallet history the page itself loaded, to the background, which tells Hub only what
+  // it does not hold and only for a person with the board.
+  const offWallet = env.host.fansly.onWallet((creatorId, rows) => {
+    void env.rpc.request('report.sightings', { hostAccountId: creatorId, rows: [...rows] }).catch(() => undefined);
+  });
   const offInboxMark = startFanslyInboxMark(env);
   const offTabLabel = startFanslyTabLabel(env);
   return () => {
+    offBar();
+    offWallet();
     offTabLabel();
     offInboxMark();
     offOps();
@@ -252,6 +264,9 @@ export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
       return answer !== null && answer.ok && (answer.payload as { readonly focused?: unknown } | undefined)?.focused === true;
     },
     start: (env) => startFanslySurfaces(env),
+    // «Show on the site» (hub package R): the sale's row in Wallet history (host-fansly isolated/wallet-finder.ts).
+    findSale: (win, sale) => findWalletRow(win, sale),
+    saleLook: FANSLY_SALE_LOOK,
     registrationOf: (fanId, i18n) => {
       const at = fanslyRegistrationDate(fanId);
       return at === null ? undefined : { label: REGISTRATION_TEXTS[i18n.language].label, at };

@@ -99,6 +99,7 @@ import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureNeedsOn, fea
 import { fakeFanMarks } from './fan-marks';
 import { CursorSigner, DataModel, type FakeActivityBeat, type FakeNoteAttribution, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
+import { REPORT_FRAME_PATH, reportBoardAnswer, reportFrameHtml } from './report-board';
 import { type OnlineSeed } from './online';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
 import { Gates, sseBody } from './sse';
@@ -303,6 +304,8 @@ function streamRefusalReason(request: unknown): string | undefined {
 export class FakeHub {
   readonly clock: FakeHubClock;
   readonly journal = new FakeHubJournal();
+  /** Hub package R: the sightings the extension reported (`POST /api/v1/client/sale-sightings`), as they came. */
+  readonly sightings: unknown[] = [];
   private origin_: string;
   private readonly options: FakeHubOptions;
   private state: State;
@@ -709,6 +712,29 @@ export class FakeHub {
       this.journal.record({ ...base, kind: 'route', ...record, status, error, reason: reason ?? null, issues });
       return json(status, hubErrorBody(error, status, reason, issues.length > 0 ? `fake hub: ${issues.join('; ')}` : undefined), retryAfterSec);
     };
+
+    // Hub package R on the stand: the board's stub frame page and its API (report-board.ts). Hub's own routes come
+    // with its R1; until then these answer the stub's shape.
+    if (method === 'GET' && url.pathname === REPORT_FRAME_PATH) {
+      this.journal.record({ ...base, kind: 'legacy', operation: 'report-board:frame', status: 200, servedBy: 'model' });
+      return new Response(reportFrameHtml(), { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    }
+    const board = match.kind === 'route' ? null : reportBoardAnswer(method, url.pathname, bodyText);
+    if (board !== null) {
+      if (!verdict.ok) return refuse({ kind: 'legacy', operation: `report-board:${board.what}`, servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
+      let request: unknown = null;
+      if (board.what === 'sightings') {
+        try {
+          const parsed = JSON.parse(bodyText) as { pageLabel?: unknown; rows?: unknown };
+          request = { pageLabel: parsed.pageLabel, rows: Array.isArray(parsed.rows) ? parsed.rows.length : 0 };
+          this.sightings.push(parsed);
+        } catch {
+          request = null;
+        }
+      }
+      this.journal.record({ ...base, kind: 'legacy', operation: `report-board:${board.what}`, status: board.status, servedBy: 'model', token: tokenOf({ token: verdict.token, user: verdict.user }), request });
+      return json(board.status, board.body);
+    }
 
     if (match.kind === 'route' && isVoiceRoute(match.route)) {
       if (!verdict.ok) return refuse({ route: match.route, servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
@@ -1288,7 +1314,9 @@ export class FakeHub {
         const beat = s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now);
         // «Ждут вас» (hub #1232): the answer counts the person's matters; a hub before them sends no count.
         const matters = s.config.matters;
-        return read(beat.ok && matters !== null ? { ok: true, body: { ...beat.body, matters: matters.length } } : beat);
+        // Hub package R: the board «Отчёт» of the person; null — no board.
+        const withReport = beat.ok ? { ok: true as const, body: { ...beat.body, report: s.config.report } } : beat;
+        return read(withReport.ok && matters !== null ? { ok: true, body: { ...withReport.body, matters: matters.length } } : withReport);
       }
       // «Ждут вас» (hub #1210): the person's open matters, the longest waiting first, no evidence; a hub before them: 404.
       case 'clientMatters': {

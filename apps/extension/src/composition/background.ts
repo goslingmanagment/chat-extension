@@ -179,6 +179,8 @@ import { SITE_SURFACES, tokenRefusal } from './background/token-gate';
 import { createBackgroundNotes } from './background/notes';
 import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
+import { createReportBoardBackground } from './background/report-board';
+import { TEST_FRAME_ORIGIN_KEY, teamOriginOf } from '@cg/contracts/report-board';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
 import { fanslyAddress, proxyPermissionSet, RETIRED_PROXY_ORIGINS, OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, telegramMatches, telegramPermissionSet, telegramScriptSet } from './site-access';
@@ -868,6 +870,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // «Ждут вас» (hub #1232; core/services/waiting.ts): the beat's answer and the popup's read set the icon's number.
   const actionBadge = createActionBadge(api);
   const waitingBadge = new WaitingBadge({ show: (text) => actionBadge.show(text), log: coreLog });
+  // Workboard's screens in the frame over the site (hub package R, 2026-11-15; background/report-board.ts).
+  const reportFocus = createTabFocus(api);
+  const reportBoard = createReportBoardBackground({
+    hub: () => (hubInstance?.session() ? hubInstance : null),
+    tabs: () => presence.tabs(),
+    ports: () => rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, tabId: tab.tabId })),
+    pageOf: (key) => pageLabelOfAccount(key),
+    focus: (tabId) => reportFocus.focus(tabId),
+    emit: (type, payload, tabSessionId) => (rpc.emit as (type: string, payload: unknown, target?: { readonly tabSessionId: string }) => number)(type, payload, tabSessionId === undefined ? undefined : { tabSessionId }),
+    now: () => Date.now(),
+    log: (message, fields) => logger.info('bg.report', message, { fields }),
+  });
   const activity = new ActivityBeat({
     clock: CLOCK,
     hub: () => hubInstance,
@@ -878,7 +892,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     },
     instanceId: () => instanceId,
     tabs: () => beatTabsOf(presence.tabs(), pageLabelOfAccount, beatLastPage),
-    answered: (result) => waitingBadge.count(result.matters),
+    answered: (result) => {
+      waitingBadge.count(result.matters);
+      // Hub package R: the board «Отчёт» of the person (the launcher's fifth row and its dot); null — no board.
+      reportBoard.pulse(result.report);
+    },
     log: coreLog,
   });
   // The agency's always-on ChatSpace tab (hub apps/chatspace-browser): its Firefox policy says `serverTab`; there alone
@@ -1485,6 +1503,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       activity.sessionChanged();
       beatLastPage.clear();
       waitingBadge.clear();
+      reportBoard.sessionChanged();
       rpc.emit('session.changed', { session: change.session, reason: change.reason });
       // Another person, or nobody: no mark of the old sign-in stays; the next tab report asks again.
       talking.stop();
@@ -1627,7 +1646,29 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (report.accounts !== undefined && report.accounts.length > 0) tabAccounts.reported(sender.tabSessionId);
     // A keepalive never waits behind audio or recomputes the site's aliases.
     if (recorded.recorded && (report.accounts !== undefined || before?.routeAccount !== presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId)?.routeAccount)) void sound.arbiter.rememberAccounts();
+    // A «show on the site» that waited for a tab of this page goes to it now (hub package R).
+    reportBoard.presence(sender.tabSessionId);
     return ok(recorded);
+  });
+  // Workboard's screens in the frame over the site (hub package R; background/report-board.ts).
+  rpc.handle('report.state', async () => {
+    const hubOrigin = hubInstance?.session()?.hubOrigin ?? null;
+    // A test build on the stand may point the frames at Hub's demo board (`pnpm see report-* `, CG_SEE_FRAME_ORIGIN).
+    const stored: Readonly<Record<string, unknown>> = __CG_TEST_HOSTS__ ? await api.storage.local.get(TEST_FRAME_ORIGIN_KEY).catch(() => ({})) : {};
+    const override = stored[TEST_FRAME_ORIGIN_KEY];
+    const origin = typeof override === 'string' && /^https?:\/\/[^/]+$/.test(override) ? override : hubOrigin === null ? null : teamOriginOf(hubOrigin);
+    return ok({ report: reportBoard.current(), origin });
+  });
+  rpc.handle('frame.fetch', async (request) => ok(await reportBoard.fetch(request)));
+  rpc.handle('report.find', async ({ sale }, sender) => (sender.kind === 'tab' ? ok(await reportBoard.find(sale, sender.tabSessionId)) : fail('CG-UNKNOWN', 'tab only')));
+  rpc.handle('report.statement', ({ pages }) => {
+    reportBoard.statement(pages);
+    return ok({ recorded: true });
+  });
+  rpc.handle('report.sightings', async ({ hostAccountId, rows }, sender) => {
+    const host = sender.kind === 'tab' ? hostOfTab(sender.tabSessionId) : null;
+    if (host === null) return ok({ recorded: false });
+    return ok({ recorded: await reportBoard.sightings(hostAccountKeyOf(host, hostAccountId), rows) });
   });
 
   // sign-in and bootstrap

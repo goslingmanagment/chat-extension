@@ -61,7 +61,8 @@ export type FanslyRoute =
   | 'media.bundles'
   | 'settings.read'
   | 'settings.write'
-  | 'lists.account';
+  | 'lists.account'
+  | 'wallet.transactions';
 
 /**
  * FS-NET-1 (spec.md §4): the only calls our background may make — the pass of «Новые» (`followersnew`, the start of

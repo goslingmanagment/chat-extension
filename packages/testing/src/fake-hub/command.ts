@@ -224,6 +224,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'quotaRequestsToday',
   'personalAiLimit',
   'matters',
+  'report',
   'fanslyProxies',
   'generationVisibleAfterMs',
   'spendersTotal',
@@ -286,6 +287,10 @@ export function checkCommand(value: unknown): FakeHubCommand {
       return isObject(one) && isString(row['kind']) && isString(row['title']) && (row['link'] === undefined || row['link'] === null || isString(row['link'])) && (row['openedAgoMs'] === undefined || (isNumber(row['openedAgoMs']) && (row['openedAgoMs'] as number) >= 0));
     };
     if (matters !== undefined && matters !== null && !(Array.isArray(matters) && matters.every(isMatter))) throw new Error('fake hub control: config.patch.matters is a list of { kind, title, link?, openedAgoMs? }, or null');
+    const report = patch['report'] as { shiftId?: unknown; phase?: unknown; needsMe?: unknown } | null | undefined;
+    if (report !== undefined && report !== null && !(typeof report === 'object' && (report.shiftId === null || typeof report.shiftId === 'number') && typeof report.phase === 'string' && typeof report.needsMe === 'boolean')) {
+      throw new Error('fake hub control: config.patch.report is { shiftId, phase, needsMe }, or null');
+    }
   }
   return value as FakeHubCommand;
 }

@@ -52,6 +52,9 @@ import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, onScreen, type TabActionTokens } from './action-gate';
 import type { HostAppAdapter, HostDiagnostic, HostMounts, HostThemeSource, SiteAppEnv, TokenRedeemer } from './adapter';
+import { createWorkboardFrames } from './frames';
+import type { ReportSale } from '@cg/contracts/report-board';
+import { THEME_CSS } from '@cg/ui/kit/tokens';
 import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type OutreachSavedStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { createContractLog } from './contract-log';
@@ -109,6 +112,8 @@ export interface TabApp {
    * with this tab's page label and the tab it came from, for the card that says so.
    */
   greet(start: TabEventPayload<'greet.start'>): void;
+  /** 2026-11-15 (hub package R): «show on the site» handed here from a tab of another page (`report.find`). */
+  reportFind(start: TabEventPayload<'report.find'>): void;
   dispose(): void;
 }
 
@@ -684,6 +689,17 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       };
     },
   };
+  // Workboard's screens over the site (hub package R, 2026-11-15; tab/frames.ts): the board «Отчёт» first.
+  const frames = createWorkboardFrames({
+    win,
+    rpc,
+    tokens: THEME_CSS,
+    scheme,
+    saleLook: site.saleLook ?? null,
+    ...(site.findSale === undefined ? {} : { findRow: (sale: ReportSale) => (site.findSale as NonNullable<typeof site.findSale>)(win, sale) }),
+    log: (message, fields) => logger.info('tab.frames', message, { fields }),
+  });
+  offs.push(() => frames.dispose());
   if (site.start !== undefined) {
     const siteJournal = journal;
     offs.push(
@@ -700,6 +716,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         probe,
         gated: controllerRpc(rpc, tokens),
         keys: keysOfSite,
+        frames,
         journal: {
           watch: (surface) => siteJournal.watch(surface),
           action: (surface, name, fields) => logger.info('ui.action', 'pressed', { fields: { action: name, via: surface, input: gate.describe().input, ...fields } }),
@@ -1180,5 +1197,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     );
   };
 
-  return { redeem, tokens, command, greet, dispose };
+  const reportFind = ({ sale }: TabEventPayload<'report.find'>): void => {
+    if (!disposed) frames.find(sale);
+  };
+
+  return { redeem, tokens, command, greet, reportFind, dispose };
 }

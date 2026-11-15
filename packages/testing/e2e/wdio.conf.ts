@@ -55,6 +55,11 @@ const live = process.env['CG_SEE_LIVE'] === '1';
 const seeDpr = process.env['CG_SEE_DPR'] ?? '';
 const liveProfile = process.env['CG_SEE_LIVE_PROFILE'] || join(homedir(), '.cache/chatgoose/fansly-live', basename(repoRoot));
 if (live) mkdirSync(liveProfile, { recursive: true });
+/** `host:port` of a SOCKS5 proxy for the live browser alone; null — the machine's own route. */
+const liveSocks = ((): { host: string; port: number } | null => {
+  const match = /^([\w.-]+):(\d{1,5})$/.exec(process.env['CG_SEE_LIVE_SOCKS'] ?? '');
+  return match === null ? null : { host: match[1] ?? '127.0.0.1', port: Number(match[2]) };
+})();
 
 let stand: StandServer | null = null;
 let egress: EgressSink | null = null;
@@ -151,6 +156,11 @@ export const config: WebdriverIO.Config = {
           // itself, and BiDi does not see a worker's requests: the journal of writes (e2e/see/live.ts) would miss
           // them. Measured 2026-10-24 with a probe POST.
           ...(live ? { 'dom.serviceWorkers.enabled': false } : {}),
+          // --live through a SOCKS5 tunnel of this browser alone (CG_SEE_LIVE_SOCKS=127.0.0.1:<port>, e.g. `ssh -N -D`):
+          // where the machine's own route to fansly.com is reset, the machine's network stays as it is.
+          ...(live && liveSocks !== null
+            ? { 'network.proxy.type': 1, 'network.proxy.socks': liveSocks.host, 'network.proxy.socks_port': liveSocks.port, 'network.proxy.socks_version': 5, 'network.proxy.socks_remote_dns': true }
+            : {}),
           // `pnpm see … --dpr 2`: crisp pictures — the window keeps its CSS size, the screen has twice the pixels.
           ...(seeDpr === '' ? {} : { 'layout.css.devPixelsPerPx': seeDpr }),
         },

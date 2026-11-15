@@ -44,7 +44,7 @@ async function geometry(): Promise<Record<string, Box | string | null>> {
 
 /** The card is in the rail and drawn: its four buttons in its closed root. */
 async function waitCard(): Promise<void> {
-  await browser.waitUntil(async () => (await $(SLOT).isExisting()) && (await $(SLOT).shadow$$('button[data-launcher]').getElements()).length === 4, {
+  await browser.waitUntil(async () => (await $(SLOT).isExisting()) && (await $(SLOT).shadow$$('button[data-launcher]:not([hidden])').getElements()).length >= 4, {
     timeout: 20_000,
     interval: 200,
     timeoutMsg: 'no launcher in the rail',

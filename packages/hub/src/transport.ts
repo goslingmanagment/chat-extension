@@ -93,6 +93,33 @@ export class HubWire {
     }
   }
 
+  /**
+   * 2026-11-15 (hub package R): one request of a Workboard screen in the extension's frame, or the extension's own
+   * sighting report — a route the vendored SDK does not carry yet. The caller checked it against the screen's
+   * allow-list (core domain/report-board.ts) and passes the path of the hub's API only; this adds the device token,
+   * sends it to the sign-in's own hub origin and hands back the status and the text, whatever they are (the frame reads
+   * its own errors). A thrown failure is transport facts.
+   */
+  async relay(call: WireCall & { readonly token: string }, method: string, path: string, body: string | null): Promise<{ readonly ok: true; readonly status: number; readonly text: string } | { readonly ok: false; readonly failure: HubFailure }> {
+    if (!path.startsWith('/api/v1/')) return { ok: false, failure: transportFailure('contract') };
+    const scope = callScope(this.deps.clock, call.signals, call.timeoutMs);
+    try {
+      const response = await this.deps.fetch(`${call.hubOrigin}${path}`, {
+        method,
+        headers: { ...this.deps.headers(), authorization: `Bearer ${call.token}`, accept: 'application/json', ...(body === null ? {} : { 'content-type': 'application/json' }) },
+        ...(body === null ? {} : { body }),
+        signal: scope.signal,
+        redirect: 'error',
+        credentials: 'omit',
+      });
+      return { ok: true, status: response.status, text: await response.text() };
+    } catch (error) {
+      return { ok: false, failure: thrownFailure(error, scope) };
+    } finally {
+      scope.dispose();
+    }
+  }
+
   async client(route: ClientFamilyKey, call: WireCall & { readonly token: string }, request: unknown, check?: HubRequestCheck): Promise<WireResult> {
     // A route of the contract the vendored SDK does not have: nobody can send it.
     if (!isSdkRoute(route)) return contractFailure();

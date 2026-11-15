@@ -90,6 +90,11 @@ export interface FakeHubConfigPatch {
    * the oldest).
    */
   readonly matters?: readonly FakeMatter[] | null;
+  /**
+   * 2026-11-15 (hub package R): the pulse's `report` — the board «Отчёт» of the person (the launcher's fifth row and its
+   * dot). null — no board (the default): the beat answers `report: null` and the row is not drawn.
+   */
+  readonly report?: { readonly shiftId: number | null; readonly phase: string; readonly needsMe: boolean } | null;
   /** A finished generation becomes visible to H-5 this long after `done` (`generation_not_ready` before). */
   readonly generationVisibleAfterMs?: number;
   /** Rows of the Spenders board per page. */
