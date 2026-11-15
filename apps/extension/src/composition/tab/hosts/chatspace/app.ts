@@ -61,7 +61,8 @@ export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | 
 /**
  * ChatSpace's own surfaces (2026-10-28): «Заметки», and since 2026-11-11 the chat's length after it in the chat header
  * (the owner: «и с хуя ли на чатспейсе его нет?»). Each chunk loads the first time a chat is open and is kept; each says
- * itself where it stands. A chunk that did not load is asked again on the next chat.
+ * itself where it stands. A chunk that did not load is asked again on the next chat. And (2026-11-15) the clicks of the
+ * launcher at the bottom of the account rail, as Fansly's corner card's.
  */
 export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () => void {
   // hub #955: the OnlyFans feed's light reads of ChatSpace, for the accounts of this tab whose page lends this tab its
@@ -102,8 +103,18 @@ export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () =
     if (event.type === 'route') sync();
   });
   sync();
+  // The rail's launcher (ui-design §3.13) opens its window as the popup's command does (`Navigate` to the surface): the
+  // click kept while the application loaded at once, every next one in its own click — the gate sees it through our root.
+  // A refusal speaks for itself where the router says it (a toast, the window's own state), as for the popup's command.
+  const offLauncher = env.host.launcher.serve((surface) => {
+    void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
+  });
+  // The buttons wear the scheme of our surfaces, so they stay the dock's chips under «Тема».
+  const offScheme = env.host.launcher.follow(env.deps.scheme);
   return () => {
     off();
+    offLauncher();
+    offScheme();
     void notes?.then((stop) => stop?.());
     void chatLength?.then((stop) => stop?.());
   };

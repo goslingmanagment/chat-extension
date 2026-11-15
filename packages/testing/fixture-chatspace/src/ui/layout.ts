@@ -2,9 +2,15 @@
 // width), the route below in the content frame — the one box «fixed width»
 // narrows and aligns (`--app-content-max-width`, `--app-content-align`), as on
 // the host. The global hotkeys are registered when the layout mounts.
+//
+// The account rail has the host's shape (client-internals §6.1, ChatSpace
+// 0.233.0 `AccountTabSideBar`): a `nav` column as wide as `--account-sidebar-width`,
+// its middle a scroller with the account tiles and, sticky at its bottom, the
+// round «+»; the app's version is its last child. The launcher of ours stands
+// right before that version (host-chatspace rail-slot.ts).
 
 import { defineComponent, h, onBeforeUnmount, onMounted, type VNode } from 'vue';
-import { RouterView } from 'vue-router';
+import { RouterView, useRouter } from 'vue-router';
 
 import { useQueryCache } from '../query/cache';
 import type { Account, FansMap } from '../query/model';
@@ -21,33 +27,43 @@ const initials = (name: string): string =>
     .slice(-2)
     .toUpperCase();
 
+/** The version the stand's rail shows at its bottom, as the host shows its own. */
+export const STAND_APP_VERSION = '0.1.0';
+
 const AccountTabSideBar = defineComponent({
   name: 'AccountTabSideBar',
   setup() {
     const cache = useQueryCache();
     const tabs = useTabEntries();
     const nav = useNavigation();
+    const router = useRouter();
     return (): VNode => {
       const accounts = cache.getQueryData<Account[]>(keys.accounts()) ?? [];
       const current = nav.currentAccountId();
-      return h(
-        'aside',
-        { class: 'account-sidebar', 'aria-label': 'Accounts' },
-        tabs.openedEntries.map((entry) => {
-          const account = accounts.find((item) => String(item.id) === entry.accountId);
-          return h(
-            'button',
-            {
-              key: entry.id,
-              type: 'button',
-              class: ['account-tab', entry.accountId === current ? 'account-tab--active' : ''],
-              title: account?.name ?? 'Account',
-              onClick: () => entry.accountId !== null && void nav.openAccount(entry.accountId),
-            },
-            initials(account?.name ?? '?'),
-          );
-        }),
-      );
+      const tiles = tabs.openedEntries.map((entry) => {
+        const account = accounts.find((item) => String(item.id) === entry.accountId);
+        return h(
+          'button',
+          {
+            key: entry.id,
+            type: 'button',
+            class: ['account-tab', entry.accountId === current ? 'account-tab--active' : ''],
+            title: account?.name ?? 'Account',
+            onClick: () => entry.accountId !== null && void nav.openAccount(entry.accountId),
+          },
+          initials(account?.name ?? '?'),
+        );
+      });
+      return h('nav', { class: 'account-sidebar', 'aria-label': 'Accounts' }, [
+        h('div', { class: 'account-sidebar__body' }, [
+          h('div', { class: 'account-sidebar__scroll' }, [
+            h('div', { class: 'account-sidebar__list' }, tiles),
+            // The host's «+» opens a new account tab through its accounts overview.
+            h('div', { class: 'account-sidebar__new' }, [h('button', { type: 'button', class: 'account-sidebar__add', 'aria-label': 'Open new tab', onClick: () => void router.push({ name: 'accounts-overview' }) }, '+')]),
+          ]),
+        ]),
+        h('span', { class: 'account-sidebar__version' }, STAND_APP_VERSION),
+      ]);
     };
   },
 });

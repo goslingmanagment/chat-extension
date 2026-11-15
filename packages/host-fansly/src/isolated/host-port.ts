@@ -76,6 +76,7 @@ import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-
 import type { AttachIntent, AttachReceipt, ChatWindow, ComposerState, DraftMedia, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import { digest } from '@cg/host-kit/common/digest';
+import { createSiteLauncher, type SiteLauncher } from '@cg/host-kit/isolated/launcher';
 import { composerMedia, photosAsLiveImages, shownImageAsJpeg } from '@cg/host-kit/isolated/photos';
 import { readComposerMedia } from './draft-media';
 import { sameReport } from '@cg/host-kit/isolated/report';
@@ -95,7 +96,6 @@ import { createMessageAuthors } from './message-authors';
 import { createTabLabel } from './tab-label';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
-import { createFanslyLauncher, type FanslyLauncher } from './launcher';
 import type { Coexistence } from './legacy';
 import type { FanslyMounts } from './mount';
 import { createNavigator, type NavigationWay } from './navigate';
@@ -182,8 +182,8 @@ export interface FanslyPort extends FanslyHostPort {
   attachFile(intent: AttachIntent): Promise<AttachReceipt>;
   /** The vault's facts for the uploader (§7.11, P13a). */
   readonly vault: FanslyVaultFacts;
-  /** What the person asked of the floating launcher (X46): the application's half serves it (launcher.ts). */
-  readonly launcher: FanslyLauncher;
+  /** What the person asked of the floating launcher (X46): the application's half serves it (host-kit launcher.ts). */
+  readonly launcher: SiteLauncher;
 }
 
 export interface FanslyHostPortOptions {
@@ -196,7 +196,7 @@ export interface FanslyHostPortOptions {
   readonly route: RouteWatcher;
   readonly anchors: AnchorWatcher;
   /** The floating launcher's asks (X46); absent — a launcher of the port's own, which nobody draws. */
-  readonly launcher?: FanslyLauncher;
+  readonly launcher?: SiteLauncher;
   /** The background's `token.redeem` for the click or key of a write. */
   readonly redeem: TokenRedeemer;
   /** Fansly's schema module (validation.ts): the checks of our own controllers' intents. */
@@ -1152,7 +1152,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);
       return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats, sends: sends.stats(), attach: voice.stats() }, main };
     },
-    launcher: options.launcher ?? createFanslyLauncher(theme),
+    launcher: options.launcher ?? createSiteLauncher(theme),
     vault: {
       album: () => vaultLoad,
       onFact(cb): Unsubscribe {

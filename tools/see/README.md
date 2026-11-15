@@ -57,7 +57,10 @@ first), `log-download` (Hi on in a long chat, Ping off in a short one by its
 gate, pressed, then «Скачать лог» in the popup; the files land in
 the run's `downloads/`), `chatspace-chat-length` (the chat's length after «Заметки» in ChatSpace's header: «428» from the
 fake hub and its card on hover, the fan, three chatters with «(вы)», «Без автора» and the line that Hub counts what it
-has seen; a chat the hub holds nothing of, no badge; both themes). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
+has seen; a chat the hub holds nothing of, no badge; both themes), `chatspace-launcher` (the launcher at the bottom of
+ChatSpace's account rail, right above its version: the rail in both themes, a button under the pointer, a short window
+where the tiles scroll above it, then Spenders opened by the first click on a page without a chat; `rail.json` where each
+part stood). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
 the hub's rows of Spenders: a found row and a row of «Ждут ответа» each open their fan's chat),
 `review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-notes` («Заметки» on one screen: a field edited in
 place, «+ Метка», «✨ Дополнить из чата» with the Goose's suggestions in their rows, the fan's words on hover, one ✓

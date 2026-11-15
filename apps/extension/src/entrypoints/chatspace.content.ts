@@ -9,7 +9,7 @@
 import type { ContentScriptDefinition } from 'wxt';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 
-import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startChatSpaceTab, type ChatSpaceHostPort, type Validation } from '@cg/host-chatspace/isolated';
+import { createKeyPendingMark, createKeyboardProbe, routeOfLocation, startChatSpaceTab, type ChatSpaceHostPort, type RailLauncherChunk, type Validation } from '@cg/host-chatspace/isolated';
 
 import { composeTab, type HostAdapter } from '../composition/tab';
 import { CHATSPACE_LAZY_ROOT, CHATSPACE_MATCHES } from '../hosts/runtime/chatspace';
@@ -24,6 +24,8 @@ export const CHATSPACE_ADAPTER: HostAdapter<ChatSpaceHostPort> = {
       validation: () => env.lazy<Validation>('bridge-validation'),
       // ChatSpace's own draft key, read only (§6.1): the isolated world shares the page's localStorage.
       drafts: { getItem: (key) => env.win.localStorage.getItem(key) },
+      // 2026-11-15: the launcher at the bottom of the account rail, a chunk of ChatSpace's build drawn once the port is up.
+      launcher: () => env.lazy<RailLauncherChunk>('launcher'),
     }),
   keyProbe: createKeyboardProbe,
   keyPending: createKeyPendingMark,

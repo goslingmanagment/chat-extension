@@ -1,12 +1,14 @@
-// The floating launcher of a Fansly page, its early half (decision X46; ui-design §3.13; SP-001, NF-001): what the
-// person asked of it — «Онлайн», «Очереди», Spenders or «Новые» — between the click and the application that opens the window. The old
-// Fansly extension had «$» and «Новые» in the bottom left corner of every fansly.com page (`fansly-chat`
+// The launcher of a site's page, its early half (decision X46; ui-design §3.13; SP-001, NF-001): what the person asked
+// of it — «Онлайн», «Очереди», Spenders or «Новые» — between the click and the application that opens the window. The
+// old Fansly extension had «$» and «Новые» in the bottom left corner of every fansly.com page (`fansly-chat`
 // src/content/spenders/board-launcher.ts, bootstrap.ts): one click, while outside a chat the new one had only the
-// popup — two. The buttons themselves are a chunk of Fansly's own lazy build (launcher-view.ts), drawn once the tab is
-// admitted (starter.ts); this file is what the early bundle carries of them: a few lines, no DOM.
+// popup — two. Fansly draws it as a card in that corner, ChatSpace as a column of icons at the bottom of its account
+// rail (2026-11-15): the same buttons, the same asks, the same order (`LAUNCHER_TARGETS`). The buttons themselves are a
+// chunk of the site's own lazy build (launcher-view.ts), drawn once the tab may show them (each site's starter); this
+// file is what the early bundle carries of them: a few lines, no DOM.
 //
 // - A click before the application is loaded is kept (the newest wins) and the application is wanted — the starter's
-//   `wantsApp` says so, and the runtime loads it as for the dock's place. The application's half of Fansly's adapter
+//   `wantsApp` says so, and the runtime loads it as for the dock's place. The application's half of the site's adapter
 //   then `serve`s the launcher: the kept ask runs at once, every later click runs in its own click, so the tab's action
 //   gate sees the person's trusted click through our closed root as with any button of ours.
 // - Every ask is said again to whoever wants the application: an application whose load failed is asked for again by
@@ -15,10 +17,16 @@
 import type { HostTheme } from '@cg/contracts/host';
 import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
 
-/** What the launcher opens: the shared surfaces of the boards, top to bottom as the dock's chips stand. */
-export type LauncherTarget = 'online' | 'queues' | 'spenders' | 'newcomers';
+/**
+ * What the launcher opens, top to bottom as the dock's chips stand (2026-10-27: a column, «Онлайн» added; 2026-11-02:
+ * «Очереди»): the shared surfaces of the boards. The one list of both sites: a board added here is a button on Fansly's
+ * card and on ChatSpace's rail, and its face (launcher-view.ts `LAUNCHER_FACES`) is then required by the compiler.
+ */
+export const LAUNCHER_TARGETS = ['online', 'queues', 'spenders', 'newcomers'] as const;
 
-export interface FanslyLauncher {
+export type LauncherTarget = (typeof LAUNCHER_TARGETS)[number];
+
+export interface SiteLauncher {
   /** The person clicked one of the launcher's buttons. */
   ask(target: LauncherTarget): void;
   /** A click waits for the application: true from the first click on — the application stays once it came. */
@@ -33,8 +41,8 @@ export interface FanslyLauncher {
   serve(run: (target: LauncherTarget) => void): () => void;
   /**
    * The scheme the buttons wear: the one the application resolved from «Тема» for our surfaces (`follow`), so the
-   * buttons are the dock's chips in every theme; until the application came (the dock's place or the first click,
-   * never on a page without a chat) — the page's own, as «Тема» says by default («как на сайте»).
+   * buttons are the dock's chips in every theme; until the application came (the dock's place or the first click) —
+   * the page's own, as «Тема» says by default («как на сайте»).
    */
   scheme(): ColorScheme;
   onScheme(listener: () => void): () => void;
@@ -42,10 +50,10 @@ export interface FanslyLauncher {
   follow(scheme: ValueSignal<ColorScheme>): () => void;
 }
 
-/** The page's theme as the early bundle reads it (./theme.ts). */
-type PageTheme = { current(): HostTheme; onChange(listener: (theme: HostTheme) => void): () => void };
+/** The page's theme as the site's early bundle reads it. */
+export type LauncherPageTheme = { current(): HostTheme; onChange(listener: (theme: HostTheme) => void): () => void };
 
-export function createFanslyLauncher(page: PageTheme): FanslyLauncher {
+export function createSiteLauncher(page: LauncherPageTheme): SiteLauncher {
   let kept: LauncherTarget | null = null;
   /** The application's scheme; null — not handed yet, the page's is worn. */
   let scheme: ColorScheme | null = null;

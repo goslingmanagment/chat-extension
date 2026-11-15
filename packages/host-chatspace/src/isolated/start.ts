@@ -4,10 +4,13 @@
 // dock host with its closed root exists from the start, so the UI can mount
 // into it once) and the theme reader. Asynchronous part: the MAIN handshake
 // and the first snapshot; without MAIN the port still answers, reporting the
-// host as not ready (CG-HOST-NOT-READY).
+// host as not ready (CG-HOST-NOT-READY). The launcher at the bottom of the
+// account rail (2026-11-15): its asks are kept here from the start, the
+// starter draws it, the application serves it (host-kit launcher.ts).
 
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { connectMainBridge } from '@cg/host-kit/isolated/bridge-client';
+import { createSiteLauncher, type SiteLauncher } from '@cg/host-kit/isolated/launcher';
 
 import type { ChatSpaceBridge, MainBridgeClient } from './bridge-client';
 import type { DraftStorage } from './draft-store';
@@ -44,6 +47,8 @@ export interface StartedChatSpaceHost {
   readonly bridge: Promise<MainBridgeClient | null>;
   /** The HostPort, once the bridge is up (or known to be missing) and the first snapshot was taken. */
   readonly host: Promise<ChatSpaceHostPort>;
+  /** What the person asked of the rail's launcher: the starter draws it, the application serves it (the port lends it). */
+  readonly launcher: SiteLauncher;
 }
 
 export function startChatSpaceHost(options: StartChatSpaceHostOptions): StartedChatSpaceHost {
@@ -53,6 +58,7 @@ export function startChatSpaceHost(options: StartChatSpaceHostOptions): StartedC
     ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
   });
   const theme = createThemeReader(doc);
+  const launcher = createSiteLauncher(theme);
   // One module for the bridge and the port, however often they ask; a load that failed is not kept.
   let loaded: Promise<Validation> | null = null;
   const validation: ValidationLoader = () =>
@@ -74,11 +80,12 @@ export function startChatSpaceHost(options: StartChatSpaceHostOptions): StartedC
       theme,
       validation,
       drafts: options.drafts ?? null,
+      launcher,
       ...(options.navInsertTimeoutMs !== undefined ? { navInsertTimeoutMs: options.navInsertTimeoutMs } : {}),
       ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
     });
     await port.ready;
     return port;
   });
-  return { mounts, theme, bridge, host };
+  return { mounts, theme, bridge, host, launcher };
 }

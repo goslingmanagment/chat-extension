@@ -19,7 +19,7 @@
 
 import type { ShadowRootRegistry } from './shadow-registry';
 
-/** What a host is: `dock`, `overlay`, or an inline `header-slot`. */
+/** What a host is: `dock`, `overlay`, an inline `header-slot`, or ChatSpace's launcher in its account rail, `rail`. */
 export const HOST_ATTRIBUTE = 'data-host';
 /** The dock's mode when it is not in the composer frame: `copy-only` (the row) or `overlay` (fixed over the composer). */
 export const MODE_ATTRIBUTE = 'data-mode';
@@ -72,7 +72,7 @@ export function removeStaleHosts(doc: Document): number {
   // Only our host shape — a `div` with nothing in its light DOM: a neutral name could be some other element's too.
   // `data-cg` — a host of a build from before X22.
   const stale = [...doc.querySelectorAll(`div[${HOST_ATTRIBUTE}], div[data-cg]`)].filter(
-    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay', 'header-slot', 'inbox-slot', 'search-slot'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
+    (node) => node.childNodes.length === 0 && (node.hasAttribute('data-cg') || ['dock', 'overlay', 'header-slot', 'inbox-slot', 'search-slot', 'rail'].includes(node.getAttribute(HOST_ATTRIBUTE) ?? '')),
   );
   stale.forEach((node) => node.remove());
   // A node of the page the old instance hid (2026-11-13: Fansly's filter chips under our strip): shown again, so the page
