@@ -41,6 +41,11 @@ export const PRODUCTION_TEAM_ORIGIN = 'https://chatgoose.gosling-agency.ru';
 export const teamOriginOf = (hubOrigin: string): string => (hubOrigin === PRODUCTION_HUB_ORIGIN ? PRODUCTION_TEAM_ORIGIN : hubOrigin);
 /** Test builds only: a storage.local key that points the frames at another team origin (Hub's demo board on the stand). */
 export const TEST_FRAME_ORIGIN_KEY = 'see.frameOrigin';
+/**
+ * Test builds only: a storage.local key that stands in for the pulse's `report` in what the tab is told (the fifth row),
+ * for a live check where no tab of the person can be bound to a page (no pulse is sent then). Never gates sightings.
+ */
+export const TEST_REPORT_PULSE_KEY = 'see.reportPulse';
 
 /** Where Workboard draws a screen for the frame on the team origin: `/workboard/frame/<screen>`. */
 export const WORKBOARD_FRAME_PREFIX = '/workboard/frame/';

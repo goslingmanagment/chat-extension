@@ -180,7 +180,8 @@ import { createBackgroundNotes } from './background/notes';
 import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { createReportBoardBackground } from './background/report-board';
-import { TEST_FRAME_ORIGIN_KEY, teamOriginOf } from '@cg/contracts/report-board';
+import { TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, teamOriginOf } from '@cg/contracts/report-board';
+import { reportPulseOf } from '@cg/core/domain/report-board';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
 import { fanslyAddress, proxyPermissionSet, RETIRED_PROXY_ORIGINS, OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, telegramMatches, telegramPermissionSet, telegramScriptSet } from './site-access';
@@ -1654,10 +1655,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('report.state', async () => {
     const hubOrigin = hubInstance?.session()?.hubOrigin ?? null;
     // A test build on the stand may point the frames at Hub's demo board (`pnpm see report-* `, CG_SEE_FRAME_ORIGIN).
-    const stored: Readonly<Record<string, unknown>> = __CG_TEST_HOSTS__ ? await api.storage.local.get(TEST_FRAME_ORIGIN_KEY).catch(() => ({})) : {};
+    const stored: Readonly<Record<string, unknown>> = __CG_TEST_HOSTS__ ? await api.storage.local.get([TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY]).catch(() => ({})) : {};
     const override = stored[TEST_FRAME_ORIGIN_KEY];
     const origin = typeof override === 'string' && /^https?:\/\/[^/]+$/.test(override) ? override : hubOrigin === null ? null : teamOriginOf(hubOrigin);
-    return ok({ report: reportBoard.current(), origin });
+    // A test build's stand-in for the pulse (TEST_REPORT_PULSE_KEY): the row only, never the sightings' gate.
+    const forced = stored[TEST_REPORT_PULSE_KEY] === undefined ? null : reportPulseOf(stored[TEST_REPORT_PULSE_KEY]);
+    return ok({ report: forced ?? reportBoard.current(), origin });
   });
   rpc.handle('frame.fetch', async (request) => ok(await reportBoard.fetch(request)));
   rpc.handle('report.find', async ({ sale }, sender) => (sender.kind === 'tab' ? ok(await reportBoard.find(sale, sender.tabSessionId)) : fail('CG-UNKNOWN', 'tab only')));
