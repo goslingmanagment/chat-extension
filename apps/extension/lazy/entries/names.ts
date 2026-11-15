@@ -49,12 +49,15 @@ export const LAZY_ENTRIES = {
   // 2026-11-11: the chat's length after «Заметки» in the chat header, with the first open chat (Fansly's rides in its
   // `registration`).
   'chat-length': 'chatspace/chat-length.ts',
+  // 2026-11-15: the launcher at the bottom of the account rail, plain DOM, once the host port is up; Fansly's build has
+  // its own `launcher` (its corner card).
+  launcher: 'chatspace/launcher.ts',
 } as const;
 
 /**
  * Entries only a site's own build has (R20: Fansly's AI policy, P8b1; its panels — the vault, P13b), named for the
  * loader's type: the site's registry entry builds them (apps/extension/src/hosts/<site>.ts), and no other build has a
- * file of that name.
+ * file of that name — but `notes` and `launcher`, which ChatSpace's build (above) has too, each from its own source.
  */
 export type SiteLazyEntryName = 'ai-fansly' | 'vault' | 'registration' | 'notes' | 'launcher' | 'pins';
 

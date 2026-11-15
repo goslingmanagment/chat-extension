@@ -115,12 +115,15 @@ export const APPLICATION_CHUNKS: readonly string[] = [
 
 /**
  * Chunks a site's own build has for its application, of no one feature (by the site's host kind): Fansly's AI policy
- * (`ai-fansly`, R20 P8b1 — the proof of every start, loaded with the dock) and its floating launcher (`launcher`, X46). A name listed here that its site's build
+ * (`ai-fansly`, R20 P8b1 — the proof of every start, loaded with the dock) and its floating launcher (`launcher`, X46);
+ * ChatSpace's launcher at the bottom of its account rail (`launcher`, 2026-11-15). A name listed here that its site's build
  * no longer has is a violation too: the list only says what is.
  */
 export const SITE_APPLICATION_CHUNKS: Readonly<Record<string, readonly string[]>> = {
   // X46: the floating launcher's buttons — the way into Spenders and «Новые», which carry their own entries.
   'fansly-web': ['ai-fansly', 'launcher'],
+  // 2026-11-15: the same buttons in ChatSpace's account rail.
+  chatspace: ['launcher'],
 };
 
 const GATE = 'feature-manifest';

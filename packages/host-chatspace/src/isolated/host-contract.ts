@@ -69,6 +69,13 @@ export const WS_USER_NOTES = 'user-notes';
 export const HEADER_SEARCH_TEST_ID = 'conversation-header-search-button';
 export const HEADER_AFTER_TEST_IDS: readonly string[] = ['conversation-header-pinned-messages-button', 'conversation-header-gallery-button'];
 /**
+ * 2026-11-15: ChatSpace's account rail (0.233.0 `AccountTabSideBar`, client-internals §6.1): a column at the page's left
+ * edge as wide as this variable of its `:root` (64 px), the account tiles and the round «+» in its middle, the app's
+ * version its last child. Our launcher stands right before the version (rail-slot.ts). No test id or class of its own
+ * marks the rail: it is found by that shape.
+ */
+export const RAIL_WIDTH_VARIABLE = '--account-sidebar-width';
+/**
  * The path of ChatSpace's own API under its origin (`r2.onlyMonsterUrl` + `api/v0/…`). Our one read of it, the open
  * chat's messages (X54), takes the origin from the page's own requests to this path: the path, not the origin — MAIN
  * names no origin.

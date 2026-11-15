@@ -65,7 +65,10 @@ DOM, мост ChatSpace для вставки и — для отправки и�
   (`removeStaleHosts`), потом `startChatSpaceHost`. Вход `chatspace.content.ts` собирает из него
   раннюю половину адаптера ChatSpace (`start`, `keyProbe` = `createKeyboardProbe`,
   `keyPending` = `createKeyPendingMark`, `routeOfLocation`) и сам передаёт порт черновика
-  `drafts`: хост хранилище страницы не читает.
+  `drafts`: хост хранилище страницы не читает. С 2026-11-15 стартер рисует ещё вход в доски
+  внизу колонки аккаунтов (`launcher.ts`, `rail-slot.ts`; кусок `lazy/chatspace/launcher.ts`,
+  когда порт поднялся) и с первого клика по нему просит приложение (`wantsApp`); порт
+  отдаёт его просьбы приложению (`launcher`), ui-design §3.13.
 - `createChatSpaceHostPort` — `HostPort` из контрактов: состояние из снимка и событий MAIN,
   синхронные чтения из кэша (ответ — и `null` «у ChatSpace этого пока нет», и неудача —
   стоит до события MAIN, геттер второй раз не спрашивает; серия одинаковых неудач — одна

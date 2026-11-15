@@ -24,5 +24,5 @@ export { DELIVERED_KEY_MARK, KEY_PENDING_ATTRIBUTE, createKeyPendingMark, type K
 export { HOST_ATTRIBUTE, removeStaleHosts, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';
 export { connectFanslyMain, startFanslyHost, type StartFanslyHostOptions, type StartedFanslyHost } from './start';
 export { startFanslyTab, type FanslyDiagnostic, type FanslyStartEnv, type FanslyTheme, type LauncherChunk, type StartedFanslyTab } from './starter';
-export type { FanslyLauncher, LauncherTarget } from './launcher';
+export type { SiteLauncher as FanslyLauncher, LauncherTarget } from '@cg/host-kit/isolated/launcher';
 export { UNDROPPABLE_EVENTS } from './wire';

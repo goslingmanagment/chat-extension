@@ -115,6 +115,7 @@ import type { MediaTags } from '@cg/contracts/send-media';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { buildContractReport, type ContractWireInput } from './contract';
+import { createSiteLauncher, type SiteLauncher } from '@cg/host-kit/isolated/launcher';
 import { composerMedia, photoAsJpeg, photosAsLiveImages } from '@cg/host-kit/isolated/photos';
 import { sameReport } from '@cg/host-kit/isolated/report';
 import { readDraftMediaView, readStoredDraft, readStoredMedia, storedDraftAgrees, type DraftStorage, type StoredMedia } from './draft-store';
@@ -181,6 +182,8 @@ export interface ChatSpaceHostOptions {
    * the limit while the tab is open.
    */
   readonly navInsertTimeoutMs?: number | (() => number | undefined);
+  /** The rail launcher's asks (2026-11-15, ui-design §3.13); absent — a launcher of the port's own, which nobody draws. */
+  readonly launcher?: SiteLauncher;
   readonly onDiagnostic?: (diagnostic: HostDiagnostic) => void;
 }
 
@@ -216,6 +219,11 @@ export interface ChatSpaceHostPort extends HostPort {
    * (header-slot.ts): whether the row is there, its changes, and a closed root at an order of ours.
    */
   readonly header: ChatSpaceHeader;
+  /**
+   * 2026-11-15: what the person asked of the launcher at the bottom of ChatSpace's account rail (ui-design §3.13, the
+   * same as Fansly's corner): the application's half serves it (host-kit launcher.ts).
+   */
+  readonly launcher: SiteLauncher;
 }
 
 /** The conversation header's slots as the port lends them (Fansly's header slots' API). */
@@ -1098,6 +1106,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     onlinePresence,
     feedPoll,
     header: { available: header.available, onChange: header.onChange, mount: header.mount },
+    launcher: options.launcher ?? createSiteLauncher(theme),
 
     media: {
       folders: (hostAccountId, offset) => mediaRead<MediaFoldersPage>({ of: 'folders', acc: hostAccountId, offset }, (value) => 'items' in value),

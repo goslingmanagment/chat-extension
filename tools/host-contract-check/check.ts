@@ -154,6 +154,8 @@ export function contractAnchors(): Anchor[] {
     { id: 'fan notes request path', group: 'fanNotes', pattern: /api\/v0\/accounts\/\$\{[^}]+\}\/fans\/\$\{[^}]+\}\/notes/ },
     { id: `socket event ${contract.WS_DATA_UPDATED}`, group: 'fanNotes', pattern: literal(contract.WS_DATA_UPDATED) },
     { id: `socket data type ${contract.WS_USER_NOTES}`, group: 'fanNotes', pattern: literal(contract.WS_USER_NOTES) },
+    // 2026-11-15: the launcher at the bottom of the account rail; the rail is found by this width and its shape (rail-slot.ts).
+    { id: `rail width ${contract.RAIL_WIDTH_VARIABLE}`, group: 'accountRail', pattern: text(contract.RAIL_WIDTH_VARIABLE) },
   ];
   for (const [group, members] of Object.entries(contract.HOST_MEMBERS)) {
     for (const member of members) anchors.push({ id: `member ${member}`, group, pattern: word(member) });

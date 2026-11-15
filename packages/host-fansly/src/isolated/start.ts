@@ -14,11 +14,11 @@
 
 import { BRIDGE_LIMITS } from '@cg/contracts/limits';
 import { connectMainBridge } from '@cg/host-kit/isolated/bridge-client';
+import { createSiteLauncher, type SiteLauncher } from '@cg/host-kit/isolated/launcher';
 
 import { createAnchorWatcher, type AnchorWatcher } from './anchors';
 import type { FanslyBridge, FanslyMainBridgeClient } from './bridge-client';
 import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort, type TokenRedeemer } from './host-port';
-import { createFanslyLauncher, type FanslyLauncher } from './launcher';
 import type { Coexistence } from './legacy';
 import { createFanslyMounts, type FanslyMounts } from './mount';
 import { createFanslyTheme, type FanslyTheme } from './theme';
@@ -58,7 +58,7 @@ export interface StartedFanslyHost {
   /** Fansly's HostPort, once the bridge is up (or known to be missing) and MAIN's first state was taken. */
   readonly host: Promise<FanslyPort>;
   /** What the person asked of the floating launcher (X46): the starter draws it, the application serves it. */
-  readonly launcher: FanslyLauncher;
+  readonly launcher: SiteLauncher;
 }
 
 /**
@@ -85,7 +85,7 @@ export function startFanslyHost(options: StartFanslyHostOptions): StartedFanslyH
   const doc = win.document;
   const mounts = createFanslyMounts(doc);
   const theme = createFanslyTheme(doc);
-  const launcher = createFanslyLauncher(theme);
+  const launcher = createSiteLauncher(theme);
   const validation = once(options.validation);
   const bridge = options.coexistence?.stopped.aborted ? Promise.resolve(null) : connectFanslyMain(win, validation, options.handshakeTimeoutMs).catch(() => {
     options.onDiagnostic?.({ event: 'main-missing', code: 'CG-HOST-NOT-READY' });

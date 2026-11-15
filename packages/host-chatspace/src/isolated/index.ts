@@ -22,5 +22,5 @@ export { CHAT_PATH_PATTERN, NATIVE_OVERLAY_SELECTOR, createKeyboardProbe, routeO
 export { DELIVERED_KEY_MARK, KEY_PENDING_ATTRIBUTE, createKeyPendingMark, isTypingTarget, type KeyFocus, type KeyboardProbe } from '@cg/host-kit/isolated/keyboard';
 export { createShadowRootRegistry, type ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
 export { startChatSpaceHost, type StartChatSpaceHostOptions, type StartedChatSpaceHost } from './start';
-export { startChatSpaceTab, type ChatSpaceStartEnv, type StartedChatSpaceTab } from './starter';
+export { startChatSpaceTab, type ChatSpaceStartEnv, type RailLauncherChunk, type StartedChatSpaceTab } from './starter';
 export { createThemeReader, readTheme, type ThemeReader } from './theme';

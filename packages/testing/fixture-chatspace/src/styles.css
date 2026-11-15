@@ -4,6 +4,8 @@
    --color-om-* triplets set on <html>. */
 
 :root {
+  /* The host's own rail width, on its root (client-internals §6.1). */
+  --account-sidebar-width: 64px;
   --stand-bg: rgb(var(--color-om-neutral-50));
   --stand-surface: rgb(var(--color-om-neutral-0));
   --stand-border: rgb(var(--color-om-neutral-100));
@@ -45,7 +47,13 @@ button { font: inherit; color: inherit; }
 /* Fixed width narrows only the content frame under the tab bar; the sidebar and the bar stay full width. */
 .content-frame { flex: 1 1 auto; min-height: 0; display: flex; width: calc(100% - 8px); max-width: var(--app-content-max-width, none); align-self: var(--app-content-align, center); margin: 0 8px 8px 0; border: 1px solid var(--stand-border); border-radius: 10px; overflow: hidden; background: var(--stand-surface); }
 
-.account-sidebar { width: 64px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; border-right: 1px solid var(--stand-border); }
+.account-sidebar { width: var(--account-sidebar-width); min-width: 0; height: 100%; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--stand-border); }
+.account-sidebar__body { position: relative; min-height: 0; flex: 1 1 0; }
+.account-sidebar__scroll { height: 100%; overflow-y: auto; scrollbar-width: none; }
+.account-sidebar__list { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 12px; }
+.account-sidebar__new { position: sticky; bottom: 0; height: 72px; display: flex; align-items: center; justify-content: center; background: var(--stand-bg); }
+.account-sidebar__add { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--stand-border); background: var(--stand-incoming); color: var(--stand-muted); font-size: 20px; line-height: 1; cursor: pointer; }
+.account-sidebar__version { flex-shrink: 0; padding-bottom: 8px; text-align: center; font-size: 12px; color: var(--stand-muted); }
 .account-tab { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--stand-border); background: var(--stand-surface); cursor: pointer; font-weight: 600; }
 .account-tab--active { border-color: var(--stand-accent); box-shadow: 0 0 0 2px var(--stand-accent) inset; }
 
