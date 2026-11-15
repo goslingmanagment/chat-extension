@@ -347,9 +347,15 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
     now.end(done);
     env.log('form closed', { screen: now.screen, done });
   };
+  /** The latest open asked for: an open that is no longer the latest makes nothing (round 2, N9). */
+  let formAsked = 0;
   const form = async (screen: WorkboardFormScreen, who: WorkboardFormFor): Promise<{ readonly done: boolean }> => {
+    const asked = ++formAsked;
     endForm(false);
     const teamOrigin = await originOf();
+    // Another open came while this one waited for the origin (a double click on the first use): that one is the window.
+    if (asked !== formAsked) return { done: false };
+    endForm(false);
     if (teamOrigin === null) {
       env.log('frame not opened', { screen, reason: 'origin' });
       return { done: false };
