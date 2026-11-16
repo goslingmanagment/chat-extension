@@ -1,5 +1,5 @@
 ---
-kind: improved
+kind: new
 sites: fansly
 ---
 
