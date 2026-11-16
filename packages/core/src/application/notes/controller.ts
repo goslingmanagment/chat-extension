@@ -41,10 +41,12 @@
 //   with the notes, and a write of the person's own marked at once). A write outside our panel or before the record
 //   has its date alone.
 // - 2026-11-16 (a chatter: «чтобы из заметок анкетных неймтаг на сайте сам подтягивался»; the owner: «только тех, у
-//   кого нет кастомного имени»): a write of the questionnaire from this panel that leaves a name in «Имя» while the fan
-//   has no name for oneself on the site makes that name it, once, by the same press (`pullName`). A fan somebody
-//   named keeps his name, a name being typed in the head is the chatter's own, a read alone writes nothing. «Отменить»
-//   of the ✓ that named him takes the name back with it. Only where the site keeps such a name (`port.name`).
+//   кого нет кастомного имени», «у нас ведь и возраст в кастом именах и страна пишется»): a write of the questionnaire
+//   from this panel that leaves a name in «Имя» while the fan has no name for oneself on the site makes it his, in the
+//   team's «Имя/Страна/Возраст» (`noteFormName`), by the same press (`pullName`). A name the questionnaire gave before
+//   this write grows with it («Sam» → «Sam/US/30» as the Goose finds more); a name somebody wrote otherwise stays, a
+//   name being typed in the head is the chatter's own, a read alone writes nothing. «Отменить» of the ✓ that named
+//   him puts the name back as it was. Only where the site keeps such a name (`port.name`).
 // - A note's text never leaves through here but to the background (FS-NOTE-5), and from there only a fill's values, in
 //   the hub's request body: nothing is logged.
 
@@ -255,14 +257,20 @@ interface Quick {
 type Mark = { readonly state: 'pending' } | { readonly state: 'saving' } | { readonly state: 'written' } | { readonly state: 'dismissed' } | { readonly state: 'conflict'; readonly now: string };
 
 /** The last ✓ for a few seconds: the questionnaire before it (null — the ✓ created it) and after it. */
+/** A name for oneself the questionnaire put on the site, and the one it replaced (null — the fan had none). */
+interface Pulled {
+  readonly put: CustomName;
+  readonly was: CustomName | null;
+}
+
 interface Undo {
   readonly before: string | null;
   readonly after: string;
   readonly noteId: string;
   readonly indices: readonly number[];
   readonly labels: readonly string[];
-  /** The name this ✓ put on the site from «Имя» (null — none): «Отменить» takes it back too. */
-  readonly named: Promise<CustomName | null>;
+  /** The name this ✓ put on the site from the questionnaire (null — none): «Отменить» puts the one before back too. */
+  readonly named: Promise<Pulled | null>;
   readonly timer: unknown;
   undoing: boolean;
 }
@@ -967,15 +975,19 @@ export function createNotesController(port: NotesPort): NotesController {
 
   /** A note written: in place of the one read (keeping its time: Fansly answers an edit without it, decision 170), or
    * added — «now» until a reread brings Fansly's time (decision 171). */
-  function saved(fanId: string, note: NoteData, pull = true): Promise<CustomName | null> {
-    const known = dataOf(fanId)?.notes.some((entry) => entry.noteId === note.noteId) === true;
+  function saved(fanId: string, note: NoteData, pull = true): Promise<Pulled | null> {
+    const before = dataOf(fanId);
+    // The name the questionnaire gave before this write: a name for oneself equal to it is the questionnaire's own.
+    const had = before === null ? null : formNote(before);
+    const gave = had === null || had.noteId !== note.noteId ? null : noteFormName(partsOf(had));
+    const known = before?.notes.some((entry) => entry.noteId === note.noteId) === true;
     wrote(fanId, note.noteId, known ? 'edited' : 'created');
     patch(fanId, (d) => {
       const read = d.notes.find((entry) => entry.noteId === note.noteId);
       if (read !== undefined) return { ...d, notes: d.notes.map((entry) => (entry.noteId === note.noteId ? withTime(note, read) : entry)) };
       return { ...d, notes: [...d.notes, note.createdAtMs !== undefined && note.createdAtMs !== null ? note : { ...note, createdAtMs: now() }] };
     });
-    return pull ? pullName(fanId, note.noteId) : Promise.resolve(null);
+    return pull ? pullName(fanId, note.noteId, gave) : Promise.resolve(null);
   }
 
   /** A name write of the panel's own (nothing typed behind it) answered: the name Fansly holds now, and what the head
@@ -1002,36 +1014,40 @@ export function createNotesController(port: NotesPort): NotesController {
   };
 
   /**
-   * 2026-11-16: the questionnaire was just written from here (`noteId` is it), «Имя» holds a name and the fan has no
-   * name for oneself on the site: that name becomes it, one write. Answers the name it put there; null — none (he has
-   * one, «Имя» is empty or a sentence, the chatter types his own, the write failed: the questionnaire is written
-   * either way).
+   * 2026-11-16: the questionnaire was just written from here (`noteId` is it) and gives a name (`noteFormName`); the fan
+   * has no name for oneself on the site, or the one `gave` — the questionnaire's own before this write: that name
+   * becomes it, one write. Answers the name it put there and the one it replaced; null — none (he has another one,
+   * «Имя» is empty or a sentence, nothing new, the chatter types his own, the write failed: the questionnaire is
+   * written either way).
    */
-  async function pullName(fanId: string, noteId: string): Promise<CustomName | null> {
+  async function pullName(fanId: string, noteId: string, gave: string | null): Promise<Pulled | null> {
     const data = dataOf(fanId);
     const to = data === null ? null : who(data);
     const form = data === null ? null : formNote(data);
     const name = form === null || form.noteId !== noteId ? null : noteFormName(partsOf(form));
-    if (data === null || to === null || name === null || data.customName !== null || !nameFree(fanId)) return null;
+    const was = data?.customName ?? null;
+    const ours = was === null || (gave !== null && was.name.trim() === gave);
+    if (data === null || to === null || name === null || !ours || was?.name.trim() === name || !nameFree(fanId)) return null;
     nameStates.set(fanId, { status: 'saving', error: null });
     const under = epoch;
-    const answer = await (port.name?.(to, name, null) ?? Promise.resolve(toFailure(null))).catch(toFailure);
+    const answer = await (port.name?.(to, name, was) ?? Promise.resolve(toFailure(null))).catch(toFailure);
     if (disposed || under !== epoch) return null;
-    const held = nameAnswered(fanId, answer, 'pulled');
+    const put = nameAnswered(fanId, answer, 'pulled');
     emit();
-    return held;
+    return put === null ? null : { put, was };
   }
 
-  /** «Отменить» of the ✓ that named the fan: the name it put on the site goes with it, unless it was changed since. */
-  async function unpullName(fanId: string, named: Promise<CustomName | null>): Promise<void> {
+  /** «Отменить» of the ✓ that named the fan: the name it put on the site goes with it — the one before back, or none —
+   * unless it was changed since. */
+  async function unpullName(fanId: string, named: Promise<Pulled | null>): Promise<void> {
     const under = epoch;
-    const was = await named;
+    const pulled = await named;
     const data = dataOf(fanId);
     const to = data === null ? null : who(data);
-    if (disposed || under !== epoch || was === null || data === null || to === null || !sameName(data.customName, was) || !nameFree(fanId)) return;
+    if (disposed || under !== epoch || pulled === null || data === null || to === null || !sameName(data.customName, pulled.put) || !nameFree(fanId)) return;
     nameStates.set(fanId, { status: 'saving', error: null });
     emit();
-    const answer = await (port.name?.(to, '', was) ?? Promise.resolve(toFailure(null))).catch(toFailure);
+    const answer = await (port.name?.(to, pulled.was?.name ?? '', pulled.put) ?? Promise.resolve(toFailure(null))).catch(toFailure);
     if (disposed || under !== epoch) return;
     nameAnswered(fanId, answer, null);
     emit();
@@ -1110,7 +1126,7 @@ export function createNotesController(port: NotesPort): NotesController {
    * «Анкета». `onto` — the note as read. On a `changed` refusal the list takes Fansly's version, and the caller's next
    * press writes into it.
    */
-  async function writeForm(data: Data, to: NotesWho, onto: NoteData | null, text: string, how: NoteWriteHow, pull = true): Promise<{ readonly ok: true; readonly named: Promise<CustomName | null> } | { readonly ok: false; readonly problem: NotesProblem; readonly blocked: boolean }> {
+  async function writeForm(data: Data, to: NotesWho, onto: NoteData | null, text: string, how: NoteWriteHow, pull = true): Promise<{ readonly ok: true; readonly named: Promise<Pulled | null> } | { readonly ok: false; readonly problem: NotesProblem; readonly blocked: boolean }> {
     const before = onto === null ? formCreates.get(data.fanRef) : undefined;
     if (before !== undefined) {
       // Another create of it is on its way, or failed and may have landed: this write goes into the one made, never
