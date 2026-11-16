@@ -4,7 +4,8 @@ import type { SiteOpView } from '@cg/contracts/ops';
 import type { NoteData, NotesView } from '@cg/contracts/notes';
 
 import { createNotesController, type NotesPort, type NotesTarget } from './controller';
-import { NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
+import { parseNoteForm } from './form';
+import { NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE, noteFormName } from './template';
 
 const A: NotesTarget = { accountId: '7', groupId: '81', fanId: '91', fan: { name: 'Alex', handle: 'alex' } };
 const B: NotesTarget = { accountId: '7', groupId: '82', fanId: '92', fan: null };
@@ -367,8 +368,9 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(w.notes.panel().name).toMatchObject({ value: 'Саша', status: 'saved' });
   });
 
-  it('[2026-11-16] a questionnaire write that leaves a name in «Имя» names a fan who has no name for oneself, once; a named fan keeps his; «Отменить» of that ✓ takes the name back', async () => {
-    // A fan with a name for oneself: a field written never touches it.
+  it('[2026-11-16] a questionnaire write names a fan who has no name for oneself in the team\'s «Имя/Страна/Возраст»; the name it gave grows with it; another name stays; «Отменить» puts the one before back', async () => {
+    // A fan with a name for oneself the questionnaire did not give («Алекс», the questionnaire says «Алекс/Latvia»):
+    // a field written never touches it.
     const named = await opened();
     named.notes.dispatch({ type: 'field-open', label: 'Имя' });
     named.notes.dispatch({ type: 'field-input', value: 'Саша' });
@@ -377,23 +379,26 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(named.port.edit).toHaveBeenCalledTimes(1);
     expect(named.port.name).not.toHaveBeenCalled();
 
-    // A fan with none: the ✓ that creates his questionnaire names him by its «Имя», without the Goose's month.
+    // A fan with none: the ✓ that creates his questionnaire names him by its «Имя», without the Goose's month; the
+    // next ✓ adds the country, in English, to the name it gave; a ✓ that changes none of them writes no name.
     const w = world();
     w.go(B);
     w.notes.toggle();
     await w.settle();
     w.notes.dispatch({ type: 'fill' });
     await w.settle();
-    w.notes.fillDone(w.answer('op1', { Имя: 'Blasko (11.2026)', Работа: 'чинит игровые автоматы' }));
+    w.notes.fillDone(w.answer('op1', { Имя: 'Blasko (11.2026)', Локация: 'Остин, Техас (11.2026)', Работа: 'чинит игровые автоматы' }));
     expect(w.port.name).not.toHaveBeenCalled();
     w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
     await w.settle();
     expect(w.port.name).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '92' }, 'Blasko', null);
     expect(w.notes.panel().name).toMatchObject({ value: 'Blasko', status: 'pulled' });
-    // He has a name now: the next write leaves it alone.
     w.notes.dispatch({ type: 'suggestion-accept', index: 1 });
     await w.settle();
-    expect(w.port.name).toHaveBeenCalledTimes(1);
+    expect(w.port.name).toHaveBeenLastCalledWith({ accountId: '7', fanId: '92' }, 'Blasko/US', { noteId: '5', name: 'Blasko' });
+    w.notes.dispatch({ type: 'suggestion-accept', index: 2 });
+    await w.settle();
+    expect(w.port.name).toHaveBeenCalledTimes(2);
 
     // «Отменить» of the ✓ that named him: the questionnaire it created is deleted and the name goes with it.
     const u = world();
@@ -402,7 +407,7 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     await u.settle();
     u.notes.dispatch({ type: 'fill' });
     await u.settle();
-    u.notes.fillDone(u.answer('op1', { Имя: 'Blasko' }));
+    u.notes.fillDone(u.answer('op1', { Имя: 'Blasko', Возраст: '41 (11.2026)' }));
     u.notes.dispatch({ type: 'suggestion-accept', index: 0 });
     await u.settle();
     u.notes.dispatch({ type: 'suggestion-undo' });
@@ -410,6 +415,16 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(u.port.remove).toHaveBeenCalledTimes(1);
     expect(u.port.name).toHaveBeenLastCalledWith({ accountId: '7', fanId: '92' }, '', { noteId: '5', name: 'Blasko' });
     expect(u.notes.panel().name).toMatchObject({ value: '', status: 'idle' });
+    // Of the ✓ that grew it: the name before it comes back.
+    u.notes.dispatch({ type: 'suggestion-accept', index: 0 });
+    await u.settle();
+    u.notes.dispatch({ type: 'suggestion-accept', index: 1 });
+    await u.settle();
+    expect(u.port.name).toHaveBeenLastCalledWith({ accountId: '7', fanId: '92' }, 'Blasko/41', { noteId: '5', name: 'Blasko' });
+    u.notes.dispatch({ type: 'suggestion-undo' });
+    await u.settle();
+    expect(u.port.name).toHaveBeenLastCalledWith({ accountId: '7', fanId: '92' }, 'Blasko', { noteId: '5', name: 'Blasko/41' });
+    expect(u.notes.panel().name).toMatchObject({ value: 'Blasko' });
 
     // A sentence in «Имя» is no name; a name being typed in the head is the chatter's own.
     const s = world();
@@ -427,6 +442,28 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     await s.settle();
     expect(s.port.edit).toHaveBeenCalledTimes(1);
     expect(s.port.name).not.toHaveBeenCalled();
+  });
+
+  it('[2026-11-16] the name a questionnaire gives, as the team writes them (hub prod)', () => {
+    const name = (text: string): string | null => noteFormName(parseNoteForm(text));
+    expect(name('Имя: Anton\nЛокация: Германия (10.2026)\nВозраст: 26')).toBe('Anton/Germany/26');
+    expect(name('Имя: Денис\nЛокация: Россия (10.2026)\nВозраст: 33')).toBe('Денис/Russia/33');
+    expect(name('Имя: Blasko\nЛокация: Остин, Техас, США (11.2026)')).toBe('Blasko/US');
+    expect(name('Имя: Dan\nЛокация: Остин, Техас (10.2026)\nВозраст: 38')).toBe('Dan/US/38');
+    expect(name('Имя: Sam\nЛокация: западное побережье, США (07.2026)\nВозраст: средних лет')).toBe('Sam/US');
+    expect(name('Имя: George (Petri George, судя по Instagram)\nЛокация: \nВозраст: 37 лет (день рождения 23 июля)')).toBe('George/37');
+    expect(name('Имя: Franc\nЛокация: Испания (08.2026): деревня (03.2026), 2 часа езды до Барселоны (10.2026)\nВозраст: 57 (родился 6 февраля)')).toBe('Franc/Spain/57');
+    expect(name('Имя: Rob\nЛокация: US/denver\nВозраст: 34')).toBe('Rob/US/34');
+    expect(name('Имя: Jake\nЛокация: California\nВозраст: 47')).toBe('Jake/US/47');
+    expect(name('Имя: Tim\nЛокация: Баку\nВозраст: ')).toBe('Tim/Баку');
+    expect(name('Имя: Niko\nЛокация: Greek, but living in Cyprus\nВозраст: 21')).toBe('Niko/Cyprus/21');
+    expect(name('Имя: Isaac, неважно, как его называют\nЛокация: запад США (11.2026), живёт в получасе от кампуса (11.2026)')).toBe('Isaac/US');
+    expect(name('Имя: Roman Aguero\nЛокация: Argentina\nВозраст: 21')).toBe('Roman/Argentina/21');
+    expect(name('Имя: не называет, просит звать по нику\nЛокация: US')).toBeNull();
+    expect(name('Имя: Conner; Bradley это его второе имя\nЛокация: США (10.2026)\nВозраст: 30')).toBe('Conner/US/30');
+    expect(name('Имя: произносится как пишется, ударение на первый слог\nЛокация: Прага (11.2026)')).toBeNull();
+    expect(name('Имя: ???\nЛокация: Slovenija\nВозраст: 19')).toBeNull();
+    expect(name('Имя: \nЛокация: US\nВозраст: 40')).toBeNull();
   });
 
   it('[FX-012] another account of the tab drops what was read and typed under the previous one', async () => {

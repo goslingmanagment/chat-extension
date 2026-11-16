@@ -1,7 +1,7 @@
 // Fansly «Заметки» of a fan with no questionnaire yet (2026-10-27, the owner: filling it from the chat is the main
 // way): the card with «✨ Заполнить из чата» first, «Заполнить вручную» behind it; the stage line; the Goose's
-// suggestions as faint rows; «Принять все» creates «Анкета» in one press, and its «Имя» becomes the fan's name for
-// oneself in the head. Each picture is the panel alone.
+// suggestions as faint rows; «Принять все» creates «Анкета» in one press, and its «Имя», «Локация» and «Возраст» become
+// the fan's name for oneself in the head, as the team writes those («Dan/US/38»). Each picture is the panel alone.
 
 import { WORLD } from '../../../src/scenarios/hub';
 import { SHOWCASE } from '../../../src/showcase';
@@ -11,7 +11,7 @@ import { SEE_AI_TEXTS, around, scenario, showcaseAiTexts, type See } from '../ki
 const FILL = (
   SHOWCASE
     ? [
-        'Имя: Дэниел',
+        'Имя: Dan',
         '> «Dan is fine, only my mom calls me Daniel»',
         'Локация: Остин, Техас (10.2026)',
         '> «Austin, born and raised»',
@@ -28,7 +28,7 @@ const FILL = (
         'Другое: =',
       ]
     : [
-        'Имя: Маркус',
+        'Имя: Marcus',
         '> «call me Marcus»',
         'Локация: Техас, Остин (10.2026)',
         '> «Austin, born and raised»',
@@ -86,7 +86,7 @@ scenario(
     await s.press(/^Принять все/, 'panel');
     await s.see('panel', /Анкета создана/);
     await s.see('panel', /Дополнить из чата/);
-    // 2026-11-16: the fan had no name for oneself, so the questionnaire's «Имя» became it by the same press.
+    // 2026-11-16: the fan had no name for oneself, so the questionnaire's «Dan/US/38» became it by the same press.
     await s.see('panel', /Имя взято из анкеты/);
     await s.wait(600);
     await panel(s, 'new-written');
