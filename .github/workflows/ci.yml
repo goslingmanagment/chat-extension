@@ -53,7 +53,7 @@
 # edit this file, so the real fence is the repository's setting: a PR from an
 # outside contributor runs nothing until someone approves it. Unset CI_POOL to
 # go back. The parts run on ubuntu-24.04 (4 vCPUs each), the gates «pnpm check»
-# and «pnpm e2e» on ubuntu-slim. The e2e suite (a smoke set of the core flows,
+# and «pnpm e2e» too (ubuntu-slim got no runner on 2026-11-17). The e2e suite (a smoke set of the core flows,
 # packages/testing/e2e/specs) runs in four parts. The ruleset of main requires
 # «pnpm check» by the job's `name:`, and the release gate reads «pnpm check»
 # and «pnpm e2e» by theirs: keep the names.
@@ -237,7 +237,7 @@ jobs:
     name: pnpm check
     needs: [check-part]
     if: ${{ !cancelled() }}
-    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-slim' }}
+    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 15
     outputs:
       tree: ${{ needs.check-part.outputs.tree }}
@@ -385,8 +385,8 @@ jobs:
     name: pnpm e2e
     needs: [check, e2e-part]
     if: always() && github.event_name != 'pull_request'
-    # Seconds of shell on the smallest GitHub runner.
-    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-slim' }}
+    # Seconds of shell on a GitHub runner.
+    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 15
 
     steps:
