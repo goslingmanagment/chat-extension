@@ -10,8 +10,7 @@
 #     (after a full run: a spec needs both builds and the built stand)
 #   CG_E2E_SHARD=2/5 tools/ci/e2e-docker-local.sh   one part of the suite, as a CI job runs it
 #   CG_E2E_WITH=<folder>   a folder git ignores, copied into the tree of the run
-#                          as well (the signed XPIs of P3b: e2e-docker-local-p3b.sh);
-#                          CG_P3B_* reach the run (p3b-signed-builds.e2e.ts)
+#                          as well
 #
 # The Mac's own node_modules are built for macOS, so the run gets a Linux
 # install of its own. It lives in the Docker volume CG_E2E_VOLUME (default
@@ -84,5 +83,4 @@ exec docker run --rm --init --network none --shm-size 2g --user 0:0 \
   --workdir /sim/work --mount "type=volume,source=$volume,target=/sim" \
   --env CG_NODE_BIN=/sim/node/bin --env CG_PNPM_BIN=/sim/pnpm/bin --env CG_NODE_LIBS=/sim/node-libs \
   --env NODE_OPTIONS --env CG_E2E_FIREFOX --env CG_E2E_GECKODRIVER --env CG_E2E_SHARD --env CG_E2E_TIMING_SLACK \
-  --env CG_P3B_XPI_N0 --env CG_P3B_XPI_N --env CG_P3B_XPI_N1 --env CG_P3B_XPI_CONTROL --env CG_P3B_UNSIGNED \
   --entrypoint bash "$CG_E2E_IMAGE" /sim/work/tools/ci/e2e-in-container.sh "$@"

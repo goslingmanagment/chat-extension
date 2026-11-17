@@ -344,7 +344,7 @@ export function makeHarness(): Harness {
         const dir = spec.args[spec.args.indexOf('--artifacts-dir') + 1] ?? '';
         const source = spec.args[spec.args.indexOf('--source-dir') + 1] ?? '';
         mkdirSync(dir, { recursive: true });
-        // A P3b test build is signed as the folder it was given; the release — as the build of the checkout.
+        // The release is signed as the build of the checkout: the folder it was given.
         writeFileSync(join(dir, 'signed.xpi'), signedFolder(source));
       }
       return Promise.resolve(answer('', world.signExit));

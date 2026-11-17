@@ -21,7 +21,7 @@
 # whoever releases.
 #
 # Not here: `pnpm perf` (the §11 and Fansly P16a probes, about 50 minutes)
-# runs every night and on demand in perf.yml.
+# runs only by hand in perf.yml.
 #
 # A tree that already passed does not run again. A full green run leaves the
 # proof of the tree it tested — an artifact `ci-proof-<tree>` from the job

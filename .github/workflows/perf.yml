@@ -3,28 +3,24 @@
 # 50 minutes. Too long for the CI of a PR or a push: inside it the part
 # «e2e 1/5» took 55 minutes instead of 7, and every run waited for it.
 #
-# Every night on main, and by hand on any branch (Actions → Perf → Run
-# workflow, «Use workflow from»): before a release, on its branch, for the
-# release note's line `perf` (docs/release.md, section 5).
+# By hand on any branch (Actions → Perf → Run workflow, «Use workflow
+# from»). No nightly run: it never caught a product regression, and its
+# nightly reds were stale limits.
 #
 # On a GitHub-hosted runner (owner, 2026-10-21: the repository is public, so
-# the ~60 minutes a night are free, and it must never reach the owner's PC).
+# its ~60 minutes are free, and it must never reach the owner's PC).
 # The probes compare the extension with a fresh base on the same machine — the
 # job's own runner — so a cloud runner's speed does not move the verdict.
 
 name: Perf
 
 on:
-  schedule:
-    # 22:17 UTC, 01:17 in Moscow: the quietest night hour of this repository's
-    # CI; well before hub's Nightly (02:20 UTC).
-    - cron: '17 22 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# One run at a time; a run by hand waits for the nightly one.
+# One run at a time.
 concurrency:
   group: perf
   cancel-in-progress: false

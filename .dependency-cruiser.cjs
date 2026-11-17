@@ -2,7 +2,7 @@
 // (workspace symlinks resolve to packages/<name>/src/...), plus cycles,
 // cross-package relative imports and what each bundle root can reach (`hub`
 // and the SDK only from the background). ESLint checks single import
-// specifiers; tests/lint-boundaries.test.ts proves both go red.
+// specifiers.
 //
 // The two sites (docs/project-unite/architecture.md §1.8, R20 F9a): whose file
 // is whose comes from tools/gates/site-paths.cjs, the table the gates read too.

@@ -1,7 +1,7 @@
 // ESLint (architecture.md §3 «pnpm check» п. 2, §4 «Правила»): the package
 // graph, banned globals and banned deep imports. dependency-cruiser
 // (.dependency-cruiser.cjs) checks the same graph on resolved paths plus
-// cycles; tests/lint-boundaries.test.ts proves both go red on a violation.
+// cycles.
 
 import js from '@eslint/js';
 import type { Linter } from 'eslint';
