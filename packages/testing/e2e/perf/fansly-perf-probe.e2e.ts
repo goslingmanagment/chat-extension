@@ -1,6 +1,6 @@
 // P16a: the P3d scenario, now an acceptance gate, with both neighbours. Not part
 // of `pnpm e2e`: `pnpm perf` runs it beside the ChatSpace probe, and so does CI
-// every night and on demand (.github/workflows/perf.yml).
+// by hand (.github/workflows/perf.yml).
 // Fresh Firefox per subject, the same stand and clock as P3d, loopback only.
 // Reports, raw about:memory and Firefox profiles: .cache/e2e/perf-fansly/gate/.
 import { mkdirSync, writeFileSync } from 'node:fs';

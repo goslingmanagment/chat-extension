@@ -197,8 +197,6 @@ there.
 - `.github/workflows/ci.yml` runs where the `CI_POOL` repo variable says: `pc` — self-hosted (`self-hosted`, `ci-pc`: the
   owner's Mac VM, `~/code/6-infra/ci-runners/mac/`); unset — GitHub-hosted. A pull request from a fork never reaches
   self-hosted: the switch itself says so, and the repository asks for approval of every outside contributor's run.
-- `.github/workflows/perf.yml` — `pnpm perf` nightly and by hand on a GitHub-hosted runner; not part of a release.
+- `.github/workflows/perf.yml` — `pnpm perf` only by hand on a GitHub-hosted runner; not part of a release.
 - e2e locally, as in CI: `tools/ci/e2e-docker-local.sh` (needs Docker; one part —
   `CG_E2E_SHARD=2/2`). The Firefox image is pinned by digest in `tools/ci/e2e-image.sh`.
-- Signed P3b test builds — `pnpm release test-builds`, `pnpm release sign
-  --test-builds --confirm <version N>` (`docs/project-unite/spike.md`, the "P3b" run section).

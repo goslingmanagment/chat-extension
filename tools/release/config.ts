@@ -59,12 +59,8 @@ export function releaseTarget(overrides: Partial<Pick<ReleaseTarget, 'siteBase' 
   };
 }
 
-/**
- * The optional sites' permissions (the host registry's): asked for on a gesture, never at install. The P3b test builds
- * (test-builds.ts) leave them out of N0 and move the origins into host_permissions in the control.
- */
+/** The optional sites' permissions (the host registry's): asked for on a gesture, never at install. */
 export const OPTIONAL_SITE_ORIGINS: readonly string[] = HOSTS.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.origins);
-export const OPTIONAL_SITE_API: readonly string[] = [...new Set(HOSTS.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.api ?? []))];
 
 export const FEED_FILE = UPDATE_URL.slice(UPDATE_URL.lastIndexOf('/') + 1);
 /** The feed the swap replaced, kept next to it. */

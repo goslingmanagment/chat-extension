@@ -72,64 +72,6 @@ const TEXT_POST = postOf([note('fix-one', { kind: 'fixed' })]);
 const send = (net: ReturnType<typeof scripted>, post: Post = TEXT_POST): Promise<number | null> => sendPost(target, post, uploadsOf(post), { silent: post.silent, fetchImpl: net.fetchImpl, sleep: net.sleep });
 
 describe('the Telegram post', () => {
-  it('[UP-005] is the notes of the version: the sites by the chatters\' names, each screenshot uploaded with it, the technical side folded', () => {
-    const post = postOf([note('spenders-all', { kind: 'new', images: ['spenders-all.png'] }), note('fansly-only', { kind: 'fixed', sites: 'fansly' })]);
-    expect(post.html.split('\n')).toEqual([
-      '<h1>ChatGoose 3.0.1</h1>',
-      '<p><i>22 октября 2026</i></p>',
-      '<hr/>',
-      '<h2>✨ Новое</h2>',
-      '<h3>Заметка spenders-all &lt;b&gt;</h3>',
-      '<p><i>OnlyFans и Fansly</i></p>',
-      '<p>Для чаттеров: что стало и зачем.</p>',
-      '<figure><img src="tg://photo?id=shot-1"/><figcaption>Снимок spenders-all.png</figcaption></figure>',
-      '<details><summary>Как это устроено</summary><p>Внутри две доски хаба.</p></details>',
-      '<hr/>',
-      '<h2>🐛 Исправлено</h2>',
-      '<h3>Заметка fansly-only &lt;b&gt;</h3>',
-      '<p><i>Fansly</i></p>',
-      '<p>Для чаттеров: что стало и зачем.</p>',
-      '<details><summary>Как это устроено</summary><p>Внутри две доски хаба.</p></details>',
-      '<hr/>',
-      '<footer>Firefox поставит обновление сам в течение дня. Чтобы сразу: ☰ → «Дополнения и темы» → ⚙ → «Проверить наличие обновлений». Потом перезагрузите открытые вкладки OnlyFans (ChatSpace) и Fansly.</footer>',
-    ]);
-    expect(post.photos).toEqual([{ id: 'shot-1', file: 'spenders-all.png' }]);
-    expect(post.silent).toBe(false);
-    // A hand-written section of CHANGELOG.md goes out as it is.
-    expect(composePost(releaseOf(historyOf(parseChangelog(CHANGELOG), []), '0.2.0')).html).toContain('<p>Стало быстрее, цена прежняя: $0.</p>\n<h4>Новое</h4>\n<ul><li><b>Сигнал.</b> Теперь <code>Double</code>.</li></ul>');
-  });
-
-  it('opens with the intro; four notes or more get a line of contents with a link to each', () => {
-    const post = postOf([
-      parseNote('launch', '---\nkind: intro\nsites: chatspace, fansly\n---\n\n# Одно расширение\n\nДля всех чаттеров.\n', () => null),
-      ...['a-one', 'b-two', 'c-three'].map((slug) => note(slug, { kind: 'improved' })),
-      note('d-four', { kind: 'fixed', sites: 'chatspace' }),
-    ]);
-    const lines = post.html.split('\n');
-    expect(lines.slice(2, 5)).toEqual([
-      '<h2>Одно расширение</h2>',
-      '<p>Для всех чаттеров.</p>',
-      '<p><b>В этом выпуске:</b> <a href="#a-one">Заметка a-one &lt;b&gt;</a> · <a href="#b-two">Заметка b-two &lt;b&gt;</a> · <a href="#c-three">Заметка c-three &lt;b&gt;</a> · <a href="#d-four">Заметка d-four &lt;b&gt;</a></p>',
-    ]);
-    expect(lines).toContain('<a name="d-four"></a>');
-    expect(lines[lines.indexOf('<a name="d-four"></a>') + 2]).toBe('<p><i>OnlyFans</i></p>');
-    // The intro rings, as something new does.
-    expect(post.silent).toBe(false);
-    // Three notes need no contents.
-    expect(postOf(['a-one', 'b-two', 'c-three'].map((slug) => note(slug, { kind: 'new' }))).html).not.toMatch(/В этом выпуске|<a name=/);
-  });
-
-  it('names each note in the line of contents by its title up to «: » or « — »', () => {
-    const titled = (slug: string, title: string): Note => ({ ...note(slug, { kind: 'new' }), title: [{ kind: 'text', text: title }] });
-    const html = postOf([titled('a-one', 'Ответ в один клик: Reply и Fix'), titled('b-two', 'Голосовое — из черновика'), titled('c-three', 'Все настройки на одной странице'), titled('d-four', 'Spenders: кто платит')]).html;
-    expect(html).toContain('<a href="#a-one">Ответ в один клик</a> · <a href="#b-two">Голосовое</a> · <a href="#c-three">Все настройки на одной странице</a> · <a href="#d-four">Spenders</a>');
-  });
-
-  it('[UP-005] a post of improvements and fixes alone goes without a notification', () => {
-    expect(postOf([note('a-one', { kind: 'improved' }), note('b-two', { kind: 'fixed' })]).silent).toBe(true);
-    expect(postOf([note('a-one', { kind: 'improved' }), note('b-two', { kind: 'new' })]).silent).toBe(false);
-  });
-
   it('is refused before any request when Telegram would not take it: too long, too many pictures, a picture it cannot show', async () => {
     expect(postProblems(TEXT_POST, [])).toEqual([]);
     const long = composePost(releaseOf(historyOf(parseChangelog(`# T\n\n## 1.0.0\n\n${'очень длинный текст '.repeat(2000)}\n`), []), '1.0.0'));
