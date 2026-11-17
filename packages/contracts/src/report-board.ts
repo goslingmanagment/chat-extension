@@ -1,8 +1,8 @@
 // The board «Отчёт» (hub package R, 2026-11-15; 8-docs/2026-11-13-products/parts/R-protocol.md): what the extension and
 // Hub's board page in its frame say to each other, and what the extension's tab and background say of it.
 //
-// - Hub's Workboard draws the board at `<team origin>/workboard/frame/report`; the extension puts that page in an
-//   iframe of its closed root over the site (host-kit isolated/report-board.ts). No credential enters the frame: every
+// - Hub's Workboard draws the board at `<frame origin>/workboard/frame/report` (the hub's own name, `frameOriginOf`); the
+//   extension puts that page in an iframe of its closed root over the site (host-kit isolated/frame-host.ts). No credential enters the frame: every
 //   API request of the board crosses a `MessagePort` to the content script and on to the background, which runs it with
 //   the device token, only for the allow-list below (core domain/report-board.ts checks it).
 // - The pulse (`clientActivity`) answers `report`: null for a person without the right `submits_shift` (then the
@@ -21,13 +21,13 @@ import { PageLabelSchema } from './hub/wire';
  * nothing to its parent; a window message that claims to be a frame's hello is ignored.
  */
 export const REPORT_BOARD_PROTOCOL = 2;
-/** The extension's port, transferred with the key, to the team origin only. */
+/** The extension's port, transferred with the key, to the frame's origin only. */
 export const REPORT_FRAME_PORT = 'report-board/port';
 
 /**
  * Workboard's screens the extension shows in its frame over the site (the coordinator, 2026-11-15: one host, one
  * handshake, one fetch relay; the background's allow-list is a table per screen), each at its own exact Hub path (Hub
- * lifts its no-framing headers for these paths only, on the team's name):
+ * lifts its no-framing headers for these paths only, on the team's name and the hub's root name):
  * - `report` — the board «Отчёт» (`/workboard/frame/report`);
  * - `custom` — «Записать кастом» of the fan panel (`/workboard/frame/custom?page=&fan=&name=`, package R5);
  * - `ask` — «Спросить» of the fan panel (`/workboard/frame/ask?page=&fan=&name=`, package R5).
@@ -37,16 +37,25 @@ export const WORKBOARD_FRAME_SCREENS = ['report', 'custom', 'ask'] as const;
 export type WorkboardFrameScreen = (typeof WORKBOARD_FRAME_SCREENS)[number];
 /**
  * The team origin of the production hub (R-protocol «Addresses»): Workboard lives there, the API at the hub's origin.
- * Another hub (a dev hub, the stand's fake hub) serves Workboard's frame pages at its own origin.
+ * Another hub (a dev hub, the stand's fake hub) serves Workboard's pages at its own origin.
  */
 export const PRODUCTION_HUB_ORIGIN = 'https://gosling-agency.ru';
 export const PRODUCTION_TEAM_ORIGIN = 'https://chatgoose.gosling-agency.ru';
 /**
- * Production Hub's API names, the root and `hub.` (round 2, N8): both are one Hub, whose Workboard frames answer only on
- * the team's name (`hub.` refuses framing since hub#1368). One table: a new name of the same Hub goes here.
+ * Production Hub's API names, the root and `hub.` (round 2, N8): both are one Hub, whose Workboard frames answer on the
+ * team's name and the root (`hub.` refuses framing since hub#1368). One table: a new name of the same Hub goes here.
  */
 export const PRODUCTION_HUB_ORIGINS: readonly string[] = [PRODUCTION_HUB_ORIGIN, 'https://hub.gosling-agency.ru'];
+/** Where a Workboard screen opens in a tab (`workboard.open`, the popup's links): the team's name. */
 export const teamOriginOf = (hubOrigin: string): string => (PRODUCTION_HUB_ORIGINS.includes(hubOrigin) ? PRODUCTION_TEAM_ORIGIN : hubOrigin);
+/**
+ * Where the frames over the site load from (2026-11-17): the hub's root name, which this extension may reach (its host
+ * permission). Firefox hands a request only to an extension that may reach its address, so a model's container sends
+ * the frame through the page's proxy as the container router answers it (core container-proxy.ts). On the team's name
+ * the router never saw it: Multi-Account Containers alone routed it, and a container whose own proxy entry was stale or
+ * dead got «Unable to connect» in the frame while Fansly itself worked. Another hub: its own origin, as before.
+ */
+export const frameOriginOf = (hubOrigin: string): string => (PRODUCTION_HUB_ORIGINS.includes(hubOrigin) ? PRODUCTION_HUB_ORIGIN : hubOrigin);
 /** Test builds only: a storage.local key that points the frames at another team origin (Hub's demo board on the stand). */
 export const TEST_FRAME_ORIGIN_KEY = 'see.frameOrigin';
 /**
@@ -60,7 +69,7 @@ export const TEST_REPORT_PULSE_KEY = 'see.reportPulse';
  */
 export const TEST_FAN_STAND_IN_KEY = 'see.fanStandIn';
 
-/** Where Workboard draws a screen for the frame on the team origin: `/workboard/frame/<screen>`. */
+/** Where Workboard draws a screen for the frame (on `frameOriginOf`): `/workboard/frame/<screen>`. */
 export const WORKBOARD_FRAME_PREFIX = '/workboard/frame/';
 export const workboardFramePath = (screen: WorkboardFrameScreen): string => `${WORKBOARD_FRAME_PREFIX}${screen}`;
 /** The fan panel's windows of Workboard (package R5): opened for one fan, closed when done; no bar, never kept. */

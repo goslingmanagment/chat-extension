@@ -105,6 +105,25 @@ describe('container proxy: which proxy', () => {
     expect(await proxy.answer({ ...own, originUrl: 'moz-extension://another/bg' })).toBeUndefined();
   });
 
+  // 2026-11-17: Workboard's frames over the site load from the hub's root name, which Firefox hands to this router (the
+  // extension may reach it), never from the team's name, which only other add-ons route.
+  it('sends Workboard\'s frame on the hub\'s name through the page\'s proxy in a model\'s container, and nothing else of the hub', async () => {
+    const { proxy } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    const frame = 'https://gosling-agency.ru/workboard/frame/report';
+    for (const url of [frame, 'https://gosling-agency.ru/workboard/assets/index-1.js']) {
+      const answer = await proxy.answer({ url, tabId: 6, cookieStoreId: 'firefox-container-6', originUrl: SITE });
+      expect(first(answer)).toMatchObject({ type: 'socks', host: LORA.host, username: 'lora-user' });
+      expect(answer?.at(-1)).toBeNull();
+    }
+    // A container of no page and a tab in no container: what the browser and other add-ons choose, as before.
+    expect(await proxy.answer({ url: frame, tabId: 3, cookieStoreId: 'firefox-container-9' })).toBeUndefined();
+    expect(await proxy.answer({ url: frame, tabId: 3, cookieStoreId: 'firefox-default' })).toBeUndefined();
+    // This background's own calls to the hub: no tab, no container, untouched.
+    expect(await proxy.answer({ url: 'https://gosling-agency.ru/api/v1/shift-reports/current', tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}background.html` })).toBeUndefined();
+  });
+
   it('goes direct as before for a person with no proxies at all', async () => {
     const { proxy } = world({}, []);
     await proxy.refresh(true);

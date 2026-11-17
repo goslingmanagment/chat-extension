@@ -13,7 +13,9 @@ in the hub; accounting in the ledger; files in ContentOps. Words, money and date
 (`HUB_ROUTES`, `narrowToken: true`), never a local store of its own: the extension shows and asks, the hub keeps.
 What a chatter does outside the conversation is a Workboard screen (`https://chatgoose.gosling-agency.ru/workboard/`):
 the fifth button «Отчёт» (Fansly's corner card, ChatSpace's icons; since 3.30.1, shown only to a person whose «Сдаёт
-смену доской» is on) opens Workboard's board over the site in a frame (`/workboard/frame/report`); the fan panel's «Записать кастом» and
+смену доской» is on) opens Workboard's board over the site in a frame (`/workboard/frame/report`, loaded from the hub's name
+`https://gosling-agency.ru`, contracts `frameOriginOf`: the container router sees only names the extension may reach, so
+a model's container sends the frame through the page's proxy); the fan panel's «Записать кастом» and
 «Спросить» open Workboard's own form and question window in the same frame (`/workboard/frame/custom`, `/frame/ask`);
 other Workboard screens open in a tab by a one-time link, no password. The one map of the system is `~/code/SYSTEM.md` on the owner's
 machine.

@@ -312,15 +312,15 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
   const host = async (screen: WorkboardFrameScreen): Promise<FrameHost | null> => {
     const made = hosts.get(screen);
     if (made !== undefined) return made;
-    const teamOrigin = await originOf();
-    if (teamOrigin === null) return null;
+    const frameOrigin = await originOf();
+    if (frameOrigin === null) return null;
     const again = hosts.get(screen);
     if (again !== undefined) return again;
     const frame = createFrameHost({
       doc,
       ...(env.registry === undefined ? {} : { registry: env.registry }),
-      origin: teamOrigin,
-      url: `${teamOrigin}${workboardFramePath(screen)}`,
+      origin: frameOrigin,
+      url: `${frameOrigin}${workboardFramePath(screen)}`,
       tokens: env.tokens,
       scheme: () => env.scheme.value,
       onMessage: (message) => onMessage(screen, message),
@@ -352,11 +352,11 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
   const form = async (screen: WorkboardFormScreen, who: WorkboardFormFor): Promise<{ readonly done: boolean }> => {
     const asked = ++formAsked;
     endForm(false);
-    const teamOrigin = await originOf();
+    const frameOrigin = await originOf();
     // Another open came while this one waited for the origin (a double click on the first use): that one is the window.
     if (asked !== formAsked) return { done: false };
     endForm(false);
-    if (teamOrigin === null) {
+    if (frameOrigin === null) {
       env.log('frame not opened', { screen, reason: 'origin' });
       return { done: false };
     }
@@ -366,8 +366,8 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
       const frame = createFrameHost({
         doc,
         ...(env.registry === undefined ? {} : { registry: env.registry }),
-        origin: teamOrigin,
-        url: `${teamOrigin}${workboardFormPath(screen, who)}`,
+        origin: frameOrigin,
+        url: `${frameOrigin}${workboardFormPath(screen, who)}`,
         tokens: env.tokens,
         scheme: () => env.scheme.value,
         onMessage: (message) => onMessage(screen, message),
