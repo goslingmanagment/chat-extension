@@ -180,7 +180,7 @@ import { createBackgroundNotes } from './background/notes';
 import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { createReportBoardBackground } from './background/report-board';
-import { TEST_FAN_STAND_IN_KEY, TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, teamOriginOf } from '@cg/contracts/report-board';
+import { TEST_FAN_STAND_IN_KEY, TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, frameOriginOf, teamOriginOf } from '@cg/contracts/report-board';
 import { reportPulseOf } from '@cg/core/domain/report-board';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
@@ -1666,7 +1666,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // A test build on the stand may point the frames at Hub's demo board (`pnpm see report-* `, CG_SEE_FRAME_ORIGIN).
     const stored: Readonly<Record<string, unknown>> = __CG_TEST_HOSTS__ ? await api.storage.local.get([TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, TEST_FAN_STAND_IN_KEY]).catch(() => ({})) : {};
     const override = stored[TEST_FRAME_ORIGIN_KEY];
-    const origin = typeof override === 'string' && /^https?:\/\/[^/]+$/.test(override) ? override : hubOrigin === null ? null : teamOriginOf(hubOrigin);
+    // The hub's root name, not the team's: a model's container sends the frame through the page's proxy (frameOriginOf).
+    const origin = typeof override === 'string' && /^https?:\/\/[^/]+$/.test(override) ? override : hubOrigin === null ? null : frameOriginOf(hubOrigin);
     // A test build's stand-in for the pulse (TEST_REPORT_PULSE_KEY): the row only, never the sightings' gate.
     const forced = stored[TEST_REPORT_PULSE_KEY] === undefined ? null : reportPulseOf(stored[TEST_REPORT_PULSE_KEY]);
     const standIn = stored[TEST_FAN_STAND_IN_KEY];

@@ -3,11 +3,11 @@
 // Plain DOM in closed roots of ours, the same on Fansly and ChatSpace:
 //
 // - The layer: a full-window host in <html>, above the site's own modals (FRAME_Z), holding the iframe of
-//   `<team origin>/workboard/frame/<screen>`: `allow="clipboard-write"`, no `sandbox`, `referrerpolicy="no-referrer"`.
+//   `<frame origin>/workboard/frame/<screen>`: `allow="clipboard-write"`, no `sandbox`, `referrerpolicy="no-referrer"`.
 //   The board is created once per tab, hidden (never unloaded) when collapsed, so opening again is instant; a form of
 //   the fan panel is made for its fan and disposed when it closes (tab/frames.ts).
 // - The handshake (version 2): a random key in the frame's address fragment; on the frame's `load` the port is posted
-//   with the key to the team origin, again with a fresh channel every 500 ms until the frame says `ready` on it.
+//   with the key to the frame origin, again with a fresh channel every 500 ms until the frame says `ready` on it.
 //   Nothing secret crosses: the frame asks for what it needs over the port, and the extension's background answers
 //   (the device token never leaves it).
 // - Keys: while the layer shows, the frame has the focus; a key that still lands on the site's page (the layer just
@@ -54,7 +54,7 @@ export interface FrameBarView {
 export interface FrameHostEnv {
   readonly doc: Document;
   readonly registry?: ShadowRootRegistry;
-  /** The team origin (`https://chatgoose.gosling-agency.ru`; the stand's own in a test build). */
+  /** The frame origin (`https://gosling-agency.ru`, contracts `frameOriginOf`; the stand's own in a test build). */
   readonly origin: string;
   /** The screen's address on that origin. */
   readonly url: string;
