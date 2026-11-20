@@ -25,6 +25,7 @@
 //   person's temporary chat pins over the list of chats (2026-11-12, `pins` chunk); the filters above the chats in the
 //   look the person chose (2026-11-13, the same chunk).
 
+import { PAGE_Z } from '@cg/host-fansly/isolated/mount';
 import { showProxyNotice } from '@cg/host-fansly/isolated/proxy-notice';
 import { isMessagesPath } from '@cg/host-fansly/isolated/route';
 import { FANSLY_SALE_LOOK, WALLET_HISTORY_PATH, findWalletRow } from '@cg/host-fansly/isolated/wallet-finder';
@@ -268,6 +269,8 @@ export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
     findSale: (win, sale) => findWalletRow(win, sale),
     saleLook: FANSLY_SALE_LOOK,
     saleScreen: (win) => win.location.pathname === WALLET_HISTORY_PATH,
+    // The bar on Wallet history stands where the corner card does: in <body>, under Fansly's windows (mount.ts).
+    pageLayer: PAGE_Z,
     registrationOf: (fanId, i18n) => {
       const at = fanslyRegistrationDate(fanId);
       return at === null ? undefined : { label: REGISTRATION_TEXTS[i18n.language].label, at };

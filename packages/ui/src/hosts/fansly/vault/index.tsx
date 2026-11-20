@@ -9,7 +9,7 @@ import { VAULT_CSS } from './styles';
 import { VaultView } from './VaultPanel';
 
 export { VaultView, sizeText } from './VaultPanel';
-export { VAULT_SURFACE } from './styles';
+export { VAULT_COVERED_ATTRIBUTE, VAULT_SURFACE } from './styles';
 
 export const VAULT_STYLES: StyleSource = { id: 'cg-fansly-vault', css: VAULT_CSS };
 

@@ -311,4 +311,9 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
   readonly saleLook?: { readonly words: Readonly<Record<string, string>>; readonly number: boolean };
   /** Whether the page shows the site's own list of sales now: the only place the board's bar stands. Absent — nowhere. */
   readonly saleScreen?: (win: Window) => boolean;
+  /**
+   * 2026-11-20: the site's page layer, where the board's bar and the row's highlight stand in <body>, under the site's
+   * own windows (Fansly: 900, as its corner card; it fixes its body under a window). Absent — in <html> over everything.
+   */
+  readonly pageLayer?: number;
 }

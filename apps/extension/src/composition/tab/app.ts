@@ -697,6 +697,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     scheme,
     saleLook: site.saleLook ?? null,
     ...(site.saleScreen === undefined ? {} : { saleScreen: () => (site.saleScreen as NonNullable<typeof site.saleScreen>)(win) }),
+    ...(site.pageLayer === undefined ? {} : { pageLayer: site.pageLayer }),
     ...(site.findSale === undefined ? {} : { findRow: (sale: ReportSale) => (site.findSale as NonNullable<typeof site.findSale>)(win, sale) }),
     log: (message, fields) => logger.info('tab.frames', message, { fields }),
   });

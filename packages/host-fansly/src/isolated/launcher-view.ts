@@ -5,10 +5,11 @@
 // (lazy/fansly/launcher.ts), loaded once the tab is admitted (starter.ts). The same buttons, glyphs alone, stand at the
 // bottom of ChatSpace's account rail (host-chatspace isolated/launcher.ts).
 //
-// - Where: fixed, 16 px from the bottom left corner, on our layer under Fansly's modals (mount.ts `LAUNCHER_Z`): a
-//   modal of Fansly's covers it, as it covers Fansly's own page. FBuddy's toasts stand bottom right, our toasts top
-//   right, the vault's entry bottom right: the corner is nobody's. «Рассылка» folded stands above the card
-//   (ui outreach.css.ts `.is-launcher`).
+// - Where: fixed, 16 px from the bottom left corner, in <body> on the page's layer (mount.ts `PAGE_Z`): any window of
+//   Fansly's (the media viewer, an upload, the vault picker) and its side menu cover it, as they cover Fansly's own
+//   page — they fix the body, and a host in <html> would paint over them (2026-11-20). FBuddy's toasts stand bottom
+//   right, our toasts top right, the vault's entry bottom right: the corner is nobody's. «Рассылка» folded stands
+//   above the card (ui outreach.css.ts `.is-launcher`).
 
 import { drawLauncher, type LauncherViewEnv as SiteLauncherViewEnv } from '@cg/host-kit/isolated/launcher-view';
 

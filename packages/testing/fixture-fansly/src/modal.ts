@@ -2,6 +2,13 @@
 // - the modal service: `div.modal-wrapper > div.xdModal[xdmodal]` in app-root; a modal component is inserted after
 //   `div.xdModal` (its view container); while any is open `div.xdModal` has `back-drop` and `body` has
 //   `modal-opened` with an inline width (main:24505-24507, :54064-54074, :61745);
+// - the body held: while a modal or the side menu is open Fansly fixes its body, `position: fixed; top: -<scroll>px`,
+//   and gives the scroll back when the last one closes (bundle 2026-10-30 main:61993-61998, the side menu
+//   :61840-61844). The body is then a stacking context of its own: whatever stands in <html> paints over all of it;
+// - the media viewer (`app-media-modal`; the live site shows a video in `app-media-browser-modal`): the whole window,
+//   the author's row «@…» bottom left, the player's footer under it (`app-videojs-player`, main:14872): its track,
+//   then play, volume, time, repeat, the gear, and full screen at the right end;
+// - the side menu (`.menu-open-overlay` 999 and the menu 1000, main:62170-62200), `body.side-menu-open`;
 // - the upload modal `app-account-media-upload` (mode 3, for the composer): files handed to the composer's file input
 //   are only listed here — they become an attachment when a person clicks «Upload» (main:55951-55975,
 //   :42635-42646);
@@ -69,27 +76,114 @@ export class ModalService {
         setClass(entry.element, 'active-modal', active);
         setClass(entry.element, 'inactive-modal', !active);
       });
+      holdBody('modal', true);
     } else {
       setClass(this.xd, 'back-drop', false);
       setClass(body, 'modal-opened', false);
+      holdBody('modal', false);
       body.style.removeProperty('width');
       if (body.getAttribute('style') === '') body.removeAttribute('style');
     }
   }
 }
 
-/** A modal of the page that is not the composer's: the media viewer over a picture of the chat (its own close icon). */
-export function openMediaViewer(modals: ModalService): ModalRef {
+/** Who holds the body fixed now, and the page's scroll when the first of them came. */
+const holders = new Set<'modal' | 'side-menu'>();
+let heldScroll = 0;
+
+/** Fansly's body under a window or its side menu (main:61993-61998, :61840-61844): fixed at the page's scroll. */
+function holdBody(holder: 'modal' | 'side-menu', on: boolean): void {
+  const body = document.body;
+  const was = holders.size > 0;
+  if (on) holders.add(holder);
+  else holders.delete(holder);
+  if (!was && holders.size > 0) {
+    heldScroll = document.scrollingElement?.scrollTop ?? 0;
+    body.style.position = 'fixed';
+    body.style.top = `-${String(heldScroll)}px`;
+    record('body-fixed', { holder, top: heldScroll });
+  } else if (was && holders.size === 0) {
+    body.style.removeProperty('position');
+    body.style.removeProperty('top');
+    document.scrollingElement?.scrollTo(0, heldScroll);
+    record('body-released', { holder });
+  }
+}
+
+/** Fansly's side menu over the page (a narrow window's): its overlay, the menu, `body.side-menu-open`, the body held. */
+export class SideMenu {
+  private nodes: HTMLElement[] = [];
+
+  constructor(private readonly parent: HTMLElement) {}
+
+  get open(): boolean {
+    return this.nodes.length > 0;
+  }
+
+  set(open: boolean): void {
+    if (open === this.open) return;
+    const body = document.body;
+    if (open) {
+      const s = scope();
+      const overlay = el(s, 'div', { class: 'menu-open-overlay' });
+      overlay.addEventListener('click', handler(() => this.set(false)));
+      const items = ['Home', 'Notifications', 'Messages', 'Vault', 'Wallet', 'Settings'].map((label) => el(s, 'div', { class: 'side-menu-item' }, [label]));
+      this.nodes = [overlay, el(s, 'div', { class: 'side-menu menu-open' }, items)];
+      this.parent.append(...this.nodes);
+      setClass(body, 'side-menu-open', true);
+      holdBody('side-menu', true);
+    } else {
+      for (const node of this.nodes) node.remove();
+      this.nodes = [];
+      setClass(body, 'side-menu-open', false);
+      holdBody('side-menu', false);
+      if (body.getAttribute('style') === '') body.removeAttribute('style');
+    }
+    record(open ? 'side-menu-open' : 'side-menu-close', {});
+  }
+}
+
+/**
+ * A modal of the page that is not the composer's: the media viewer over a video of `author`'s, as fansly.com shows
+ * one — the whole window, the author's row above the player's footer, the close icon top right. The footer's full
+ * screen asks the player for it (`requestFullscreen` on `app-videojs-player`, main:14849); a refusal is journaled.
+ */
+export function openMediaViewer(modals: ModalService, author: string): ModalRef {
   const s = scope();
-  const viewer = host(s, 'app-media-viewer-modal');
+  const viewer = host(s, 'app-media-modal');
   let ref: ModalRef | null = null;
   const close = el(s, 'i', { class: 'fa-fw fa fa-xmark pointer blue-1-hover-only hover-effect' }, ['✕']);
   close.addEventListener('click', handler(() => ref?.close()));
-  viewer.append(
-    el(s, 'div', { class: 'modal' }, [
-      el(s, 'div', { class: 'modal-header' }, [el(s, 'div', { class: 'title' }, [el(s, 'xd-localization-string', {}, ['Media'])]), el(s, 'div', { class: 'actions' }, [close])]),
-      el(s, 'div', { class: 'modal-content' }, [el(s, 'div', { class: 'media-viewer-picture' })]),
+  const player = host(s, 'app-videojs-player');
+  const expand = el(s, 'i', { class: 'fa-fw fal fa-expand' }, ['⛶']);
+  expand.addEventListener(
+    'click',
+    handler(() => {
+      if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
+      else void player.requestFullscreen().then(() => record('viewer-fullscreen', {}), (error: unknown) => record('viewer-fullscreen-refused', { name: error instanceof Error ? error.name : typeof error }));
+    }),
+  );
+  player.append(
+    el(s, 'div', { class: 'video-controls' }, [
+      el(s, 'div', { class: 'video-footer' }, [
+        el(s, 'div', { class: 'video-track-wrapper' }, [el(s, 'div', { class: 'video-track' }, [el(s, 'div', { class: 'fill-track' })])]),
+        el(s, 'div', { class: 'video-footer-controls flex-row flex-align-center' }, [
+          el(s, 'div', { class: 'play-button-small' }, [el(s, 'i', { class: 'fa-fw fas fa-play' }, ['▶'])]),
+          el(s, 'div', { class: 'volume-control' }, [el(s, 'i', { class: 'fa-fw fas fa-volume' }, ['🔊'])]),
+          el(s, 'div', { class: 'play-time' }, [el(s, 'span', { class: 'progressed-time' }, ['1:24 / 7:00'])]),
+          el(s, 'div', { class: 'repeat margin-left-2 pointer' }, [el(s, 'i', { class: 'pure-white fas fa-repeat' }, ['⟳'])]),
+          el(s, 'div', { class: 'flex-1' }),
+          el(s, 'div', { class: 'quality-control flex-row' }, [el(s, 'i', { class: 'fa-fw fas fa-gear blue-1-hover-only pointer' }, ['⚙'])]),
+          el(s, 'div', { class: 'icon-container flex-row' }, [expand]),
+        ]),
+      ]),
     ]),
+  );
+  viewer.append(
+    el(s, 'div', { class: 'media-viewer-picture' }),
+    player,
+    el(s, 'div', { class: 'media-author flex-row flex-align-center' }, [el(s, 'div', { class: 'media-author-avatar' }), el(s, 'span', { class: 'media-author-name' }, [`@${author}`])]),
+    el(s, 'div', { class: 'actions' }, [close]),
   );
   ref = modals.open(viewer, () => ref?.close());
   return ref;

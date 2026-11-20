@@ -21,7 +21,7 @@ import { FANSLY_VAULT_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import { createLiveI18n } from '@cg/core/domain/i18n/live';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { VaultAlbumApiError, createVaultPanel, createVaultUploader, isVaultPath, vaultUploadOf, type VaultAlbumApi, type VaultPanelStore, type VaultTarget } from '@cg/host-fansly/isolated/vault';
-import { VAULT_SURFACE, vaultSurface } from '@cg/ui/hosts/fansly/vault';
+import { VAULT_COVERED_ATTRIBUTE, VAULT_SURFACE, vaultSurface } from '@cg/ui/hosts/fansly/vault';
 import { mountKitSurface, type KitMount } from '@cg/ui/kit';
 
 import type { SiteAppEnv } from '../../adapter';
@@ -180,11 +180,25 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
     const { shown: on, mode, account, album, uploader: form, order, selection, run, question, resume, note, controls } = panel.view();
     env.probe.set('vault', { shown: on, mode, account, album, uploader: form, order, items: selection?.items ?? null, run, question, resume, note, controls, mounted: mount !== null });
   };
+  /**
+   * 2026-11-20: while a window of Fansly's (its media viewer, an upload, the vault picker) or its side menu holds the
+   * page, Fansly fixes its body (main:61993-61998, :61840-61844). The entry stands in our panel layer, over Fansly's
+   * windows: collapsed, it then steps aside from the player's corner, as the corner card goes under the window
+   * (host-fansly mount.ts); the open card stays. One observer of the body's `style`, for the life of this surface.
+   */
+  const body = win.document.body as HTMLElement | null;
+  const cover = (): void => {
+    mount?.container.toggleAttribute(VAULT_COVERED_ATTRIBUTE, body?.style.position === 'fixed');
+  };
+  const coverWatch = new MutationObserver(cover);
+  if (body !== null) coverWatch.observe(body, { attributes: true, attributeFilter: ['style'] });
   const sync = (): void => {
     const now = shown();
-    if (now && mount === null) mount = mountKitSurface(VAULT_SURFACE, overlayRoot(mounts, 'panel'), deps, vaultSurface(client), { report: env.report });
-    // Away from the vault: the surface goes, unless a file is still in flight (the run stops by itself, and says why).
-    else if (!now && mount !== null && !panel.running()) {
+    if (now && mount === null) {
+      mount = mountKitSurface(VAULT_SURFACE, overlayRoot(mounts, 'panel'), deps, vaultSurface(client), { report: env.report });
+      cover();
+    } else if (!now && mount !== null && !panel.running()) {
+      // Away from the vault: the surface goes, unless a file is still in flight (the run stops by itself, and says why).
       mount.unmount();
       mount = null;
     }
@@ -227,6 +241,7 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
 
   return () => {
     for (const off of offs.splice(0)) off();
+    coverWatch.disconnect();
     panel.dispose();
     context.dispose();
     mounts.setDismissibleOpen('panel', 'vault', false);
