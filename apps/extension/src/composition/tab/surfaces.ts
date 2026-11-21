@@ -18,7 +18,7 @@
 // here — the surface and the error's class name, never a text. «Перезагрузить
 // панель» comes back as `reload(kind)`: the surface is mounted anew.
 
-import type { MountDeps, MountSurfaceKind } from '@cg/contracts/vm';
+import type { MountDeps, MountSurfaceKind, ValueSignal } from '@cg/contracts/vm';
 import type { OverlayState } from '@cg/core/application/navigation';
 import type { OverlayKind } from '@cg/core/domain/hotkeys';
 
@@ -78,6 +78,9 @@ export const PIN_MOUNTS: Readonly<Record<PinKind, OverlaySpec>> = {
   'outreach-chip': { kind: 'outreach-chip', layer: 'panel', entry: 'outreach', pick: (module) => module['chipSurface'] as Surface },
 };
 
+/** The pins' distance from the page's bottom edge as the site measured it (`SurfaceMountsEnv.pinBottom`): ui outreach.css.ts reads it. */
+const PIN_BOTTOM_PROPERTY = '--cg-pin-bottom';
+
 /** Which pins are up: the boards set it (their «Рассылка» folded), the mounts follow it. */
 export interface PinState {
   isOn(pin: PinKind): boolean;
@@ -115,6 +118,12 @@ export interface SurfaceMountsEnv {
   readonly overlays: OverlayState;
   /** What stands over the page without being a window (PIN_MOUNTS); absent — none. */
   readonly pins?: PinState;
+  /**
+   * How far above the page's bottom edge the pins stand, px, as the site measures what it keeps in that corner (Fansly's
+   * card, 2026-11-21); null or absent — the pin's own place. Set on each pin's own root inside our closed root, never on
+   * the host the page sees (X22).
+   */
+  readonly pinBottom?: ValueSignal<number | null>;
   readonly lazy: <T>(entry: LazyEntryName) => Promise<T>;
   /** A surface failed to render, to dispatch or to load: facts only. */
   readonly report: (failure: DockChunk.KitFailure) => void;
@@ -168,9 +177,21 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
   /** The overlay is open and stands for this surface now. */
   const shown = (overlay: OverlayKind, spec: OverlaySpec): boolean => overlays.isOpen(overlay) && (spec.only?.(overlays) ?? true);
 
+  /** The pins on screen take the place the site measured (`pinBottom`): on their own `.cg-root`, inside our closed root. */
+  const placePins = (): void => {
+    const bottom = env.pinBottom?.value ?? null;
+    for (const spec of Object.values(PIN_MOUNTS)) {
+      const style = live.get(spec.kind)?.mount.container.style;
+      if (style === undefined) continue;
+      if (bottom === null) style.removeProperty(PIN_BOTTOM_PROPERTY);
+      else style.setProperty(PIN_BOTTOM_PROPERTY, `${String(bottom)}px`);
+    }
+  };
+
   const put = (kind: MountSurfaceKind, again: () => DockChunk.KitMount): DockChunk.KitMount => {
     const mount = again();
     live.set(kind, { mount, again });
+    placePins();
     env.onChange?.();
     return mount;
   };
@@ -249,6 +270,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
   };
   const off = overlays.subscribe(sync);
   const offPins = env.pins?.subscribe(sync) ?? null;
+  const offPinBottom = env.pinBottom?.subscribe(placePins) ?? null;
   sync();
 
   return {
@@ -257,6 +279,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
       if (entry === undefined) return false;
       entry.mount.unmount();
       live.set(kind, { mount: entry.again(), again: entry.again });
+      placePins();
       return true;
     },
     mounted: () => [...live.keys()],
@@ -265,6 +288,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
       disposed = true;
       off();
       offPins?.();
+      offPinBottom?.();
       for (const kind of [...live.keys()]) drop(kind);
     },
   };
