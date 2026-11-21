@@ -8,6 +8,7 @@
 import { WORLD } from '../../../src/scenarios/hub';
 import { fakeFansly } from '../../support/fansly-stand';
 import { SEE_AI_TEXTS, scenario, type See } from '../kit';
+import { reportRow } from '../report';
 
 const TEXT = 'ok this one is SPECIAL, first time with a DRAGON. 6 minutes, tell me when you get to the end';
 
@@ -32,6 +33,31 @@ const GONE_FAN = '733785576267853800';
 /** Key by key, as a person types (one action of many keys drops a letter pressed again while still down). */
 async function typeIn(s: See, text: string): Promise<void> {
   for (const key of Array.from(text)) await s.browser.keys(key);
+}
+
+/** Fansly's corner card (X46): our launcher host in <html>, its card in its closed root. */
+const LAUNCHER = 'div[data-host="overlay"][data-layer="launcher"]';
+/** The folded chip's gap over the card (its first place, over the three-row card). */
+const CHIP_GAP_PX = 12;
+
+/**
+ * Fansly: the folded chip stands above the corner card, CHIP_GAP_PX apart, whatever rows the card has and however far
+ * it is lifted (2026-11-21: «Очереди» and «Отчёт» grew the card under a chip placed for three rows). Throws otherwise.
+ */
+async function chipAboveCard(s: See): Promise<void> {
+  const chip = await s.rect('panel', '.cg-ow-chip');
+  // The card's own box: it carries the lift (a transform), which the host's box does not.
+  const node = await s.browser.$(LAUNCHER).shadow$('.card');
+  const card = await s.browser.execute((element: Element) => {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return { x, y, width, height };
+  }, node as unknown as Element);
+  const { rows } = await reportRow(LAUNCHER);
+  if (chip === null) throw new Error('no folded chip on the page');
+  const gap = card.y - (chip.y + chip.height);
+  const crosses = chip.x < card.x + card.width && card.x < chip.x + chip.width && chip.y < card.y + card.height && card.y < chip.y + chip.height;
+  console.log(`see: chip over the card: ${String(rows)} rows, chip bottom ${String(chip.y + chip.height)}, card top ${String(card.y)}, gap ${String(gap)} px`);
+  if (crosses || Math.abs(gap - CHIP_GAP_PX) > 1) throw new Error(`the folded chip does not stand ${String(CHIP_GAP_PX)} px above the ${String(rows)}-row card: gap ${String(gap)} px${crosses ? ', they overlap' : ''}`);
 }
 
 /** The pointer off our window before a picture: no tooltip of the last press stands in it. */
@@ -114,6 +140,7 @@ scenario(
     await s.press(/^Свернуть/, 'modal', '.cg-ow__min');
     await s.browser.pause(800);
     await shot(s, 'outreach-chip');
+    if (fansly) await chipAboveCard(s);
     await s.press(/Рассылка/, 'panel', '.cg-ow-chip');
     await s.browser.waitUntil(async () => (await s.has('modal', '.cg-ow__card')) || (await s.has('modal', '.cg-ow__end')), { timeout: 20_000, interval: 200, timeoutMsg: 'the window did not come back where it was' });
 

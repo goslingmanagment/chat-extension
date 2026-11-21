@@ -401,6 +401,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
 
   /** What stands over the page without being a window: the folded «Рассылка»'s chip (tab/surfaces.ts). */
   const pins = createPinState();
+  /** Where the pins stand above the page's bottom edge, as the site measures its corner (`SiteAppEnv.pinBottom`); null — their own place. */
+  const pinBottom = new Value<number | null>(null);
   // «Онлайн»: the site's own word of who is online, one per tab — the bar's count and the window share it.
   const online = site.online?.({ rpc, host, win, clock });
   const world: TabWorld = {
@@ -660,6 +662,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     toasts,
     overlays: keys.overlays,
     pins,
+    pinBottom,
     // The Coach panel's chunk is remembered when it comes: a sign-out must reach its unsent questions.
     lazy: <T>(entry: LazyEntryName): Promise<T> =>
       env.lazy<T>(entry).then((module) => {
@@ -728,6 +731,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         probe,
         gated: controllerRpc(rpc, tokens),
         keys: keysOfSite,
+        pinBottom: (px) => pinBottom.set(px),
         frames,
         journal: {
           watch: (surface) => siteJournal.watch(surface),

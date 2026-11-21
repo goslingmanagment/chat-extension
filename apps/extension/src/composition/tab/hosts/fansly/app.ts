@@ -128,6 +128,36 @@ export function startFanslyTabLabel(env: Pick<SiteAppEnv<FanslyPort>, 'rpc' | 'h
   };
 }
 
+/** How far the folded «Рассылка» stands above the corner card: its first place, over the three-row card. */
+const PIN_GAP_PX = 12;
+
+/**
+ * Our pins (the folded «Рассылка») above the corner card (2026-11-21, X46): «Очереди» and «Отчёт» grew the card under a
+ * chip placed for its three rows, and the board's bar lifts it 42 px more. So the card's top is measured, not counted:
+ * its host's box from the page's bottom edge (its rows and its inset) and the lift, a transform the box does not carry;
+ * the pins stand PIN_GAP_PX above that. Measured again when the host's box changes (a row comes or goes, the card is
+ * drawn after the application came) and when the launcher says its fifth row or its lift; nothing is polled.
+ */
+export function startFanslyPinPlace(env: Pick<SiteAppEnv<FanslyPort>, 'win' | 'host' | 'mounts' | 'pinBottom'>): () => void {
+  const { pinBottom } = env;
+  const corner = env.mounts.launcher?.();
+  if (pinBottom === undefined || corner === undefined) return () => undefined;
+  const { host } = corner;
+  const place = (): void => {
+    const top = env.win.document.documentElement.clientHeight - host.getBoundingClientRect().top;
+    pinBottom(top + env.host.launcher.lift() + PIN_GAP_PX);
+  };
+  const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null;
+  resize?.observe(host);
+  const offReport = env.host.launcher.onReport(place);
+  place();
+  return () => {
+    resize?.disconnect();
+    offReport();
+    pinBottom(null);
+  };
+}
+
 /** The vault's page (host-fansly isolated/vault `isVaultPath`: its module is the vault's chunk, not this one). */
 const onVault = (path: string): boolean => path === '/creator/vault' || path === '/creator/vault/';
 
@@ -212,6 +242,8 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   });
   // While the board's bar takes the bottom of the page, the corner card stands over it (the prototype's `.ln`, 58 px up).
   const offBar = env.frames?.onBar((shown) => env.host.launcher.setLift(shown ? 42 : 0)) ?? (() => undefined);
+  // The folded «Рассылка» stands above the card, however tall and lifted it is.
+  const offPinPlace = startFanslyPinPlace(env);
   // The buttons wear the scheme of our surfaces, so they stay the dock's chips under «Тема» (2026-10-20).
   const offScheme = env.host.launcher.follow(env.deps.scheme);
   // 2026-11-15 (hub package R): the Wallet history the page itself loaded, to the background, which tells Hub only what
@@ -223,6 +255,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   const offTabLabel = startFanslyTabLabel(env);
   return () => {
     offBar();
+    offPinPlace();
     offWallet();
     offTabLabel();
     offInboxMark();

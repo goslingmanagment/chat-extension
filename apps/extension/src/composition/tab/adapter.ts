@@ -103,6 +103,11 @@ export interface HostMounts {
   onChange(listener: (points: MountPoints) => void): () => void;
   /** `data-dismissible-open` on a host while any owner keeps one of our windows open there (§6.3, §9.1). */
   setDismissibleOpen(target: 'dock' | OverlayLayer, owner: string, open: boolean): void;
+  /**
+   * The host of the site's corner launcher, made on first use (Fansly's card, X46): what the site's own surfaces measure
+   * it by. Absent — the site keeps no launcher in a host of its own (ChatSpace's sits in its rail).
+   */
+  launcher?(): ClosedHost;
   readonly registry: ShadowRegistry;
   dispose(): void;
 }
@@ -217,6 +222,11 @@ export interface SiteAppEnv<P extends HostPort = HostPort> {
    * registered, the key runs it instead of the shared runner. The answer unregisters it.
    */
   readonly keys: { handle(command: DispatcherCommandId, run: () => void): () => void };
+  /**
+   * 2026-11-21: how far above the page's bottom edge our pins stand (tab/surfaces.ts `PIN_MOUNTS`: the folded
+   * «Рассылка»), px, so they keep clear of what the site holds in that corner; null — the pin's own place.
+   */
+  readonly pinBottom?: (px: number | null) => void;
   /** 2026-11-15 (hub package R): Workboard's screens over the site; the launcher's «Отчёт» opens the board. */
   readonly frames?: {
     open(screen: 'report'): void;
