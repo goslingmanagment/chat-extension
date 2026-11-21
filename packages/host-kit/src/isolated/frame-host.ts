@@ -104,10 +104,14 @@ export interface FrameHost {
   dispose(): void;
 }
 
+// The frame's `color-scheme` is the site's: Firefox answers `prefers-color-scheme` inside an iframe with its element's
+// used color-scheme (checked on Firefox 158), so Workboard's screens in the frame wear the site's theme, not the system's.
 const LAYER_CSS = `
 :host { all: initial; }
 .layer { position: fixed; inset: 0; display: flex; background: var(--cg-surface); }
 iframe { flex: 1; width: 100%; height: 100%; border: 0; display: block; background: var(--cg-surface); color-scheme: normal; }
+:host([data-scheme="dark"]) iframe { color-scheme: dark; }
+:host([data-scheme="light"]) iframe { color-scheme: light; }
 `;
 
 const BAR_CSS = `
