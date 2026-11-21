@@ -14,6 +14,7 @@
     "./isolated/notes-place": "./src/isolated/notes-place.ts",
     "./isolated/copied-media": "./src/isolated/copied-media.ts",
     "./isolated/launcher-view": "./src/isolated/launcher-view.ts",
+    "./isolated/mount": "./src/isolated/mount.ts",
     "./isolated": "./src/isolated/index.ts",
     "./isolated/validation": "./src/isolated/validate.ts",
     "./isolated/theme": "./src/isolated/theme.ts",

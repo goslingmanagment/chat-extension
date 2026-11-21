@@ -40,14 +40,22 @@
 // Coach «Окно по центру» stayed under an open modal of Fansly's); under its
 // notifications (9999, top left) and FBuddy's layer in <body> (1 000 000);
 // our toasts stand top right, his bottom right (FS-PLC-6). ChatSpace keeps
-// host-kit's 900/950/960 under its PrimeVue dialogs. The dock — in flow or
-// fixed over a stray field — and the launcher stay under Fansly's modals, as
-// the page they stand in: a modal of Fansly's covers them as it covers its own
-// field. Styles live in the closed roots, adopted — nothing global (FS-PLC-7).
+// host-kit's 900/950/960 under its PrimeVue dialogs. Styles live in the closed
+// roots, adopted — nothing global (FS-PLC-7).
 //
-// The launcher (launcher-view.ts, X46): one more `overlay` host in <html>,
-// `data-layer="launcher"`, fixed in the bottom left corner, made when the
-// tab is admitted — never at document_start.
+// The page's own place (PAGE_Z, 900): the dock fixed over a stray field and the
+// launcher stand IN <body>, like the dock in flow, and Fansly's windows cover
+// them as they cover its own field. While any window of Fansly's is open (the
+// media viewer, an upload, the vault picker, tips) or its side menu, Fansly
+// fixes its body (`position: fixed; top: -<scroll>px`, main:61993-61998,
+// :61840-61844): the body becomes a stacking context of its own, its windows
+// (998) stand inside it, and a host in <html> at 900 would paint over the whole
+// body, the window included (2026-11-20: the card over the viewer's play row).
+// In <body> it is under the window; without one it stands where it stood.
+//
+// The launcher (launcher-view.ts, X46): a host in <body>,
+// `data-host="overlay"`, `data-layer="launcher"`, fixed in the bottom left
+// corner, made when the tab is admitted — never at document_start.
 //
 // Nothing here touches an element's `style` in the synchronous start: its
 // first touch in a page's content-script global costs ~0.3 ms (§3.1); the
@@ -69,7 +77,10 @@ export const DOCK_Z = 3;
  * its notifications (9999) and FBuddy's layer (1 000 000). The order of host-kit's table (OVERLAY_Z), a thousand higher.
  */
 export const FANSLY_OVERLAY_Z: Readonly<Record<OverlayLayer, number>> = { panel: 1900, modal: 1950, toast: 1960 };
-/** The dock as a fixed overlay, and the launcher: over the feed and the mini-chat, under Fansly's modals — the page's own place. */
+/**
+ * The dock as a fixed overlay, the launcher, and Workboard's bar (tab/frames.ts): in <body>, over the feed and the
+ * mini-chat, under Fansly's windows — the page's own place.
+ */
 export const PAGE_Z = 900;
 /** `data-layer` of the launcher's host. */
 export const LAUNCHER_LAYER = 'launcher';
@@ -107,7 +118,7 @@ export interface FanslyMounts {
   readonly dock: ClosedHost;
   /** The overlay host of a layer, created in <html> on first use. */
   overlay(layer: OverlayLayer): ClosedHost;
-  /** The launcher's host (X46), created in <html> on first use: fixed in the bottom left corner, under Fansly's modals. */
+  /** The launcher's host (X46), created in <body> on first use: fixed in the bottom left corner, under Fansly's windows. */
   launcher(): ClosedHost;
   points(): MountPoints;
   onChange(listener: (points: MountPoints) => void): () => void;
@@ -253,8 +264,10 @@ export function createFanslyMounts(doc: Document, options: FanslyMountOptions = 
     } else {
       const { resize } = ensureLive();
       if (spot.kind === 'fixed-overlay') {
-        if (dockHost.parentElement !== doc.documentElement) {
-          doc.documentElement.append(dockHost);
+        // In <body>, the page's own place: a window of Fansly's covers it (above).
+        const page = doc.body ?? doc.documentElement;
+        if (dockHost.parentElement !== page) {
+          page.append(dockHost);
           moves += 1;
           relocated = true;
         }
@@ -306,7 +319,8 @@ export function createFanslyMounts(doc: Document, options: FanslyMountOptions = 
   const launcher = (): ClosedHost => {
     if (launcherHost !== null) return launcherHost;
     if ((doc.documentElement as HTMLElement | null) === null) throw new Error('launcher before <html> exists');
-    launcherHost = mountClosedHost(doc.documentElement, 'overlay', 'last', registry);
+    // In <body>, the page's own place: a window of Fansly's covers it (above). An admitted tab has its body.
+    launcherHost = mountClosedHost(doc.body ?? doc.documentElement, 'overlay', 'last', registry);
     launcherHost.host.setAttribute(LAYER_ATTRIBUTE, LAUNCHER_LAYER);
     const style = launcherHost.host.style;
     style.setProperty('position', 'fixed');

@@ -17,6 +17,9 @@
 //   line, the count, and «Отчёт» / «К отчёту».
 // - The highlight (`.is-hl`): our own frame over a row of the site, never the site's node touched; it follows the row
 //   while it scrolls and goes when the row leaves the page.
+// - Where the bar and the highlight stand: in <html> over everything (ChatSpace), or, where the site names its page
+//   layer (`pageLayer`, Fansly's 900), in <body> on it — a window of the site covers them as it covers its page
+//   (2026-11-20: Fansly fixes its body under a window, and a host in <html> painted over the window).
 
 import type { ShadowRootRegistry } from './shadow-registry';
 
@@ -75,6 +78,11 @@ export interface FrameHostEnv {
   readonly onNoPort?: () => void;
   /** «Отчёт» / «К отчёту» on the bar. */
   readonly onBarButton: () => void;
+  /**
+   * The site's page layer: the bar stands in <body> on it, under the site's own windows like the page (Fansly: 900,
+   * the corner card's). Absent — in <html> over everything (FRAME_Z − 1).
+   */
+  readonly pageLayer?: number;
 }
 
 export interface FrameHost {
@@ -157,8 +165,18 @@ function dress(root: ShadowRoot, doc: Document, css: string): void {
   }
 }
 
-/** A host of ours in <html>: a plain `div` with a closed root (hosts.ts, decision X22: neutral names only). */
-function hostOf(doc: Document, registry: ShadowRootRegistry | undefined, css: string, z: number, layer: 'frame' | 'frame-bar' | 'frame-mark'): { host: HTMLElement; root: ShadowRoot; remove(): void } {
+/**
+ * A host of ours: a plain `div` with a closed root (hosts.ts, decision X22: neutral names only), in <html> — or in
+ * <body> when it stands on the site's page layer.
+ */
+function hostOf(
+  doc: Document,
+  registry: ShadowRootRegistry | undefined,
+  css: string,
+  z: number,
+  layer: 'frame' | 'frame-bar' | 'frame-mark',
+  parent: Element = doc.documentElement,
+): { host: HTMLElement; root: ShadowRoot; remove(): void } {
   const host = doc.createElement('div');
   host.setAttribute('data-host', 'overlay');
   host.setAttribute('data-layer', layer);
@@ -167,7 +185,7 @@ function hostOf(doc: Document, registry: ShadowRootRegistry | undefined, css: st
   const root = host.attachShadow({ mode: 'closed' });
   const unregister = registry?.register(host, root);
   dress(root, doc, css);
-  doc.documentElement.append(host);
+  parent.append(host);
   return {
     host,
     root,
@@ -176,6 +194,14 @@ function hostOf(doc: Document, registry: ShadowRootRegistry | undefined, css: st
       host.remove();
     },
   };
+}
+
+/**
+ * Where a host that stands over the site's page goes: in <html> at `z` (over everything); on the site's page layer, in
+ * <body> at that layer less `below` (the highlight a step under the bar).
+ */
+function placeOf(doc: Document, pageLayer: number | undefined, z: number, below = 0): { readonly z: number; readonly parent: Element } {
+  return pageLayer === undefined ? { z, parent: doc.documentElement } : { z: pageLayer - below, parent: doc.body ?? doc.documentElement };
 }
 
 const KEY_EVENTS = ['keydown', 'keypress', 'keyup'] as const;
@@ -290,7 +316,10 @@ export function createFrameHost(env: FrameHostEnv): FrameHost {
       if (barHost !== null) barHost.host.style.setProperty('display', 'none');
       if (view === null) return;
     }
-    barHost ??= hostOf(doc, env.registry, `${env.tokens}\n${BAR_CSS}`, FRAME_Z - 1, 'frame-bar');
+    if (barHost === null) {
+      const place = placeOf(doc, env.pageLayer, FRAME_Z - 1);
+      barHost = hostOf(doc, env.registry, `${env.tokens}\n${BAR_CSS}`, place.z, 'frame-bar', place.parent);
+    }
     barHost.host.setAttribute('data-scheme', env.scheme());
     barHost.host.style.setProperty('left', `${String(left)}px`);
     barHost.host.style.setProperty('right', '0');
@@ -408,7 +437,8 @@ const HIGHLIGHT_CSS = `
 .hl { position: fixed; box-sizing: border-box; border-radius: 8px; background: rgb(217 119 87 / .12); box-shadow: inset 0 0 0 1px var(--cg-clay-line), 0 0 0 2px rgb(217 119 87 / .25); pointer-events: none; }
 `;
 
-export function createRowHighlight(doc: Document, tokens: string, scheme: () => 'light' | 'dark'): RowHighlight {
+/** `pageLayer` — the site's page layer, as the bar's (FrameHostEnv): the frame stands in <body> a step under it. */
+export function createRowHighlight(doc: Document, tokens: string, scheme: () => 'light' | 'dark', pageLayer?: number): RowHighlight {
   const win = doc.defaultView as Window;
   let host: ReturnType<typeof hostOf> | null = null;
   let box: HTMLElement | null = null;
@@ -441,7 +471,8 @@ export function createRowHighlight(doc: Document, tokens: string, scheme: () => 
       clear();
       row = next;
       // Under the bar and the layer, over the site.
-      host = hostOf(doc, undefined, `${tokens}\n${HIGHLIGHT_CSS}`, FRAME_Z - 2, 'frame-mark');
+      const place = placeOf(doc, pageLayer, FRAME_Z - 2, 1);
+      host = hostOf(doc, undefined, `${tokens}\n${HIGHLIGHT_CSS}`, place.z, 'frame-mark', place.parent);
       host.host.setAttribute('data-scheme', scheme());
       host.host.style.setProperty('inset', '0');
       host.host.style.setProperty('pointer-events', 'none');

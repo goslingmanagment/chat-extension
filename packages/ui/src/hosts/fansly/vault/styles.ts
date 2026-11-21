@@ -15,6 +15,12 @@ import { overlayRootCss } from '../../../overlays/layer';
 
 /** A surface of Fansly's own (contracts features/fansly.ts `FANSLY_SURFACES_AHEAD`): the kit mounts it under this name. */
 export const VAULT_SURFACE = 'vault' as MountSurfaceKind;
+/**
+ * 2026-11-20: on the surface's own `.cg-root` (inside our closed root, never on the host the page sees) while a window
+ * of Fansly's holds the page: the collapsed entry (and the minimized strip) steps aside from the player's corner, as
+ * the corner card goes under the window; the open card stays, the chatter's own window (composition fansly/vault.ts).
+ */
+export const VAULT_COVERED_ATTRIBUTE = 'data-covered';
 
 const card = `.cg-vault__card`;
 
@@ -32,6 +38,7 @@ export const VAULT_CSS = `${overlayRootCss(VAULT_SURFACE, 'panel')}
 .cg-vault__entry.is-bad { background: var(--cg-bad-bg); box-shadow: inset 0 0 0 1px var(--cg-bad-line), var(--cg-shadow); color: var(--cg-bad-ink); }
 .cg-vault__glyph { color: var(--cg-clay); font-size: 15px; line-height: 1; }
 .cg-vault__entry .cg-ico { color: var(--cg-ink-muted); }
+.cg-root[data-cg-surface="${VAULT_SURFACE}"][${VAULT_COVERED_ATTRIBUTE}] .cg-vault__entry { visibility: hidden; }
 
 ${card} {
   position: fixed; right: 16px; bottom: 16px; pointer-events: auto;

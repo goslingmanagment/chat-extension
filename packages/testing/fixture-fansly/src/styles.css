@@ -229,8 +229,24 @@ app-group-media-offers.media-content { flex: 1; display: flex; align-items: cent
 .xdModal { position: absolute; inset: 0; pointer-events: none; }
 .xdModal.back-drop { background: rgba(0, 0, 0, 0.45); pointer-events: auto; }
 app-account-media-upload { position: relative; display: block; min-width: 360px; pointer-events: auto; background: var(--modal-bg); border-radius: 0.5em; }
-app-media-viewer-modal { position: relative; display: block; min-width: 480px; pointer-events: auto; background: var(--modal-bg); border-radius: 0.5em; }
-.media-viewer-picture { width: 448px; height: 300px; margin-bottom: 1em; border-radius: 0.25em; background: linear-gradient(135deg, #7aa7d9, #e7b8c8); }
+app-media-modal { position: absolute; inset: 0; display: block; pointer-events: auto; background: #000; color: #f3f3f3; }
+app-media-modal .media-viewer-picture { position: absolute; inset: 0 12%; background: linear-gradient(160deg, #6f6a66 0%, #8a8079 45%, #3c3a44 100%); }
+app-media-modal .actions { position: absolute; top: 14px; right: 18px; font-size: 22px; }
+app-media-modal .media-author { position: absolute; left: 18px; bottom: 74px; gap: 8px; font-weight: 700; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.media-author-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #e7b8c8, #7aa7d9); }
+app-videojs-player { position: absolute; inset: 0; display: flex; pointer-events: none; }
+.video-controls { position: absolute; inset: 0; }
+.video-footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 12px 8px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); pointer-events: auto; }
+.video-track-wrapper { padding: 8px 0; cursor: pointer; }
+.video-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.3); }
+.fill-track { width: 20%; height: 100%; border-radius: 2px; background: #fff; }
+.video-footer-controls { height: 36px; gap: 6px; font-size: 18px; }
+.video-footer-controls > div:not(.flex-1) { display: flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; cursor: pointer; }
+.play-time { font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.menu-open-overlay { position: fixed; left: 0; top: 0; bottom: 0; width: 100%; z-index: 999; background-color: rgba(10, 10, 10, 0.5); }
+.side-menu.menu-open { position: fixed; left: 0; top: 0; bottom: 0; width: 280px; z-index: 1000; padding: 1em 0; background: var(--dark-2); box-shadow: 4px 0 16px rgba(0, 0, 0, 0.4); }
+.side-menu-item { padding: 0.9em 1.5em; font-weight: 700; }
 .modal-header,
 .modal-footer { display: flex; align-items: center; padding: 0.75em 1em; }
 .modal-header .title { flex: 1; font-weight: 700; }

@@ -95,7 +95,11 @@ row, the board, keys that never reach the site, the clipboard, a request off the
 `report-facts.json`; the frame is the fake hub's stub board, `src/fake-hub/report-board.ts`, and
 `CG_SEE_FRAME_ORIGIN=https://…` points both `report-*` scenarios at Hub's demo board instead), `report-demo` (Hub's own
 board in the frame on either site: `CG_SEE_FRAME_ORIGIN` and `CG_SEE_BOARD_API` both the demo Workboard, e.g.
-`http://127.0.0.1:5391`; the fake hub forwards the board's routes to the demo's API as its chatter), `fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
+`http://127.0.0.1:5391`; the fake hub forwards the board's routes to the demo's API as its chatter), `fansly-viewer` (the corner card under Fansly's windows: the
+media viewer with nothing of ours at any control of the player, Spenders over it by ⌘⇧M, the card back and clickable,
+Wallet history's bar and highlight under a window, the side menu, the vault's entry hidden under the viewer;
+`layers.json` what stands at each point; `--live` with `CG_SEE_LIVE_PATH=/creator/vault` opens a vault video),
+`fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
 фоловеров в фоне», then «Новые фоловеры проверены» and its «Открыть» back on the same pass). `launch` (the showcase world's pictures of 3.0's launch, below).
 On Telegram (`--site telegram`: the Web A stand, `http://telegram.localhost:<port>/a/#<peer id>`, Lora's account bound
 to the fake hub's page `lora-tg`; its page API is `s.h.callTelegram(…)`, `client-context.json` holds the chat each AI

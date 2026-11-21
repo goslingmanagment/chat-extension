@@ -61,6 +61,11 @@ export interface WorkboardFramesEnv {
    * (the coordinator, 2026-11-15: the bar never covers the message field, so it stands only there). Absent — never.
    */
   readonly saleScreen?: () => boolean;
+  /**
+   * The site's page layer (host-kit frame-host.ts `pageLayer`): the bar and the row's highlight stand in <body> on it,
+   * under the site's own windows (Fansly: 900, the corner card's). Absent — in <html> over everything (ChatSpace).
+   */
+  readonly pageLayer?: number;
   readonly log: (message: string, fields: Readonly<Record<string, unknown>>) => void;
 }
 
@@ -92,7 +97,7 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
   const doc = win.document;
   const request = (type: string, payload: unknown, options?: { readonly timeoutMs?: number }): Promise<{ readonly ok: boolean; readonly payload?: unknown }> =>
     (rpc.request as unknown as (this: TabRpcClient, type: string, payload: unknown, options?: { readonly timeoutMs?: number }) => Promise<{ readonly ok: boolean; readonly payload?: unknown }>).call(rpc, type, payload, options);
-  const highlight = createRowHighlight(doc, env.tokens, () => env.scheme.value);
+  const highlight = createRowHighlight(doc, env.tokens, () => env.scheme.value, env.pageLayer);
   const hosts = new Map<WorkboardFrameScreen, FrameHost>();
   let origin: string | null = null;
   let state: ReportState | null = null;
@@ -319,6 +324,7 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
     const frame = createFrameHost({
       doc,
       ...(env.registry === undefined ? {} : { registry: env.registry }),
+      ...(env.pageLayer === undefined ? {} : { pageLayer: env.pageLayer }),
       origin: frameOrigin,
       url: `${frameOrigin}${workboardFramePath(screen)}`,
       tokens: env.tokens,
