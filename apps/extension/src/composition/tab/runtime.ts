@@ -220,10 +220,13 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
       askReport();
     }
   });
-  // ── the launcher's fifth row «Отчёт» (hub package R): the pulse's board, asked once a session and then said ──
+  // ── the launcher's fifth row «Отчёт» (hub package R): the pulse's board, asked once a session and then said; its last
+  // row «Кастомы» with it: drawn only while the person is signed in to a hub that serves the screen (`customs`) ──
   const takeReport = (payload: unknown): void => {
     const report = reportOf(payload);
-    if (report !== undefined && !life.aborted) host.launcher?.setReport(report);
+    if (report === undefined || life.aborted) return;
+    host.launcher?.setReport(report);
+    host.launcher?.setCustoms((payload as { customs?: unknown }).customs === true);
   };
   function askReport(): void {
     if (host.launcher === undefined) return;

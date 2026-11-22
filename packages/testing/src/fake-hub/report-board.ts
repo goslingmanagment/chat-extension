@@ -217,8 +217,11 @@ export function reportBoardAnswer(method: string, path: string, body: string): {
   return null;
 }
 
-/** The board's own routes (R-protocol's allow-list of `report`), as the stand forwards them to Hub's demo. */
-const BOARD_ROUTES = /^\/api\/v1\/(shift-reports(\/|\?|$)|sale-claims\/\d+\/answer$|auth\/me$)/;
+/**
+ * The board's own routes (R-protocol's allow-list of `report`) and the reads of the launcher's «Кастомы» (the board of
+ * orders, its blocks, one order), as the stand forwards them to Hub's demo.
+ */
+const BOARD_ROUTES = /^\/api\/v1\/(shift-reports(\/|\?|$)|sale-claims\/\d+\/answer$|auth\/me$|custom-orders(\/(done|findings|changes|K-[1-9][0-9]{0,17}))?(\?|$))/;
 
 /**
  * Hub's demo Workboard as the board's API (`CG_SEE_BOARD_API=http://127.0.0.1:5391`, stand only): the request goes

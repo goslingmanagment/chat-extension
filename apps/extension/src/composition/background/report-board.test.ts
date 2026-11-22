@@ -13,6 +13,7 @@ function background() {
     ports: () => [],
     pageOf: (key) => (key === 'fansly-web:42' ? 'test-1' : null),
     focus: async () => true,
+    servesCustoms: () => false,
     emit: () => 0,
     now: () => now,
     log: () => undefined,

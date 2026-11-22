@@ -30,10 +30,12 @@ export const REPORT_FRAME_PORT = 'report-board/port';
  * lifts its no-framing headers for these paths only, on the team's name and the hub's root name):
  * - `report` — the board «Отчёт» (`/workboard/frame/report`);
  * - `custom` — «Записать кастом» of the fan panel (`/workboard/frame/custom?page=&fan=&name=`, package R5);
- * - `ask` — «Спросить» of the fan panel (`/workboard/frame/ask?page=&fan=&name=`, package R5).
+ * - `ask` — «Спросить» of the fan panel (`/workboard/frame/ask?page=&fan=&name=`, package R5);
+ * - `customs` — the launcher's «Кастомы», Workboard's customs facts screen («Сроки», «Календарь», an order's panel:
+ *   `/workboard/frame/customs`), for everyone signed in: it reads and steps as a narrow session, Hub decides what.
  * Another screen is added here explicitly, with its own Hub path, never by a wildcard.
  */
-export const WORKBOARD_FRAME_SCREENS = ['report', 'custom', 'ask'] as const;
+export const WORKBOARD_FRAME_SCREENS = ['report', 'custom', 'ask', 'customs'] as const;
 export type WorkboardFrameScreen = (typeof WORKBOARD_FRAME_SCREENS)[number];
 /**
  * The team origin of the production hub (R-protocol «Addresses»): Workboard lives there, the API at the hub's origin.
@@ -75,6 +77,19 @@ export const workboardFramePath = (screen: WorkboardFrameScreen): string => `${W
 /** The fan panel's windows of Workboard (package R5): opened for one fan, closed when done; no bar, never kept. */
 export const WORKBOARD_FORM_SCREENS = ['custom', 'ask'] as const satisfies readonly WorkboardFrameScreen[];
 export type WorkboardFormScreen = (typeof WORKBOARD_FORM_SCREENS)[number];
+/**
+ * The launcher's screens of Workboard: made on the first open, hidden (never unloaded) when folded, opened again by
+ * their row. Only `report` has the bar below the site.
+ */
+export const WORKBOARD_LAUNCHER_SCREENS = ['report', 'customs'] as const satisfies readonly WorkboardFrameScreen[];
+export type WorkboardLauncherScreen = (typeof WORKBOARD_LAUNCHER_SCREENS)[number];
+/**
+ * The bootstrap's capability by which Hub says it serves «Кастомы» in the frame (`/workboard/frame/customs` framed by the
+ * sites, the board's reads open to the device token; hub #1501): the launcher's row is drawn only for a person signed in
+ * to such a hub, so the extension and Hub may be released in either order. Read as an open token of the bootstrap: it
+ * joins CLIENT_HUB_CAPABILITY_NAMES (hub/wire.ts) once the SDK is vendored from a hub that lists it.
+ */
+export const CUSTOMS_FRAME_CAPABILITY = 'customs-frame-v1';
 /** Who a form is for: the open chat's page and fan, as Workboard's form takes them filled in. */
 export interface WorkboardFormFor {
   readonly pageLabel: string;

@@ -21,12 +21,14 @@ import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
  * What the launcher opens, top to bottom as the dock's chips stand (2026-10-27: a column, «Онлайн» added; 2026-11-02:
  * «Очереди»): the shared surfaces of the boards. The one list of both sites: a board added here is a button on Fansly's
  * card and on ChatSpace's rail, and its face (launcher-view.ts `LAUNCHER_FACES`) is then required by the compiler.
+ * `customs` («Кастомы», Workboard's customs screen in the frame) comes last, under the fifth row «Отчёт», for everyone
+ * signed in to a hub that serves it (`setCustoms`).
  */
-export const LAUNCHER_TARGETS = ['online', 'queues', 'spenders', 'newcomers', 'report'] as const;
+export const LAUNCHER_TARGETS = ['online', 'queues', 'spenders', 'newcomers', 'report', 'customs'] as const;
 
 export type LauncherTarget = (typeof LAUNCHER_TARGETS)[number];
-/** The boards that are windows of ours (`Navigate` to the surface); `report` is Workboard's board in the frame. */
-export type LauncherBoard = Exclude<LauncherTarget, 'report'>;
+/** The boards that are windows of ours (`Navigate` to the surface); `report` and `customs` are Workboard's in the frame. */
+export type LauncherBoard = Exclude<LauncherTarget, 'report' | 'customs'>;
 
 /**
  * The fifth row, «Отчёт» (hub package R, 2026-11-15): drawn only for a person whose pulse has a board (`report` not
@@ -61,6 +63,13 @@ export interface SiteLauncher {
   /** The fifth row as the pulse says it (the tab's runtime hands it in); null — not drawn. */
   report(): LauncherReport | null;
   setReport(report: LauncherReport | null): void;
+  /**
+   * The last row «Кастомы»: drawn only while the person is signed in to a hub that serves the screen (the bootstrap's
+   * `customs-frame-v1`, the tab's runtime hands it in); false — not drawn, as before any word of the background.
+   */
+  customs(): boolean;
+  setCustoms(shown: boolean): void;
+  /** Said when the fifth row, the last one or the lift changes. */
   onReport(listener: () => void): () => void;
   /**
    * How far the card stands above its place (px): the bar of the board «Отчёт» takes the bottom 44 px of the site, and
@@ -82,6 +91,7 @@ export function createSiteLauncher(page: LauncherPageTheme): SiteLauncher {
   let runner: ((target: LauncherTarget) => void) | null = null;
   const wantedListeners = new Set<() => void>();
   let report: LauncherReport | null = null;
+  let customs = false;
   let lift = 0;
   const reportListeners = new Set<() => void>();
   const pendingListeners = new Set<() => void>();
@@ -136,6 +146,12 @@ export function createSiteLauncher(page: LauncherPageTheme): SiteLauncher {
     setReport(next) {
       if (next === report || (next !== null && report !== null && next.needsMe === report.needsMe)) return;
       report = next === null ? null : { needsMe: next.needsMe };
+      say(reportListeners);
+    },
+    customs: () => customs,
+    setCustoms(shown) {
+      if (shown === customs) return;
+      customs = shown;
       say(reportListeners);
     },
     onReport: (listener) => listen(reportListeners, listener),

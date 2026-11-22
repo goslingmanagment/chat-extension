@@ -696,6 +696,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   const frames = createWorkboardFrames({
     win,
     rpc,
+    // The frame's layer is one of our roots for the keys: the site's hotkeys (ChatSpace's Alt+1–9, J, K) never run under it.
+    registry: mounts.registry,
     tokens: THEME_CSS,
     scheme,
     saleLook: site.saleLook ?? null,
@@ -787,8 +789,12 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     if (known !== undefined) facts.configure(known);
     if (session === undefined) return;
     const epoch = session?.epoch ?? null;
-    // Another sign-in, or none: an unsent Coach question must not meet the next person on this tab.
-    if (signedIn !== undefined && epoch !== signedIn) coachUi?.forgetUnsentQuestions();
+    // Another sign-in, or none: an unsent Coach question must not meet the next person on this tab, nor Workboard's
+    // screens made for the old one (their pages hold its orders and its board).
+    if (signedIn !== undefined && epoch !== signedIn) {
+      coachUi?.forgetUnsentQuestions();
+      frames.reset();
+    }
     signedIn = epoch;
   };
   offs.push(ai.workspace.env.subscribe(onEnvironment));

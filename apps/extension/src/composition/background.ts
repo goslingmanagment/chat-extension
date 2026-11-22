@@ -180,7 +180,7 @@ import { createBackgroundNotes } from './background/notes';
 import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { createReportBoardBackground } from './background/report-board';
-import { TEST_FAN_STAND_IN_KEY, TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, frameOriginOf, teamOriginOf } from '@cg/contracts/report-board';
+import { CUSTOMS_FRAME_CAPABILITY, TEST_FAN_STAND_IN_KEY, TEST_FRAME_ORIGIN_KEY, TEST_REPORT_PULSE_KEY, frameOriginOf, teamOriginOf } from '@cg/contracts/report-board';
 import { reportPulseOf } from '@cg/core/domain/report-board';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
@@ -888,6 +888,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     ports: () => rpc.tabs().map((tab) => ({ tabSessionId: tab.tabSessionId, tabId: tab.tabId })),
     pageOf: (key) => pageLabelOfAccount(key),
     focus: (tabId) => reportFocus.focus(tabId),
+    // An open token of the bootstrap (contracts report-board.ts): no SDK of an older hub knows it, none needs to.
+    servesCustoms: () => (hubInstance?.session() ? (hubInstance.cachedBootstrap()?.bootstrap.capabilities ?? []).includes(CUSTOMS_FRAME_CAPABILITY) : false),
     emit: (type, payload, tabSessionId) => (rpc.emit as (type: string, payload: unknown, target?: { readonly tabSessionId: string }) => number)(type, payload, tabSessionId === undefined ? undefined : { tabSessionId }),
     now: () => Date.now(),
     log: (message, fields) => logger.info('bg.report', message, { fields }),
@@ -1552,6 +1554,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     });
     instance.onBootstrapChange((entry) => {
       void containerProxy.refresh().catch(() => undefined);
+      // The launcher's «Кастомы»: drawn once the person's hub says it serves the screen (hub package R, the frame).
+      reportBoard.served();
       const { configRevision, issuedAt, flags } = entry.bootstrap;
       rpc.emit('bootstrap.changed', { configRevision, issuedAt });
       // The top-level flags are the owner's `"*"` row; what a page may do travels with the bootstrap itself, which
@@ -1671,7 +1675,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // A test build's stand-in for the pulse (TEST_REPORT_PULSE_KEY): the row only, never the sightings' gate.
     const forced = stored[TEST_REPORT_PULSE_KEY] === undefined ? null : reportPulseOf(stored[TEST_REPORT_PULSE_KEY]);
     const standIn = stored[TEST_FAN_STAND_IN_KEY];
-    return ok({ report: forced ?? reportBoard.current(), origin, ...(typeof standIn === 'string' && /^[0-9]{1,30}$/.test(standIn) ? { fanStandIn: standIn } : {}) });
+    // What the bootstrap says now (a tab may ask before the first change was heard).
+    reportBoard.served();
+    return ok({ report: forced ?? reportBoard.current(), customs: reportBoard.customs(), origin, ...(typeof standIn === 'string' && /^[0-9]{1,30}$/.test(standIn) ? { fanStandIn: standIn } : {}) });
   });
   // Products package R5: a screen of Workboard asked by a tab (the order's card of the fan panel), in a new tab signed in
   // by the one-time link; a hub without the link — Workboard's plain address, where the person signs in.

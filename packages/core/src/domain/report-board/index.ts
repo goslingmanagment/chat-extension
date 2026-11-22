@@ -3,11 +3,12 @@
 // Pure: no DOM, no browser API.
 
 import { formatMills, formatTimeOfDay } from '@hub/look';
-import { ReportPulseSchema, type ReportPulse, type ReportSale, type ReportFetchMethod, type WorkboardFrameScreen } from '@cg/contracts/report-board';
+import { CUSTOM_ORDER_CODE, ReportPulseSchema, type ReportPulse, type ReportSale, type ReportFetchMethod, type WorkboardFrameScreen } from '@cg/contracts/report-board';
 
 /**
  * One allowed family of operations: a path prefix (`/api/v1/shift-reports` — itself and everything under it), or an
- * exact pattern (`:name` a path parameter of digits only), and the methods it takes.
+ * exact pattern (a path parameter: `:code` a custom order's code, `K-123`; any other `:name` digits only), and the
+ * methods it takes.
  */
 export interface FrameOperation {
   readonly methods: readonly ReportFetchMethod[];
@@ -41,6 +42,18 @@ export const FRAME_ALLOW_LISTS: Readonly<Record<WorkboardFrameScreen, readonly F
     { methods: ['POST'], path: '/api/v1/team/questions' },
     { methods: ['GET'], path: '/api/v1/auth/me' },
   ],
+  // The launcher's «Кастомы»: Workboard's customs facts screen reads the board (`customOrdersBoard`), the given and the
+  // closed (`customOrdersDone`), the findings (`customFindingsList`), what changed by itself (`customOrderChanges`) and an
+  // order (`customOrder`), and takes a step of one (`customOrderAct`, a narrow session's steps: Hub decides). Exactly
+  // these paths: a finding's resolution needs the password, the page list stays off, a new order is the fan panel's.
+  customs: [
+    { methods: ['GET'], path: '/api/v1/custom-orders' },
+    { methods: ['GET'], path: '/api/v1/custom-orders/done' },
+    { methods: ['GET'], path: '/api/v1/custom-orders/findings' },
+    { methods: ['GET'], path: '/api/v1/custom-orders/changes' },
+    { methods: ['GET', 'POST'], path: '/api/v1/custom-orders/:code' },
+    { methods: ['GET'], path: '/api/v1/auth/me' },
+  ],
 };
 
 /** A query string of plain characters only (no `#`, no second `?`, no spaces or quotes). */
@@ -48,6 +61,8 @@ const QUERY = /^[A-Za-z0-9_.,~=&%:-]{0,400}$/;
 /** A path segment of plain characters: no dot segments, nothing encoded (an encoded slash or dot would hide one). */
 const SEGMENT = /^[A-Za-z0-9_-]{1,80}$/;
 const DIGITS = /^[1-9][0-9]{0,18}$/;
+/** What a path parameter may be, by its name; any other name — digits. */
+const PARAMS: Readonly<Record<string, RegExp>> = { code: CUSTOM_ORDER_CODE };
 
 /**
  * The path a frame asks, normalised before any check: only `/api/v1/…` of the sign-in's own hub — no scheme or host,
@@ -77,7 +92,7 @@ export function frameRequestAllowed(screen: WorkboardFrameScreen, method: string
     if (pattern.length !== parts.length) return false;
     return pattern.every((piece, index) => {
       const part = parts[index] ?? '';
-      return piece.startsWith(':') ? DIGITS.test(part) : piece === part;
+      return piece.startsWith(':') ? (PARAMS[piece.slice(1)] ?? DIGITS).test(part) : piece === part;
     });
   });
 }

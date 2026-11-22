@@ -236,9 +236,10 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   // X46: the floating launcher's click opens its window as the popup's command does (`Navigate` to the surface): the
   // click kept while the application loaded at once, every next one in its own click — the gate sees it through our root.
   // A refusal speaks for itself where the router says it (a toast, the window's own state), as for the popup's command.
-  // 2026-11-15 (hub package R): the fifth row «Отчёт» opens Workboard's board over the site (tab/frames.ts).
+  // 2026-11-15 (hub package R): the fifth row «Отчёт» opens Workboard's board over the site (tab/frames.ts); the last
+  // row «Кастомы», Workboard's customs screen the same way.
   const offLauncher = env.host.launcher.serve((surface) => {
-    if (surface === 'report') env.frames?.open('report');
+    if (surface === 'report' || surface === 'customs') env.frames?.open(surface);
     else void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
   });
   // While the board's bar takes the bottom of the page, the corner card stands over it (the prototype's `.ln`, 58 px up).
