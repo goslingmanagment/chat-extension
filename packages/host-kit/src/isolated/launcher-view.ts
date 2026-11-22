@@ -97,6 +97,19 @@ export const LAUNCHER_FACES: Readonly<Record<LauncherTarget, LauncherFace>> = {
       ['path', { d: 'M6 9.7l1.4 1.4 2.6-2.9' }],
     ],
   },
+  // Workboard's «Кастомы» (the customs facts screen) in the frame: a video camera, what a custom mostly is. Every
+  // person's: the row is drawn whatever the pulse says.
+  customs: {
+    label: 'Кастомы',
+    title: 'Кастомы: сроки и заказы',
+    aria: 'Открыть «Кастомы»',
+    key: null,
+    glyph: [
+      ['rect', { x: '1.8', y: '4.4', width: '8.6', height: '7.2', rx: '1.7' }],
+      ['path', { d: 'M10.4 7.2l3.8-2.1v5.8l-3.8-2.1' }],
+      ['circle', { class: 'fill', cx: '4.6', cy: '7', r: '0.9' }],
+    ],
+  },
 };
 
 const isMac = (platform: string): boolean => /mac|darwin|iphone|ipad|ipod/i.test(platform);

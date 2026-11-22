@@ -99,6 +99,7 @@ import { fakeFanMarks } from './fan-marks';
 import { CursorSigner, DataModel, type FakeActivityBeat, type FakeNoteAttribution, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { REPORT_FRAME_PATH, forwardBoard, reportBoardAnswer, reportFrameHtml } from './report-board';
+import { CUSTOMS_FRAME_PATH, customsBoardAnswer, customsFrameHtml } from './workboard-customs';
 import { formFrameHtml, formScreenOf, stubPriceMills } from './workboard-forms';
 import { type OnlineSeed } from './online';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
@@ -759,6 +760,32 @@ export class FakeHub {
       if (!verdict.ok) return refuse({ kind: 'legacy', operation: 'report-board:demo', servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
       this.journal.record({ ...base, kind: 'legacy', operation: 'report-board:demo', status: upstream.status, servedBy: 'model', token: tokenOf({ token: verdict.token, user: verdict.user }) });
       return upstream;
+    }
+    // The launcher's «Кастомы» (workboard-customs.ts): its stub screen and the board's reads it asks through the port.
+    if (method === 'GET' && url.pathname === CUSTOMS_FRAME_PATH) {
+      this.journal.record({ ...base, kind: 'legacy', operation: 'workboard-customs:frame', status: 200, servedBy: 'model' });
+      return new Response(customsFrameHtml(), { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+    }
+    const customs = match.kind === 'route' ? null : customsBoardAnswer(method, url.pathname, {
+      rows: () => s.data.customOrders().map(({ custom, fanRef, fanName }) => ({
+        code: custom.code ?? `K-${String(custom.id)}`,
+        pageLabel: custom.pageLabel,
+        fan: fanName ?? fanRef,
+        task: custom.description,
+        step: custom.stepLabel ?? '',
+        priceMills: custom.priceMills,
+        deadlineOn: custom.deadlineOn ?? null,
+        overdueDays: custom.overdueDays ?? null,
+      })),
+      order: (code) => {
+        const found = s.data.customOrder(code, now);
+        return found.ok ? { status: 200, body: found.body } : { status: 404, body: hubErrorBody('not_found', 404, found.refusal.reason) };
+      },
+    });
+    if (customs !== null) {
+      if (!verdict.ok) return refuse({ kind: 'legacy', operation: `workboard-customs:${customs.what}`, servedBy: 'check' }, 'unauthorized', verdict.reason ?? undefined);
+      this.journal.record({ ...base, kind: 'legacy', operation: `workboard-customs:${customs.what}`, status: customs.status, servedBy: 'model', token: tokenOf({ token: verdict.token, user: verdict.user }) });
+      return json(customs.status, customs.body);
     }
     const board = match.kind === 'route' ? null : reportBoardAnswer(method, url.pathname, bodyText);
     if (board !== null) {

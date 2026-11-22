@@ -227,9 +227,9 @@ export interface SiteAppEnv<P extends HostPort = HostPort> {
    * «Рассылка»), px, so they keep clear of what the site holds in that corner; null — the pin's own place.
    */
   readonly pinBottom?: (px: number | null) => void;
-  /** 2026-11-15 (hub package R): Workboard's screens over the site; the launcher's «Отчёт» opens the board. */
+  /** 2026-11-15 (hub package R): Workboard's screens over the site; the launcher's «Отчёт» opens the board, «Кастомы» the customs screen. */
   readonly frames?: {
-    open(screen: 'report'): void;
+    open(screen: 'report' | 'customs'): void;
     /** Said when the board's bar comes or goes (the site moves what it covers). */
     onBar(listener: (shown: boolean) => void): () => void;
     /** The bar's left edge, px (ChatSpace: right of its account rail). */

@@ -115,10 +115,11 @@ export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () =
   // The rail's launcher (ui-design §3.13) opens its window as the popup's command does (`Navigate` to the surface): the
   // click kept while the application loaded at once, every next one in its own click — the gate sees it through our root.
   // A refusal speaks for itself where the router says it (a toast, the window's own state), as for the popup's command.
-  // 2026-11-15 (hub package R): the fifth icon «Отчёт» opens Workboard's board over the site (tab/frames.ts). Nothing
-  // of it in ChatSpace's dock (the owner): only the icon at the bottom of the account rail.
+  // 2026-11-15 (hub package R): the fifth icon «Отчёт» opens Workboard's board over the site (tab/frames.ts), the last
+  // one «Кастомы» Workboard's customs screen the same way. Nothing of them in ChatSpace's dock (the owner): only the
+  // icons at the bottom of the account rail.
   const offLauncher = env.host.launcher.serve((surface) => {
-    if (surface === 'report') env.frames?.open('report');
+    if (surface === 'report' || surface === 'customs') env.frames?.open(surface);
     else void env.deps.client.dispatch({ type: 'Navigate', to: { kind: 'surface', surface, open: true } }).catch(() => undefined);
   });
   // The board's bar starts right of the account rail: the rail and its icons stay whole (ChatSpace's own width).

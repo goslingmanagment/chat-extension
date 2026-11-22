@@ -50,6 +50,32 @@ describe('frameRequestAllowed: what a Workboard frame may ask of Hub with the de
     expect(frameRequestAllowed('ask', 'POST', '/api/v1/custom-orders')).toBe(false);
     expect(frameRequestAllowed('report', 'POST', '/api/v1/custom-orders')).toBe(false);
   });
+
+  it('lets «Кастомы» read the board and its blocks, read and step an order by its code, and nothing else', () => {
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders')).toBe(true);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders?pageLabel=lora-1')).toBe(true);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/done?days=30')).toBe(true);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/findings')).toBe(true);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/changes')).toBe(true);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/K-12')).toBe(true);
+    expect(frameRequestAllowed('customs', 'POST', '/api/v1/custom-orders/K-12')).toBe(true);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/auth/me')).toBe(true);
+    // A finding's resolution (the password's), «Не кастом», a new order, the page list, the board's steps by another
+    // name: not this screen's.
+    expect(frameRequestAllowed('customs', 'POST', '/api/v1/custom-orders/findings/7')).toBe(false);
+    expect(frameRequestAllowed('customs', 'POST', '/api/v1/custom-orders/sales/981337/dismiss')).toBe(false);
+    expect(frameRequestAllowed('customs', 'POST', '/api/v1/custom-orders')).toBe(false);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/pages')).toBe(false);
+    expect(frameRequestAllowed('customs', 'POST', '/api/v1/custom-orders/done')).toBe(false);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/12')).toBe(false);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/K-0')).toBe(false);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/k-12')).toBe(false);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/K-12/history')).toBe(false);
+    expect(frameRequestAllowed('customs', 'DELETE', '/api/v1/custom-orders/K-12')).toBe(false);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/shift-reports/current')).toBe(false);
+    // The forms keep their own: no order's step from «Записать кастом».
+    expect(frameRequestAllowed('custom', 'GET', '/api/v1/custom-orders/K-12')).toBe(false);
+  });
 });
 
 describe('reportPulseOf: the pulse read loosely', () => {

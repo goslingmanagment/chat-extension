@@ -1773,6 +1773,19 @@ export class DataModel {
     return custom.code ?? '';
   }
 
+  /** The launcher's «Кастомы» on the stand (workboard-customs.ts): every order the fan cards hold, newest first. */
+  customOrders(): ReadonlyArray<{ readonly custom: FanCardCustom; readonly fanRef: string; readonly fanName: string | null }> {
+    return [...this.cards.values()]
+      .flatMap((card) => (card.customs ?? []).map((custom) => ({ custom, fanRef: card.fanRef, fanName: card.accounts[0]?.displayName ?? card.accounts[0]?.username ?? null })))
+      .sort((a, b) => b.custom.id - a.custom.id);
+  }
+
+  /** One order by its code, as Workboard's `customOrder` reads it (the step's answer shape); nobody holds it — 404. */
+  customOrder(code: string, now: number): Read<Record<string, unknown>> {
+    const found = this.customOrders().find((one) => one.custom.code === code);
+    return found === undefined ? no('not_found', 'custom_not_found') : ok(orderDetail(found.custom, found.fanRef, now));
+  }
+
   /**
    * As Workboard's `customOrderAct` `given` (the fan panel's «Отдан»): only an order the board lets this person give
    * (`mayGive`), else 409 `not_allowed`; an order nobody holds — 404.

@@ -5,6 +5,8 @@
 // - `custom` and `ask` (products package R5), the fan panel's «Записать кастом» and «Спросить»: Workboard's own form and
 //   question window for one fan (the page and the fan in the address), made fresh on each open and gone when closed; no
 //   bar. `done` (recorded, asked) or a close ends it, and the fan panel hears which.
+// - `customs`, the launcher's «Кастомы»: Workboard's customs facts screen, made once and hidden when folded, as the
+//   board; no bar (its row is the way back). It says only its requests and `collapse`.
 //
 // What the frame says over its port, and what this does with it:
 // - `fetch` — one API request; the background runs it with the device token if the screen's allow-list has it, and
@@ -26,6 +28,7 @@ import {
   REPORT_FETCH_BODY_MAX,
   ReportSaleSchema,
   ReportStateSchema,
+  WORKBOARD_FORM_SCREENS,
   workboardFormPath,
   workboardFramePath,
   type ReportSale,
@@ -33,6 +36,7 @@ import {
   type WorkboardFormFor,
   type WorkboardFormScreen,
   type WorkboardFrameScreen,
+  type WorkboardLauncherScreen,
 } from '@cg/contracts/report-board';
 import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
 import { compareWords, notFoundWords, openTabWords, salesWords, type SaleLook } from '@cg/core/domain/report-board';
@@ -41,7 +45,8 @@ import type { ShadowRootRegistry } from '@cg/host-kit/isolated/shadow-registry';
 import type { TabRpcClient } from '@cg/platform';
 
 /** The board's title on the bar. */
-const TITLE: Readonly<Record<WorkboardFrameScreen, string>> = { report: 'Отчёт смены', custom: 'Записать кастом', ask: 'Спросить' };
+const TITLE: Readonly<Record<WorkboardFrameScreen, string>> = { report: 'Отчёт смены', custom: 'Записать кастом', ask: 'Спросить', customs: 'Кастомы' };
+const isForm = (screen: WorkboardFrameScreen): screen is WorkboardFormScreen => (WORKBOARD_FORM_SCREENS as readonly string[]).includes(screen);
 /** How often the screen under the bar is looked at while a board or a compare exists. */
 const SCREEN_WATCH_MS = 600;
 
@@ -70,8 +75,8 @@ export interface WorkboardFramesEnv {
 }
 
 export interface WorkboardFrames {
-  /** The launcher's «Отчёт» or the bar's button: the screen shows (made the first time). */
-  open(screen: WorkboardFrameScreen): void;
+  /** The launcher's «Отчёт» or «Кастомы», or the bar's button: the screen shows (made the first time). */
+  open(screen: WorkboardLauncherScreen): void;
   /**
    * Products package R5: Workboard's form («Записать кастом») or question window («Спросить») for one fan, over the
    * site; resolves when it closes — `done`: it recorded or asked. Another form open is closed first.
@@ -98,6 +103,7 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
   const request = (type: string, payload: unknown, options?: { readonly timeoutMs?: number }): Promise<{ readonly ok: boolean; readonly payload?: unknown }> =>
     (rpc.request as unknown as (this: TabRpcClient, type: string, payload: unknown, options?: { readonly timeoutMs?: number }) => Promise<{ readonly ok: boolean; readonly payload?: unknown }>).call(rpc, type, payload, options);
   const highlight = createRowHighlight(doc, env.tokens, () => env.scheme.value, env.pageLayer);
+  /** The launcher's screens made in this tab (a form is `formNow`, never kept). */
   const hosts = new Map<WorkboardFrameScreen, FrameHost>();
   let origin: string | null = null;
   let state: ReportState | null = null;
@@ -218,11 +224,13 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
     const frame = hosts.get(screen) ?? (formNow !== null && formNow.screen === screen ? formNow.frame : undefined);
     if (frame === undefined) return;
     // A form says only these: its requests, `done`, a close.
-    if (screen !== 'report' && message['t'] !== 'fetch') {
+    if (isForm(screen) && message['t'] !== 'fetch') {
       if (message['t'] === 'done' && message['screen'] === screen) endForm(true);
       else if (message['t'] === 'collapse') endForm(false);
       return;
     }
+    // «Кастомы» says only its requests and `collapse`: the board's own messages are not its.
+    if (screen === 'customs' && message['t'] !== 'fetch' && message['t'] !== 'collapse') return;
     switch (message['t']) {
       case 'fetch': {
         const id = message['id'];
@@ -314,7 +322,7 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
     }
   };
 
-  const host = async (screen: WorkboardFrameScreen): Promise<FrameHost | null> => {
+  const host = async (screen: WorkboardLauncherScreen): Promise<FrameHost | null> => {
     const made = hosts.get(screen);
     if (made !== undefined) return made;
     const frameOrigin = await originOf();
@@ -366,8 +374,8 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
       env.log('frame not opened', { screen, reason: 'origin' });
       return { done: false };
     }
-    // The board steps aside while a form is up (it stays loaded; the launcher brings it back).
-    hosts.get('report')?.hide();
+    // The launcher's screens step aside while a form is up (they stay loaded; the launcher brings them back).
+    for (const kept of hosts.values()) kept.hide();
     return new Promise((resolve) => {
       const frame = createFrameHost({
         doc,
@@ -391,12 +399,17 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
     });
   };
 
-  const open = (screen: WorkboardFrameScreen): void => {
-    // A form is opened for its fan only (`form`), never bare.
-    if (screen !== 'report') return;
+  const open = (screen: WorkboardLauncherScreen): void => {
     void host(screen).then((frame) => {
       if (frame === null) {
         env.log('frame not opened', { screen, reason: 'origin' });
+        return;
+      }
+      // One launcher screen over the site at a time: the other one folds (it stays loaded).
+      for (const [other, kept] of hosts) if (other !== screen) kept.hide();
+      if (screen === 'customs') {
+        frame.show();
+        frame.post({ t: 'show' });
         return;
       }
       const sale = compared;
