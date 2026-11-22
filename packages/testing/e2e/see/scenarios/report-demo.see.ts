@@ -7,7 +7,7 @@
 
 import { browser } from '@wdio/globals';
 
-import { FANSLY_MAIN } from '../../support/fansly-stand';
+import { FANSLY_MAIN, callFansly } from '../../support/fansly-stand';
 import { scenario, type See } from '../kit';
 import { REPORT_PULSE, barText, escapeInFrame, inFrame, launcherButton, layerShown, overlaps, pointFrames, reportRow, writeFacts } from '../report';
 
@@ -25,6 +25,11 @@ scenario(
     await s.ready();
     await pointFrames(s);
     await s.ready();
+    // `CG_SEE_SCHEME=dark`: the Fansly stand in its dark theme, so the frame shows the site's scheme, not the system's.
+    if (s.site === 'fansly' && process.env['CG_SEE_SCHEME'] === 'dark') {
+      await callFansly('setTheme', 'dark');
+      await s.wait(500);
+    }
     await browser.waitUntil(async () => (await reportRow(site.launcher)).shown, { timeout: 30_000, interval: 300, timeoutMsg: 'no fifth row' });
     const since = (await s.hub.journal()).next;
     await launcherButton(site.launcher, 'report').click();
