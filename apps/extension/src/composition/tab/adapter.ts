@@ -85,6 +85,8 @@ export interface ClosedHost {
 
 /** Our hosts and their closed roots (§9.1): how the keys and the gate learn that an event came from our UI. */
 export interface ShadowRegistry {
+  /** A host the tab makes itself (Workboard's frames over the site, tab/frames.ts) joins; the answer takes it out. */
+  register(host: Element, root: ShadowRoot): () => void;
   rootOf(host: Element): ShadowRoot | null;
   /** Our host the event passed through, or null. */
   hostOf(event: Event): Element | null;
@@ -145,10 +147,10 @@ export interface StartedHost<P extends HostPort = HostPort> {
    */
   readonly wantsApp?: { current(): boolean; onChange(listener: () => void): () => void };
   /**
-   * The site's launcher, as far as the early runtime feeds it: the fifth row «Отчёт» from the pulse (hub package R).
-   * Absent — the site has no launcher (Telegram, the e2e harness).
+   * The site's launcher, as far as the early runtime feeds it: the fifth row «Отчёт» from the pulse (hub package R), the
+   * last row «Кастомы» while the person's hub serves it. Absent — the site has no launcher (Telegram, the e2e harness).
    */
-  readonly launcher?: { setReport(report: { readonly needsMe: boolean } | null): void };
+  readonly launcher?: { setReport(report: { readonly needsMe: boolean } | null): void; setCustoms(shown: boolean): void };
 }
 
 /** The route by the address alone (§9.1): `epoch` is the path, so a kept key runs only where it was pressed. */

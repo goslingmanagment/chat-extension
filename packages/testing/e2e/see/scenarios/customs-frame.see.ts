@@ -1,4 +1,5 @@
-// customs-frame: the launcher's «Кастомы» (its last row, for everyone: no pulse needed) opens Workboard's customs screen
+// customs-frame: the launcher's «Кастомы» (its last row, for everyone signed in to a hub that serves it: the stand's
+// bootstrap lists `customs-frame-v1`, no pulse needed) opens Workboard's customs screen
 // over the site in the extension's frame, on ChatSpace and Fansly (`--site fansly`): the launcher with the row, the
 // screen with the requests it made through the background's allow-list (the fake hub's journal), an order opened, a
 // request off the list refused (the stub's), Esc folding the frame away (the drawer first on Hub's screen), the row
@@ -28,7 +29,7 @@ function order(pageLabel: string, id: number, description: string, priceMills: n
     id, pageLabel, granted: true, description, priceMills,
     state: state === 'recorded' ? 'ordered' : 'paid',
     paymentMills: null, paidAt: null, deliveredMessageRef: null, deliveredAt: null,
-    createdBy: 'Nikita', createdAt: ago(30), deliveryCandidates: [],
+    createdBy: 'Mira', createdAt: ago(30), deliveryCandidates: [],
     code: `K-${String(id)}`, stepLabel: label, stepAt: ago(5), orderState: state, deadlineOn: deadline, overdueDays: overdue, leader: null, mayGive: false,
   };
 }

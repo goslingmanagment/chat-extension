@@ -28,6 +28,7 @@
 // `telegramWorld()` is the owner's change that switches it on for a run.
 
 import { CHAT_IS_FAN, CLIENT_FEATURE_FLAG_NAMES, CLIENT_HUB_CAPABILITY_NAMES, type Bootstrap, type BootstrapLimits, type ClientFeatureFlag, type FeatureAvailability, type HubPageRef } from '@cg/contracts';
+import { CUSTOMS_FRAME_CAPABILITY } from '@cg/contracts/report-board';
 
 import {
   BINDING_KEY_ONE,
@@ -166,11 +167,15 @@ const allFlags = (on: (flag: ClientFeatureFlag) => boolean): Record<string, bool
  * chat (X54, `live-ppv-v1`, and Fansly's `live-ppv-fansly-v1`) and the fan's photos (`live-images-v1`). With either of
  * the last every draft start reads the open chat from the stand's API, our own read the stand labels `ours`; the specs
  * that count the stand's history loads of the page are written without them, and the ones that prove the PPV state
- * switch it on (`suite-live-ppv`, `see fansly-ppv`).
+ * switch it on (`suite-live-ppv`, `see fansly-ppv`). And `customs-frame-v1`: the stand serves «Кастомы» in the frame (its
+ * stub, fake-hub/workboard-customs.ts), an open token the vendored SDK does not list yet (contracts report-board.ts).
  */
-export const PILOT_CAPABILITIES: readonly string[] = CLIENT_HUB_CAPABILITY_NAMES.filter(
-  (capability) => capability !== 'client-health-perf-v1' && capability !== 'live-ppv-v1' && capability !== 'live-ppv-fansly-v1' && capability !== 'live-images-v1',
-);
+export const PILOT_CAPABILITIES: readonly string[] = [
+  ...CLIENT_HUB_CAPABILITY_NAMES.filter(
+    (capability) => capability !== 'client-health-perf-v1' && capability !== 'live-ppv-v1' && capability !== 'live-ppv-fansly-v1' && capability !== 'live-images-v1',
+  ),
+  CUSTOMS_FRAME_CAPABILITY,
+];
 
 const BASE = {
   pageFlags: {},

@@ -3,6 +3,8 @@
 //
 // - The pulse's `report` (the beat's answer): kept, and said to every tab when it changes — the launcher's fifth row
 //   «Отчёт» and its dot. null — the person has no board: the row is not drawn. A sign-out forgets it at once.
+// - `customs`: whether the person is signed in to a hub that serves «Кастомы» in the frame (the bootstrap's
+//   `customs-frame-v1`): said with the pulse to every tab when it changes — the launcher's last row. A sign-out: false.
 // - `frame.fetch`: one API request of a frame screen, run with the device token only when the screen's allow-list has
 //   it (core domain/report-board.ts). The token never leaves the background; the frame gets the status and the text.
 // - `report.find`: «show on the site». The sender's own tab when its route is on the sale's page; else the newest tab
@@ -33,6 +35,8 @@ export interface ReportBoardDeps {
   /** A page label of a host account key (`fansly:<id>`); null — not bound to a granted page. */
   readonly pageOf: (accountKey: string | null) => string | null;
   readonly focus: (tabId: number) => Promise<boolean>;
+  /** Whether the person signed in now is on a hub that serves «Кастомы» in the frame (its bootstrap says so). */
+  readonly servesCustoms: () => boolean;
   readonly emit: (type: 'report.changed' | 'report.find' | 'report.statement', payload: unknown, tabSessionId?: string) => number;
   readonly now: () => number;
   readonly log: (message: string, fields: Readonly<Record<string, unknown>>) => void;
@@ -41,11 +45,15 @@ export interface ReportBoardDeps {
 export interface ReportBoardBackground {
   /** The beat answered: its `report`, read loosely. */
   pulse(value: unknown): void;
-  /** Another person or nobody: the board is forgotten. */
+  /** The bootstrap changed (or is asked of): whether its hub serves «Кастомы», said to every tab when it changes. */
+  served(): void;
+  /** Another person or nobody: the board is forgotten, and «Кастомы» with it. */
   sessionChanged(): void;
   /** A tab reported its route: a find waiting for its page goes to it. */
   presence(tabSessionId: string): void;
   current(): ReportPulse | null;
+  /** The launcher's «Кастомы» is drawn. */
+  customs(): boolean;
   fetch(request: { readonly screen: WorkboardFrameScreen; readonly method: string; readonly path: string; readonly body: string | null }): Promise<ReportFetchAnswer>;
   find(sale: ReportSale, from: string): Promise<{ readonly where: 'here' | 'tab' | 'none' }>;
   statement(pages: readonly string[]): void;
@@ -58,14 +66,16 @@ const same = (a: ReportPulse | null, b: ReportPulse | null): boolean =>
 
 export function createReportBoardBackground(deps: ReportBoardDeps): ReportBoardBackground {
   let report: ReportPulse | null = null;
+  let customs = false;
   const waiting = new Map<string, { readonly sale: ReportSale; readonly at: number }>();
   const sent = new Set<string>();
   const lastReport = new Map<string, number>();
 
-  const take = (next: ReportPulse | null): void => {
-    if (same(next, report)) return;
+  const take = (next: ReportPulse | null, nextCustoms: boolean): void => {
+    if (same(next, report) && nextCustoms === customs) return;
     report = next;
-    deps.emit('report.changed', { report });
+    customs = nextCustoms;
+    deps.emit('report.changed', { report, customs });
   };
   const pageOfTab = (tab: TabPresence): string | null => deps.pageOf(tab.routeAccount);
   const deliver = async (tabSessionId: string, sale: ReportSale): Promise<boolean> => {
@@ -75,14 +85,16 @@ export function createReportBoardBackground(deps: ReportBoardDeps): ReportBoardB
   };
 
   return {
-    pulse: (value) => take(reportPulseOf(value)),
+    pulse: (value) => take(reportPulseOf(value), deps.servesCustoms()),
+    served: () => take(report, deps.servesCustoms()),
     sessionChanged() {
       waiting.clear();
       sent.clear();
       lastReport.clear();
-      take(null);
+      take(null, false);
     },
     current: () => report,
+    customs: () => customs,
     presence(tabSessionId) {
       if (waiting.size === 0) return;
       const tab = deps.tabs().find((candidate) => candidate.tabSessionId === tabSessionId);

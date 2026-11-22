@@ -523,9 +523,14 @@ export const TAB_REQUESTS = {
   // ── Workboard's screens in the frame over the site (hub package R, 2026-11-15; contracts report-board.ts) ──
   /**
    * The pulse's `report` as the background last heard it: null — the person has no board (the fifth row is not drawn).
+   * `customs`: the person is signed in to a hub that serves «Кастомы» in the frame (the launcher's last row is drawn).
    * `origin`: the team origin the frames come from (null — nobody signed in).
    */
-  'report.state': { req: Empty, res: z.strictObject({ report: z.nullable(ReportPulseSchema), origin: z.nullable(HubOriginSchema), fanStandIn: z.optional(NativeIdSchema) }), from: TAB },
+  'report.state': {
+    req: Empty,
+    res: z.strictObject({ report: z.nullable(ReportPulseSchema), customs: z.optional(z.boolean()), origin: z.nullable(HubOriginSchema), fanStandIn: z.optional(NativeIdSchema) }),
+    from: TAB,
+  },
   /**
    * One API request of a frame screen, relayed by the background with the device token, only when the screen's
    * allow-list has it (core domain/report-board.ts); the token never leaves the background.
@@ -1268,8 +1273,11 @@ export const TAB_EVENTS = {
    * for a request of the popup or the options page; the tab runs it as that
    * human action — a navigation, never an insert, a send or a generation.
    */
-  /** 2026-11-15: the pulse's `report` changed (the launcher's fifth row and its dot); null — the person has no board. */
-  'report.changed': { payload: z.strictObject({ report: z.nullable(ReportPulseSchema) }), to: TAB },
+  /**
+   * 2026-11-15: the pulse's `report` changed (the launcher's fifth row and its dot); null — the person has no board. With
+   * `customs`: whether the launcher's «Кастомы» is drawn (a sign-in to a hub that serves it; a sign-out takes it away).
+   */
+  'report.changed': { payload: z.strictObject({ report: z.nullable(ReportPulseSchema), customs: z.optional(z.boolean()) }), to: TAB },
   /** «Show on the site» handed to the tab of the sale's page: it frames the row and shows the bar with «К отчёту». */
   'report.find': { payload: z.strictObject({ sale: ReportSaleSchema }), to: TAB },
   /** The board asks these pages' OnlyFans statements to be read again now: a ChatSpace tab of them does it. */

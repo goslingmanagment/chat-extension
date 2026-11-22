@@ -6,7 +6,9 @@
 //   question window for one fan (the page and the fan in the address), made fresh on each open and gone when closed; no
 //   bar. `done` (recorded, asked) or a close ends it, and the fan panel hears which.
 // - `customs`, the launcher's «Кастомы»: Workboard's customs facts screen, made once and hidden when folded, as the
-//   board; no bar (its row is the way back). It says only its requests and `collapse`.
+//   board; no bar (its row is the way back). It says only its requests, `copy` and `collapse`, and hears `show` on
+//   each open (it reads itself again).
+// Another sign-in, or none (`reset`): every screen made for the old one goes, and the origin is asked again.
 //
 // What the frame says over its port, and what this does with it:
 // - `fetch` — one API request; the background runs it with the device token if the screen's allow-list has it, and
@@ -84,6 +86,11 @@ export interface WorkboardFrames {
   form(screen: WorkboardFormScreen, form: WorkboardFormFor): Promise<{ readonly done: boolean }>;
   /** A find the background handed to this tab (another tab's «show on the site»). */
   find(sale: ReportSale): void;
+  /**
+   * Another person signed in, or nobody: the screens made for the old sign-in go (their pages hold its orders and its
+   * board), an open form closes, and the next open makes them anew from the origin asked again.
+   */
+  reset(): void;
   /** Said when the bar comes or goes (Fansly's corner card rises over it). */
   onBar(listener: (shown: boolean) => void): () => void;
   /** The bar's left edge (ChatSpace: right of its account rail). */
@@ -185,6 +192,8 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
 
   const findHere = async (sale: ReportSale): Promise<void> => {
     watch();
+    // The row is looked for on the site: «Кастомы» over it folds (it stays loaded; its row brings it back).
+    hosts.get('customs')?.hide();
     compared = sale;
     const words = compareWords(sale, env.saleLook);
     compare = { page: words.page, rest: words.rest };
@@ -229,8 +238,9 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
       else if (message['t'] === 'collapse') endForm(false);
       return;
     }
-    // «Кастомы» says only its requests and `collapse`: the board's own messages are not its.
-    if (screen === 'customs' && message['t'] !== 'fetch' && message['t'] !== 'collapse') return;
+    // «Кастомы» says only its requests, `copy` («Скопировать» of an order's card) and `collapse`: the board's own
+    // messages are not its.
+    if (screen === 'customs' && message['t'] !== 'fetch' && message['t'] !== 'copy' && message['t'] !== 'collapse') return;
     switch (message['t']) {
       case 'fetch': {
         const id = message['id'];
@@ -363,8 +373,12 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
   };
   /** The latest open asked for: an open that is no longer the latest makes nothing (round 2, N9). */
   let formAsked = 0;
+  /** The same for the launcher's screens: a double click, or a form asked meanwhile, leaves one thing over the site. */
+  let openAsked = 0;
   const form = async (screen: WorkboardFormScreen, who: WorkboardFormFor): Promise<{ readonly done: boolean }> => {
     const asked = ++formAsked;
+    // A launcher screen still waiting for its origin shows nothing over the form.
+    openAsked += 1;
     endForm(false);
     const frameOrigin = await originOf();
     // Another open came while this one waited for the origin (a double click on the first use): that one is the window.
@@ -400,7 +414,12 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
   };
 
   const open = (screen: WorkboardLauncherScreen): void => {
+    const asked = ++openAsked;
+    // A form of the fan panel up over the site closes: the launcher's screen is what the person asked for now.
+    endForm(false);
     void host(screen).then((frame) => {
+      // Another open (a second click, the other row) or a form came while this one waited: that one stands.
+      if (asked !== openAsked) return;
       if (frame === null) {
         env.log('frame not opened', { screen, reason: 'origin' });
         return;
@@ -433,6 +452,19 @@ export function createWorkboardFrames(env: WorkboardFramesEnv): WorkboardFrames 
     form,
     find(sale) {
       void findHere(sale);
+    },
+    reset() {
+      openAsked += 1;
+      formAsked += 1;
+      endForm(false);
+      for (const frame of hosts.values()) frame.dispose();
+      hosts.clear();
+      origin = null;
+      state = null;
+      compare = null;
+      compared = null;
+      highlight.clear();
+      sayBar();
     },
     onBar(listener) {
       barListeners.add(listener);

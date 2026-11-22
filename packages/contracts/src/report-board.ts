@@ -83,6 +83,13 @@ export type WorkboardFormScreen = (typeof WORKBOARD_FORM_SCREENS)[number];
  */
 export const WORKBOARD_LAUNCHER_SCREENS = ['report', 'customs'] as const satisfies readonly WorkboardFrameScreen[];
 export type WorkboardLauncherScreen = (typeof WORKBOARD_LAUNCHER_SCREENS)[number];
+/**
+ * The bootstrap's capability by which Hub says it serves «Кастомы» in the frame (`/workboard/frame/customs` framed by the
+ * sites, the board's reads open to the device token; hub #1501): the launcher's row is drawn only for a person signed in
+ * to such a hub, so the extension and Hub may be released in either order. Read as an open token of the bootstrap: it
+ * joins CLIENT_HUB_CAPABILITY_NAMES (hub/wire.ts) once the SDK is vendored from a hub that lists it.
+ */
+export const CUSTOMS_FRAME_CAPABILITY = 'customs-frame-v1';
 /** Who a form is for: the open chat's page and fan, as Workboard's form takes them filled in. */
 export interface WorkboardFormFor {
   readonly pageLabel: string;

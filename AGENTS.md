@@ -17,7 +17,8 @@ the fifth button «Отчёт» (Fansly's corner card, ChatSpace's icons; since 
 `https://gosling-agency.ru`, contracts `frameOriginOf`: the container router sees only names the extension may reach, so
 a model's container sends the frame through the page's proxy); the fan panel's «Записать кастом» and
 «Спросить» open Workboard's own form and question window in the same frame (`/workboard/frame/custom`, `/frame/ask`);
-the launcher's last row «Кастомы», shown to everyone, opens Workboard's customs screen there (`/frame/customs`);
+the launcher's last row «Кастомы», shown to everyone signed in to a hub whose bootstrap lists `customs-frame-v1`, opens
+Workboard's customs screen there (`/frame/customs`);
 other Workboard screens open in a tab by a one-time link, no password. The one map of the system is `~/code/SYSTEM.md` on the owner's
 machine.
 

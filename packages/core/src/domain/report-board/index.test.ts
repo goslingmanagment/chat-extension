@@ -53,7 +53,7 @@ describe('frameRequestAllowed: what a Workboard frame may ask of Hub with the de
 
   it('lets «Кастомы» read the board and its blocks, read and step an order by its code, and nothing else', () => {
     expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders')).toBe(true);
-    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders?pageLabel=lora-1')).toBe(true);
+    expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders?pageLabel=test-1')).toBe(true);
     expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/done?days=30')).toBe(true);
     expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/findings')).toBe(true);
     expect(frameRequestAllowed('customs', 'GET', '/api/v1/custom-orders/changes')).toBe(true);
