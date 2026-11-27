@@ -702,7 +702,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
 
   const xhr = stopped ? inert : installXhrTap<XhrStamp>(win, natives, {
     start() {
-      // A video.js loaded late: the hook stands from its manifest's request on, before its first probe.
+      // A video.js loaded late: this is `loadstart`, after VHS ran its hooks for this request, so the hook stands
+      // from the next one on: the manifest that found it goes as it came, its first probe gets the Range.
       vhs.attach();
       if (stopped || disposed) return { seq, epoch, confirmed: false, gesture: null };
       seq += 1;

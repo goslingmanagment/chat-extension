@@ -21,11 +21,13 @@
 //   ours returned. It catches its own failure, counts it (`vhsRequests`) and gives the options back as they came.
 // - `videojs` comes with Fansly's deferred script, after document_start. The hook goes onto it once it is there: at
 //   the start (a late injection), at a script's `load` (in the capture phase on the document: a video.js loaded
-//   later, before its first manifest), at DOMContentLoaded and at each request's start (index.ts) — a manifest always
-//   comes before a probe.
+//   later, before its first manifest), at DOMContentLoaded and at each request's start (index.ts: `loadstart`, after
+//   VHS ran its hooks for that request, so from the next request on — a manifest always comes before a probe).
 // - The old extension (FS-CO-1): no hook on its page, ours taken off when it shows up later. `dispose()` leaves the
 //   hook on: an update of the extension disposes this copy and starts no other until a reload (legacy.ts
-//   `previousMain`), and the open tab's video would hang again.
+//   `previousMain`), and the open tab's video would hang again. So after `dispose()` nothing takes it off: the old
+//   extension turned on in that tab before a reload finds ours still tuning the player's requests (it never reads
+//   them: no `videojs` in its code).
 
 import { isPlain, type Plain } from '@cg/host-kit/main/check';
 
