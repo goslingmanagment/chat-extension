@@ -212,6 +212,21 @@ describe('[X8-04] an account is armed only with proof (§6.7.5 «Готовно�
     expect(h.checkpoint().coverage).toBe('ok');
   });
 
+  it('2026-11-28: a subscription ChatSpace does not announce (0.391.0) loses no fan message', () => {
+    const h = begin();
+    h.subscribed = new Set();
+    h.tap.sync();
+    const socket = h.connect();
+    socket.receive(frames.authenticated);
+    socket.receive(frames.summary(ACC));
+    expect(h.checkpoint().coverage).toBe('unknown');
+    // ChatSpace subscribes the account; its store's watchers hear nothing, so no sync.
+    h.subscribed = new Set([ACC]);
+    socket.receive(frames.message(ACC, FAN, '5001', true));
+    expect(h.facts.map((fact) => fact.msgId)).toEqual(['5001']);
+    expect(h.checkpoint()).toMatchObject({ coverage: 'ok', fanSequence: 1 });
+  });
+
   it('a sleep gap voids every checkpoint; a frame after it arms the account again', () => {
     const h = begin();
     const socket = h.armed();

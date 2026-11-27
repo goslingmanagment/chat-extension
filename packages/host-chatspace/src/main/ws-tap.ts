@@ -31,7 +31,10 @@
 //   never «unreadable».
 // - An account is «armed» (§6.8 п. 6) when the current socket saw
 //   `authenticated`, the account is in ChatSpace's `subscribedAccountIds`
-//   (which the tap watches) and a frame of that account came on this socket
+//   (which the tap watches, and reads again every tick and before it drops a
+//   frame: since 0.391.0 ChatSpace keeps the set behind a computed of a
+//   private Map, so its store's watchers hear nothing when it changes) and a
+//   frame of that account came on this socket
 //   since it was last subscribed. A new socket, a lost subscription, a sleep
 //   gap, an overflow or a frame that names a message and cannot be read as
 //   one void every checkpoint taken before: coverage is `unknown`, never
@@ -192,11 +195,22 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     observable = members !== null;
     socketReport();
   };
-  /** A sleep (or a stalled tab) between two ticks: frames may have been missed. */
+  /**
+   * Whether a frame of `acc` is ours: ChatSpace subscribed the account (any account while the set is not readable).
+   * The set is read as it is now, never as the last sync left it: ChatSpace 0.391.0 changes it without a word to its
+   * store's watchers, and a frame dropped on a stale answer is a fan's message the hub never gets.
+   */
+  const ours = (acc: string): boolean => {
+    const state = account(acc);
+    if ((sink?.members()?.has(acc) === true) !== state.subscribed) sync();
+    return !observable || state.subscribed;
+  };
+  /** A sleep (or a stalled tab) between two ticks: frames may have been missed. The set is read again, as `ours` says why. */
   const tick = (): void => {
     const now = clock();
     if (now - tickAt > TICK_MS + GAP_MS) lose('sleep');
     tickAt = now;
+    sync();
   };
   const timer = win.setInterval(guard('tick', tick), TICK_MS);
   /** The `wsFrames` anchor follows the last frame that named a message. */
@@ -222,7 +236,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     const root = isPlain(frame) ? frame : {};
     const acc = idOf(isPlain(root['account']) ? root['account']['account_id'] : null);
     // Not an account of this port (another platform's, or not subscribed): the frame is not ours, readable or not.
-    if (acc && observable && !account(acc).subscribed) return;
+    if (acc && !ours(acc)) return;
     // Anything but a message frame as we know it — another envelope, an id or a direction we cannot read — may have
     // carried a fan's message: «unknown», never «nothing new» (§6.7.5).
     const body = root['event'] === WS_NEW_MESSAGE && isPlain(root['message']) ? root['message'] : {};
@@ -271,13 +285,13 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     if (!isPlain(frame) || frame['event'] !== WS_DATA_UPDATED || frame['type'] !== WS_USER_NOTES) return;
     const acc = idOf(isPlain(frame['account']) ? frame['account']['account_id'] : null);
     const fan = idOf(frame['id']);
-    if (acc && fan && !(observable && !account(acc).subscribed)) sink?.notes?.(acc, fan);
+    if (acc && fan && ours(acc)) sink?.notes?.(acc, fan);
   };
   /** A deletion, a fan's purchase or tip (feed.ts `socketRecord`): for an account of this port only. */
   const money = (frame: unknown): void => {
     if (!isPlain(frame)) return;
     const acc = idOf(isPlain(frame['account']) ? frame['account']['account_id'] : null);
-    if (!acc || (observable && !account(acc).subscribed)) return;
+    if (!acc || !ours(acc)) return;
     const record = socketRecord(frame, new Date(clock()).toISOString());
     if (record !== null) feed.push(acc, record);
   };
