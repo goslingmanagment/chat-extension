@@ -134,8 +134,9 @@ export const config: WebdriverIO.Config = {
           'browser.helperApps.neverAsk.saveToDisk': 'text/plain,application/json',
           // --live: no service workers. Fansly's own (Angular's) fetches whatever a page asks without `ngsw-bypass`
           // itself, and BiDi does not see a worker's requests: the journal of writes (e2e/see/live.ts) would miss
-          // them. Measured 2026-10-24 with a probe POST.
-          ...(live ? { 'dom.serviceWorkers.enabled': false } : {}),
+          // them. Measured 2026-10-24 with a probe POST. CG_SEE_LIVE_SW=1 keeps them on, the path a chatter's Firefox
+          // takes (the player's video, `fansly-video`); set either way, as the durable profile keeps the last value.
+          ...(live ? { 'dom.serviceWorkers.enabled': process.env['CG_SEE_LIVE_SW'] === '1' } : {}),
           // --live through a SOCKS5 tunnel of this browser alone (CG_SEE_LIVE_SOCKS=127.0.0.1:<port>, e.g. `ssh -N -D`):
           // where the machine's own route to fansly.com is reset, the machine's network stays as it is.
           ...(live && liveSocks !== null

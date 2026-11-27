@@ -13,8 +13,9 @@
 // install keeps its own failure: without the boot there is no channel to
 // report it on.
 //
-// Which socket and which API are the page's comes from Fansly's runtime row; a
-// TEST build also watches the stand's loopback ones, and only it carries them.
+// Which socket, which API and which media are the page's comes from Fansly's
+// runtime row; a TEST build also watches the stand's loopback ones, and only it
+// carries them.
 
 import { installFanslyMain } from '@cg/host-fansly/main';
 import type { UnlistedScriptDefinition } from 'wxt';
@@ -27,7 +28,11 @@ const definition: UnlistedScriptDefinition = defineUnlistedScript(() => {
     installFanslyMain(
       window,
       __CG_TEST_HOSTS__
-        ? { socketHosts: [...FANSLY_NETWORK.socketHosts, ...FANSLY_STAND_NETWORK.socketHosts], apiOrigins: [...FANSLY_NETWORK.apiOrigins, ...FANSLY_STAND_NETWORK.apiOrigins] }
+        ? {
+            socketHosts: [...FANSLY_NETWORK.socketHosts, ...FANSLY_STAND_NETWORK.socketHosts],
+            apiOrigins: [...FANSLY_NETWORK.apiOrigins, ...FANSLY_STAND_NETWORK.apiOrigins],
+            mediaOrigins: [...FANSLY_NETWORK.mediaOrigins, ...FANSLY_STAND_NETWORK.mediaOrigins],
+          }
         : FANSLY_NETWORK,
     );
   } catch {

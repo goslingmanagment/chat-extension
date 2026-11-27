@@ -13,6 +13,9 @@
 //   start);
 // - the socket's tap (ws-tap.ts) and the XHR observer (xhr-tap.ts): Proxies
 //   with one trap, `construct`, and our listeners on the page's own instances;
+// - the page's video (vhs-requests.ts, 2026-11-27): VHS's range-less probe of a
+//   track gets a `Range`, its DASH requests `ngsw-bypass`, through VHS's own
+//   request hook — whatever the observation does, after `dispose()` too;
 // - every frame read, three levels, packages, its completeness sign
 //   (frame-parse.ts); the response table and its bounded deferred queue
 //   (responses.ts);
@@ -115,6 +118,7 @@ import {
 import { classifyAddress, createResponseQueue, readResponse, type ApiCall, type Deferred, type ResponseRead } from './responses';
 import { createSendGesture, type Gesture } from './send-gesture';
 import { createViews, isFocus, isSnapshotRequest, isWindowRequest, isGroupForFan, type Views } from './snapshot';
+import { installVhsRequests } from './vhs-requests';
 import { installWsTap, type TapNatives } from './ws-tap';
 import { installXhrTap } from './xhr-tap';
 
@@ -124,6 +128,8 @@ export interface FanslyNetwork {
   readonly socketHosts: readonly string[];
   /** Origins of the page's API, whose paths are `/api/v1/…`; an origin matches with a port after it too. */
   readonly apiOrigins: readonly string[];
+  /** Origins of the page's media (its CDN), whose video requests are tuned (vhs-requests.ts); with a port after it too. */
+  readonly mediaOrigins: readonly string[];
 }
 
 /** A time histogram over `bounds`: bucket i counts values ≤ bounds[i], the last one what is above them all. */
@@ -201,6 +207,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
 
   let stopped = hasLegacy(win);
   let disposed = false;
+  // The page's video (vhs-requests.ts): none on the old extension's page; it stands after `dispose()`.
+  const vhs = stopped
+    ? { attach: () => false, restore: () => undefined }
+    : installVhsRequests(win, network.mediaOrigins, { ...natives, Url, unlistenOn: (target, type, listener) => remove.call(target, type, listener, CAPTURE) });
   let fbuddy = readFBuddy(win);
   /** The page's sockets so far; the newest one's epoch. */
   let epoch = 0;
@@ -692,6 +702,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
 
   const xhr = stopped ? inert : installXhrTap<XhrStamp>(win, natives, {
     start() {
+      // A video.js loaded late: the hook stands from its manifest's request on, before its first probe.
+      vhs.attach();
       if (stopped || disposed) return { seq, epoch, confirmed: false, gesture: null };
       seq += 1;
       return { seq, epoch, confirmed, gesture: sends.mark() };
@@ -752,6 +764,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       built = null;
       confirmed = false;
       // Keep a foreign wrapper intact; our existing per-instance callbacks are inert.
+      vhs.restore();
       ws.restore();
       xhr.restore();
       sends.dispose();
@@ -762,6 +775,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     } else if (changed) emitter.state(EVT_IDENTITY, identityState());
   };
   const ready = guard('neighbors', () => {
+    // Fansly's deferred scripts have run: `videojs` is there.
+    vhs.attach();
     refreshNeighbors(); end();
     // Another extension may append its DOM in a later DOMContentLoaded listener.
     context.setTimer(() => { refreshNeighbors(); end(); }, 0);
@@ -871,6 +886,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     },
     dispose() {
       disposed = true;
+      // The video's hook stays (vhs-requests.ts): no other copy of MAIN puts one on before a reload.
       built = null;
       emitter.retire();
       win.document.removeEventListener('DOMContentLoaded', ready);

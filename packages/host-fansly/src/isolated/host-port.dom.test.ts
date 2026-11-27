@@ -618,7 +618,7 @@ describe('[host:fansly] the port over the real MAIN', () => {
     const win = pageWindow();
     // MAIN at document_start: the page has not begun.
     Object.defineProperty(document, 'readyState', { value: 'loading', configurable: true });
-    const main = installFanslyMain(win, { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com'] });
+    const main = installFanslyMain(win, { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com'], mediaOrigins: ['https://cdn3.fansly.com'] });
     Reflect.deleteProperty(document, 'readyState');
     const diagnostics: FanslyDiagnostic[] = [];
     const started = startFanslyHost({ win, validation: loadValidation, redeem: NO_TOKEN, handshakeTimeoutMs: 1000, onDiagnostic: (diagnostic) => diagnostics.push(diagnostic) });
