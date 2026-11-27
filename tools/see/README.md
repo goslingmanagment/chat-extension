@@ -102,6 +102,7 @@ board in the frame on either site: `CG_SEE_FRAME_ORIGIN` and `CG_SEE_BOARD_API` 
 media viewer with nothing of ours at any control of the player, Spenders over it by ⌘⇧M, the card back and clickable,
 Wallet history's bar and highlight under a window, the side menu, the vault's entry hidden under the viewer;
 `layers.json` what stands at each point; `--live` with `CG_SEE_LIVE_PATH=/creator/vault` opens a vault video),
+`fansly-video` (`--live` only, `CG_SEE_LIVE_SW=1 CG_SEE_LIVE_PATH=/creator/vault`: a vault video plays under Fansly's worker, each VHS probe with our `bytes=0-65535` answered 206; `video.json`; `CG_SEE_VIDEO_HOOK=off` is the red check),
 `fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
 фоловеров в фоне», then «Новые фоловеры проверены» and its «Открыть» back on the same pass). `launch` (the showcase world's pictures of 3.0's launch, below).
 On Telegram (`--site telegram`: the Web A stand, `http://telegram.localhost:<port>/a/#<peer id>`, Lora's account bound
@@ -197,7 +198,7 @@ production hub). A scenario takes ~15 s.
   `writes.json` and the `write …` lines (a read mark, «печатает», a send, a
   post, an upload, the site's telemetry). Service workers are off in that
   profile: BiDi does not see Fansly's own worker, which carries any request a
-  page makes without `ngsw-bypass`. The extension's event page is out of
+  page makes without `ngsw-bypass`. `CG_SEE_LIVE_SW=1` keeps them on, as a chatter's Firefox has them (`fansly-video`); the journal then misses what the worker sends. The extension's event page is out of
   WebDriver's sight too (notes, `group.create`). X8's send needs the fake hub's
   `previewSend`, which `--live` never switches on.
 - **The page's own traffic, with bodies**: every XMLHttpRequest and fetch of
